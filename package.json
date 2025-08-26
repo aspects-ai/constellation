@@ -1,0 +1,56 @@
+{
+  "name": "constellationfs",
+  "version": "0.1.0",
+  "description": "A filesystem abstraction for AI agents that provides familiar bash commands instead of custom APIs",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "filesystem",
+    "ai",
+    "agents",
+    "bash",
+    "typescript",
+    "tools"
+  ],
+  "author": "ConstellationFS Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/constellation-fs/constellation-fs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/constellation-fs/constellation-fs/issues"
+  },
+  "homepage": "https://github.com/constellation-fs/constellation-fs#readme",
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@typescript-eslint/eslint-plugin": "^8.32.1",
+    "@typescript-eslint/parser": "^8.37.0",
+    "eslint": "^8.57.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.8.3",
+    "vite": "^5.1.6",
+    "vite-plugin-dts": "^4.2.3",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
