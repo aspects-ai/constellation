@@ -1,11 +1,11 @@
-import { FileSystem } from '../FileSystem.js'
-import { FileSystemOptions } from '../types.js'
+import type { FileSystem } from '../FileSystem.js'
+import type { FileSystemOptions } from '../types.js'
 
 /**
- * Base interface that all SDK adapters should implement
+ * Base interface that all Agent SDK adapters should implement
  * Provides common functionality and access to the underlying FileSystem
  */
-export interface SDKAdapter {
+export interface AgentSDKAdapter {
   /**
    * Get the underlying FileSystem instance
    */
@@ -25,8 +25,11 @@ export interface SDKAdapter {
 /**
  * Abstract base class for SDK adapters
  * Provides common functionality that all adapters can use to interact with different AI frameworks
+ * 
+ * New adapters should extend this class. General shell commands can be routed through the `exec` method, while specific shell commands
+ * should be implemented in the adapter via POSIXCommands.
  */
-export abstract class BaseSDKAdapter implements SDKAdapter {
+export abstract class BaseSDKAdapter implements AgentSDKAdapter {
   constructor(protected readonly fs: FileSystem) {}
 
   get fileSystem(): FileSystem {

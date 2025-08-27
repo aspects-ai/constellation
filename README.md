@@ -378,10 +378,18 @@ Enhanced tooling and debugging:
 
 We welcome contributions! ConstellationFS aims to be the standard filesystem abstraction for AI agents.
 
-- **Issues**: Report bugs or request features
-- **Pull Requests**: All contributions welcome
-- **Documentation**: Help improve our docs
-- **Community**: Join our Discord for discussions
+- **[Contributing Guide](CONTRIBUTING.md)**: Development setup, guidelines, and best practices
+- **[Code of Conduct](CODE_OF_CONDUCT.md)**: Our community standards
+- **[Security Policy](SECURITY.md)**: Report security vulnerabilities
+- **[Issue Templates](.github/ISSUE_TEMPLATE/)**: Bug reports, feature requests, and questions
+
+### Ways to Contribute
+
+- **Report Bugs**: Use our [bug report template](.github/ISSUE_TEMPLATE/bug_report.md)
+- **Request Features**: Share ideas using the [feature request template](.github/ISSUE_TEMPLATE/feature_request.md)
+- **Submit PRs**: Check our [contributing guide](CONTRIBUTING.md) and [PR template](.github/PULL_REQUEST_TEMPLATE.md)
+- **Improve Docs**: Help make our documentation clearer and more comprehensive
+- **Share Feedback**: Let us know how you're using ConstellationFS
 
 ## Philosophy
 

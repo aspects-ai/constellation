@@ -1,10 +1,7 @@
-import { 
-  FileInfo, 
-  FileSystemBackend,
-  FileSystemError, 
-  RemoteBackendConfig
-} from '../types.js'
 import { ERROR_CODES } from '../constants.js'
+import type { FileInfo } from '../types.js'
+import { FileSystemError } from '../types.js'
+import type { FileSystemBackend, RemoteBackendConfig } from './types.js'
 
 /**
  * Stub implementation for remote filesystem backend
@@ -27,7 +24,7 @@ export class RemoteBackend implements FileSystemBackend {
       'Remote backend is not yet implemented. ' +
       'Please use the local backend for development or the Docker backend for isolation. ' +
       'Remote backend support is planned for a future release.',
-      ERROR_CODES.BACKEND_NOT_IMPLEMENTED
+      ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
     )
   }
 

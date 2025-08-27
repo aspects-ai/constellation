@@ -1,11 +1,12 @@
-import { FileSystem } from '../FileSystem.js'
-import { FileInfo } from '../types.js'
+import type { FileSystem } from '../FileSystem.js'
+import type { FileInfo } from '../types.js'
+import type { GrepOptions } from '../utils/POSIXCommands.js'
+import { POSIXCommands } from '../utils/POSIXCommands.js'
 import { BaseSDKAdapter } from './BaseAdapter.js'
-import { GrepOptions, POSIXCommands } from '../utils/POSIXCommands.js'
 
 /**
- * Adapter that maps Claude Code tools to ConstellationFS operations
- * This provides a familiar interface for Claude agents using ConstellationFS
+ * Adapter mapping Claude Code tools to ConstellationFS operations
+ * This provides a plug-and-play interface for agents using Claude Code SDK.
  */
 export class ClaudeCodeAdapter extends BaseSDKAdapter {
   constructor(fs: FileSystem) {
@@ -28,10 +29,9 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
    */
   async LS(path?: string): Promise<string[]> {
     if (path) {
-      // Use POSIX-compliant ls command for consistency across platforms
       const command = POSIXCommands.ls(path)
       return this.exec(command).then(output => 
-        output ? output.split('\n').filter(Boolean) : []
+        output ? output.split('\n').filter(Boolean) : [],
       )
     } else {
       const result = await this.ls()
@@ -67,13 +67,14 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
       ignoreCase?: boolean
       lineNumbers?: boolean
       context?: number
-    } = {}
+    } = {},
   ): Promise<string> {
+     // We use recursive search if no specific files are provided
     const grepOptions: GrepOptions = {
       ignoreCase: options.ignoreCase,
       lineNumbers: options.lineNumbers,
       context: options.context,
-      recursive: !options.files, // Use recursive search if no specific files provided
+      recursive: !options.files,
     }
     
     const command = POSIXCommands.grep(pattern, options.files, grepOptions)

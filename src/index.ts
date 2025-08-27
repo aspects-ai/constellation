@@ -1,41 +1,25 @@
 import { FileSystem as FS } from './FileSystem.js'
 
-export { FileSystem } from './FileSystem.js'
-export { 
-  FileSystemError, 
-  DangerousOperationError,
-  type FileSystemInterface,
-  type FileSystemBackend,
-  type FileSystemOptions,
-  type FileSystemInput,
-  type FileInfo,
-  type BackendConfig,
-  type LocalBackendConfig,
-  type RemoteBackendConfig,
-  type DockerBackendConfig
-} from './types.js'
-export { isDangerous, getBaseCommand } from './safety.js'
-export { BaseSDKAdapter, type SDKAdapter, ClaudeCodeAdapter } from './adapters/index.js'
-export { BackendFactory, LocalBackend, RemoteBackend, DockerBackend } from './backends/index.js'
-export { POSIXCommands, type LSOptions, type GrepOptions, type FindOptions } from './utils/POSIXCommands.js'
-export { 
-  BACKEND_TYPES,
-  SHELL_TYPES, 
-  AUTH_TYPES,
-  DEFAULTS,
-  ERROR_CODES,
-  type BackendType,
-  type ShellType,
-  type AuthType,
-  type ErrorCode
-} from './constants.js'
+export { BaseSDKAdapter, ClaudeCodeAdapter, type SDKAdapter } from './adapters/index.js'
+export { BackendFactory, DockerBackend, LocalBackend, RemoteBackend } from './backends/index.js'
+export { ConstellationFS } from './config/Config.js'
 export {
-  setLogger,
+  AUTH_TYPES, BACKEND_TYPES, DEFAULTS,
+  ERROR_CODES, SHELL_TYPES, type AuthType, type BackendType, type ErrorCode, type ShellType
+} from './constants.js'
+export { FileSystem } from './FileSystem.js'
+export { getBaseCommand, isDangerous } from './safety.js'
+export {
+  DangerousOperationError, FileSystemError, type BackendConfig, type DockerBackendConfig, type FileInfo, type FileSystemBackend, type FileSystemInput, type FileSystemInterface, type FileSystemOptions, type LocalBackendConfig,
+  type RemoteBackendConfig
+} from './types.js'
+export {
   enableConsoleLogging,
-  getLogger,
-  type Logger,
+  getLogger, setLogger, type Logger,
   type LogLevel
 } from './utils/logger.js'
+export { POSIXCommands, type FindOptions, type GrepOptions, type LSOptions } from './utils/POSIXCommands.js'
+export { WorkspaceManager } from './utils/workspaceManager.js'
 
 // Default export for convenience
 export default FS

@@ -1,10 +1,7 @@
-import { 
-  DockerBackendConfig, 
-  FileInfo,
-  FileSystemBackend, 
-  FileSystemError
-} from '../types.js'
 import { ERROR_CODES } from '../constants.js'
+import type { FileInfo } from '../types.js'
+import { FileSystemError } from '../types.js'
+import type { DockerBackendConfig, FileSystemBackend } from './types.js'
 
 /**
  * Stub implementation for Docker-based filesystem backend  

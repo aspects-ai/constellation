@@ -1,18 +1,16 @@
-import { spawn } from 'child_process'
+import { execSync, spawn } from 'child_process'
+import { existsSync } from 'fs'
 import { readFile, readdir, stat, writeFile } from 'fs/promises'
 import { isAbsolute, join, relative, resolve } from 'path'
-import { existsSync } from 'fs'
-import { 
-  DangerousOperationError, 
-  FileInfo, 
-  FileSystemBackend, 
-  FileSystemError,
-  LocalBackendConfig
-} from '../types.js'
-import { isDangerous } from '../safety.js'
-import { POSIXCommands } from '../utils/POSIXCommands.js'
 import { ERROR_CODES } from '../constants.js'
+import { isDangerous } from '../safety.js'
+import type { FileInfo } from '../types.js'
+import { DangerousOperationError, FileSystemError } from '../types.js'
 import { getLogger } from '../utils/logger.js'
+import { POSIXCommands } from '../utils/POSIXCommands.js'
+import { WorkspaceManager } from '../utils/workspaceManager.js'
+import type { FileSystemBackend, LocalBackendConfig } from './types.js'
+import { validateLocalBackendConfig } from './types.js'
 
 /**
  * Local filesystem backend implementation
@@ -20,6 +18,7 @@ import { getLogger } from '../utils/logger.js'
  * and POSIX-compliant shell commands for cross-platform compatibility
  */
 export class LocalBackend implements FileSystemBackend {
+
   public readonly workspace: string
   public readonly options: LocalBackendConfig
   private readonly shell: string
@@ -30,16 +29,30 @@ export class LocalBackend implements FileSystemBackend {
    * @throws {FileSystemError} When workspace doesn't exist or utilities are missing
    */
   constructor(options: LocalBackendConfig) {
+    validateLocalBackendConfig(options)
     this.options = options
-    this.workspace = resolve(options.workspace)
-    this.shell = this.detectShell()
     
-    if (!existsSync(this.workspace)) {
+    // Handle userId-based workspace
+    if (options.userId) {
+      WorkspaceManager.validateUserId(options.userId)
+      this.workspace = WorkspaceManager.ensureUserWorkspace(options.userId)
+    } else if (options.workspace) {
+      this.workspace = resolve(options.workspace)
+      
+      if (!existsSync(this.workspace)) {
+        throw new FileSystemError(
+          `Workspace directory does not exist: ${this.workspace}`,
+          ERROR_CODES.WORKSPACE_NOT_FOUND,
+        )
+      }
+    } else {
       throw new FileSystemError(
-        `Workspace directory does not exist: ${this.workspace}`,
-        ERROR_CODES.WORKSPACE_NOT_FOUND
+        'Either workspace or userId must be provided',
+        ERROR_CODES.WORKSPACE_NOT_FOUND,
       )
     }
+    
+    this.shell = this.detectShell()
 
     if (options.validateUtils) {
       this.validateEnvironment()
@@ -54,14 +67,18 @@ export class LocalBackend implements FileSystemBackend {
       return 'bash'
     } else if (this.options.shell === 'sh') {
       return 'sh'
+    } else if (this.options.shell === 'auto') {
+      // Auto-detection: prefer bash if available, fall back to sh
+      try {
+        execSync('command -v bash', { stdio: 'ignore' })
+        return 'bash'
+      } catch {
+        return 'sh'
+      }
     }
     
-    try {
-      require('child_process').execSync('command -v bash', { stdio: 'ignore' })
-      return 'bash'
-    } catch {
-      return 'sh'
-    }
+    // Fallback for any unexpected shell value
+    return 'sh'
   }
 
   /**
@@ -73,7 +90,7 @@ export class LocalBackend implements FileSystemBackend {
 
     for (const util of requiredUtils) {
       try {
-        require('child_process').execSync(`command -v ${util}`, { stdio: 'ignore' })
+        execSync(`command -v ${util}`, { stdio: 'ignore' })
       } catch {
         missing.push(util)
       }
@@ -83,7 +100,7 @@ export class LocalBackend implements FileSystemBackend {
       throw new FileSystemError(
         `Missing required POSIX utilities: ${missing.join(', ')}. ` +
         'Please ensure they are installed and available in PATH.',
-        ERROR_CODES.MISSING_UTILITIES
+        ERROR_CODES.MISSING_UTILITIES,
       )
     }
   }
@@ -138,8 +155,8 @@ export class LocalBackend implements FileSystemBackend {
             new FileSystemError(
               `Command execution failed with exit code ${code}: ${stderr.trim() || stdout.trim()}`,
               ERROR_CODES.EXEC_FAILED,
-              command
-            )
+              command,
+            ),
           )
         }
       })
@@ -175,7 +192,7 @@ export class LocalBackend implements FileSystemBackend {
   // eslint-disable-next-line no-dupe-class-members
   async ls(
     patternOrOptions?: string | { details: true },
-    options?: { details: true }
+    options?: { details: true },
   ): Promise<string[] | FileInfo[]> {
     try {
       // Parse arguments to determine what was requested
@@ -232,7 +249,7 @@ export class LocalBackend implements FileSystemBackend {
           name,
           type,
           size: stats.size,
-          modified: stats.mtime
+          modified: stats.mtime,
         })
       } catch (error) {
         getLogger().warn(`Failed to get stats for ${name}:`, error)
@@ -249,7 +266,7 @@ export class LocalBackend implements FileSystemBackend {
     error: unknown,
     operation: string,
     errorCode: string,
-    command?: string
+    command?: string,
   ): FileSystemError {
     // If it's already our error type, re-throw as-is
     if (error instanceof FileSystemError) {
@@ -264,7 +281,7 @@ export class LocalBackend implements FileSystemBackend {
     return new FileSystemError(
       `${operation} failed: ${message}`,
       errorCode,
-      command
+      command,
     )
   }
 
@@ -276,7 +293,7 @@ export class LocalBackend implements FileSystemBackend {
       throw new FileSystemError(
         'Absolute paths are not allowed',
         ERROR_CODES.ABSOLUTE_PATH_REJECTED,
-        path
+        path,
       )
     }
 
@@ -287,7 +304,7 @@ export class LocalBackend implements FileSystemBackend {
       throw new FileSystemError(
         'Path escapes workspace boundary',
         ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-        path
+        path,
       )
     }
 

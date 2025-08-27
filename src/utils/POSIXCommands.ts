@@ -17,12 +17,13 @@ export interface GrepOptions {
 }
 
 export interface FindOptions {
-  type?: 'f' | 'd' | 'l' // file, directory, link
+  type?: 'f' | 'd' | 'l'
   maxDepth?: number
 }
 
 /**
- * Standardized POSIX commands that work consistently across supported platforms
+ * Standardized POSIX commands that work consistently across supported platforms.
+ * These commands are specific shell commands used in agent SDKs outside of the general shell execution command (e.g. Claude Code's `bash`), which we implement a simple convenience wrapper for.
  */
 export class POSIXCommands {
   /**
@@ -84,28 +85,28 @@ export class POSIXCommands {
   }
 
   /**
-   * Generate cat command for file reading
+   * cat command for file reading
    */
   static cat(path: string): string {
     return `cat "${path}"`
   }
 
   /**
-   * Generate touch command for file creation
+   * touch command for file creation
    */
   static touch(path: string): string {
     return `touch "${path}"`
   }
 
   /**
-   * Generate mkdir command with parent directory creation
+   * mkdir command with parent directory creation
    */
   static mkdir(path: string, parents = true): string {
     return parents ? `mkdir -p "${path}"` : `mkdir "${path}"`
   }
 
   /**
-   * Generate stat command for file information
+   * stat command for file information
    */
   static stat(path: string): string {
     // Use format options that work on both macOS and Linux
@@ -113,7 +114,7 @@ export class POSIXCommands {
   }
 
   /**
-   * Generate wc command for counting
+   * wc command for counting
    */
   static wc(path?: string, options: { lines?: boolean; words?: boolean; chars?: boolean } = {}): string {
     let flags = ''
@@ -126,21 +127,21 @@ export class POSIXCommands {
   }
 
   /**
-   * Generate head command for reading file beginnings
+   * head command for reading file beginnings
    */
   static head(path: string, lines = 10): string {
     return `head -n ${lines} "${path}"`
   }
 
   /**
-   * Generate tail command for reading file endings
+   * tail command for reading file endings
    */
   static tail(path: string, lines = 10): string {
     return `tail -n ${lines} "${path}"`
   }
 
   /**
-   * Generate sort command
+   * sort command
    */
   static sort(path?: string, options: { reverse?: boolean; numeric?: boolean; unique?: boolean } = {}): string {
     let flags = ''
@@ -153,7 +154,7 @@ export class POSIXCommands {
   }
 
   /**
-   * Generate uniq command for removing duplicates
+   * uniq command for removing duplicates
    */
   static uniq(path?: string, count = false): string {
     const cmd = count ? 'uniq -c' : 'uniq'
@@ -161,7 +162,7 @@ export class POSIXCommands {
   }
 
   /**
-   * Generate cut command for column extraction
+   * cut command for column extraction
    */
   static cut(fields: string, path?: string, delimiter = '\t'): string {
     const cmd = `cut -d "${delimiter}" -f ${fields}`

@@ -1,14 +1,17 @@
-import { BackendConfig, BackendConfigSchema, FileSystemBackend, FileSystemError } from '../types.js'
+import { BACKEND_TYPES, type BackendType, ERROR_CODES } from '../constants.js'
+import { FileSystemError } from '../types.js'
+import type { BackendConfig, FileSystemBackend } from './types.js'
+import { BackendConfigSchema } from './types.js'
+import { DockerBackend } from './DockerBackend.js'
 import { LocalBackend } from './LocalBackend.js'
 import { RemoteBackend } from './RemoteBackend.js'
-import { DockerBackend } from './DockerBackend.js'
-import { BACKEND_TYPES, type BackendType, ERROR_CODES } from '../constants.js'
 
 /**
  * Factory for creating different types of filesystem backends
  * Handles validation and instantiation of backend implementations
  */
 export class BackendFactory {
+
   /**
    * Create a backend instance based on configuration
    * @param config - Backend configuration object
@@ -31,7 +34,7 @@ export class BackendFactory {
       default:
         throw new FileSystemError(
           `Unsupported backend type: ${(validatedConfig as { type: string }).type}`,
-          ERROR_CODES.UNSUPPORTED_BACKEND
+          ERROR_CODES.UNSUPPORTED_BACKEND,
         )
     }
   }
@@ -42,15 +45,6 @@ export class BackendFactory {
    */
   static getAvailableBackends(): readonly BackendType[] {
     return BACKEND_TYPES
-  }
-
-  /**
-   * Check if a backend type is supported
-   * @param backendType - Backend type to check
-   * @returns True if backend type is supported
-   */
-  static isSupported(backendType: string): backendType is BackendType {
-    return BACKEND_TYPES.includes(backendType as BackendType)
   }
 
   /**
@@ -93,7 +87,7 @@ export class BackendFactory {
       default:
         throw new FileSystemError(
           `Unknown backend type: ${backendType}`,
-          ERROR_CODES.UNKNOWN_BACKEND
+          ERROR_CODES.UNKNOWN_BACKEND,
         )
     }
   }

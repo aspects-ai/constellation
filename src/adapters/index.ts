@@ -1,2 +1,3 @@
-export { BaseSDKAdapter, type SDKAdapter } from './BaseAdapter.js'
+export { BaseSDKAdapter, type AgentSDKAdapter as SDKAdapter } from './BaseAdapter.js'
 export { ClaudeCodeAdapter } from './ClaudeCodeAdapter.js'
+
