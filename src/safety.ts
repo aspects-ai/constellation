@@ -53,6 +53,30 @@ const DANGEROUS_PATTERNS = [
 ]
 
 /**
+ * Additional patterns for commands that try to escape workspace
+ */
+const ESCAPE_PATTERNS = [
+  // Change directory commands
+  /\bcd\b/,
+  /\bpushd\b/,
+  /\bpopd\b/,
+  
+  // Environment manipulation that could affect paths
+  /export\s+PATH=/,
+  /export\s+HOME=/,
+  /export\s+PWD=/,
+  
+  // Absolute paths
+  /\s\/[^\s]+/,  // Space followed by /path
+  /^\/[^\s]+/,   // Starting with /path
+  
+  // Shell expansion
+  /~\//,         // Home directory
+  /\$HOME/,      // HOME variable
+  /\$\{[^}]+\}/, // Shell variable expansion
+]
+
+/**
  * Check if a command contains dangerous operations
  * @param command - The command to check
  * @returns true if the command is considered dangerous
@@ -61,6 +85,15 @@ export function isDangerous(command: string): boolean {
   const normalized = command.trim().toLowerCase()
   
   return DANGEROUS_PATTERNS.some(pattern => pattern.test(normalized))
+}
+
+/**
+ * Check if a command attempts to escape the workspace
+ * @param command - The command to check
+ * @returns true if the command attempts to access outside workspace
+ */
+export function isEscapingWorkspace(command: string): boolean {
+  return ESCAPE_PATTERNS.some(pattern => pattern.test(command))
 }
 
 /**

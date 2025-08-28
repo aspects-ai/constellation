@@ -7,6 +7,7 @@ import { BaseSDKAdapter } from './BaseAdapter.js'
 /**
  * Adapter mapping Claude Code tools to ConstellationFS operations
  * This provides a plug-and-play interface for agents using Claude Code SDK.
+ * Available tools for Claude Code SDK: https://docs.anthropic.com/en/docs/claude-code/settings#tools-available-to-claude
  */
 export class ClaudeCodeAdapter extends BaseSDKAdapter {
   constructor(fs: FileSystem) {

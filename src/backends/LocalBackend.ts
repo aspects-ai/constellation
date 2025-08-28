@@ -2,12 +2,14 @@ import { execSync, spawn } from 'child_process'
 import { readFile, readdir, stat, writeFile } from 'fs/promises'
 import { isAbsolute, join, relative, resolve } from 'path'
 import { ERROR_CODES } from '../constants.js'
-import { isDangerous } from '../safety.js'
+import { isDangerous, isEscapingWorkspace } from '../safety.js'
 import type { FileInfo } from '../types.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
 import { getLogger } from '../utils/logger.js'
 import { POSIXCommands } from '../utils/POSIXCommands.js'
 import { WorkspaceManager } from '../utils/workspaceManager.js'
+import { parseCommand, isCommandSafe } from '../utils/commandParser.js'
+import { validatePaths, checkSymlinkSafety } from '../utils/pathValidator.js'
 import type { FileSystemBackend, LocalBackendConfig } from './types.js'
 import { validateLocalBackendConfig } from './types.js'
 
@@ -98,16 +100,61 @@ export class LocalBackend implements FileSystemBackend {
         throw new DangerousOperationError(command)
       }
     }
+    
+    // Check for workspace escape attempts
+    if (isEscapingWorkspace(command)) {
+      throw new FileSystemError(
+        `Command attempts to escape workspace: ${command}`,
+        ERROR_CODES.PATH_ESCAPE_ATTEMPT,
+        command
+      )
+    }
+    
+    // Parse and validate the command
+    const safetyCheck = isCommandSafe(command)
+    if (!safetyCheck.safe) {
+      throw new FileSystemError(
+        `Command failed safety check: ${safetyCheck.reason}`,
+        ERROR_CODES.DANGEROUS_OPERATION,
+        command
+      )
+    }
+    
+    // Extract and validate any file paths in the command
+    const parsed = parseCommand(command)
+    if (parsed.filePaths.length > 0) {
+      const validation = validatePaths(this.workspace, parsed.filePaths)
+      if (!validation.valid) {
+        const reasons = validation.invalidPaths.map(p => `${p.path}: ${p.reason}`).join(', ')
+        throw new FileSystemError(
+          `Command contains invalid paths: ${reasons}`,
+          ERROR_CODES.PATH_ESCAPE_ATTEMPT,
+          command
+        )
+      }
+    }
 
     return new Promise((resolve, reject) => {
       const child = spawn(this.shell, ['-c', command], {
         cwd: this.workspace,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: {
-          ...process.env,
+          // Start with minimal environment
+          PATH: '/usr/local/bin:/usr/bin:/bin',
+          USER: process.env.USER,
+          SHELL: this.shell,
+          // Force working directory
           PWD: this.workspace,
+          HOME: this.workspace,
+          TMPDIR: join(this.workspace, '.tmp'),
+          // Locale settings
           LANG: 'C',
           LC_ALL: 'C',
+          // Block dangerous variables
+          LD_PRELOAD: undefined,
+          LD_LIBRARY_PATH: undefined,
+          DYLD_INSERT_LIBRARIES: undefined,
+          DYLD_LIBRARY_PATH: undefined,
         },
       })
 
@@ -152,6 +199,17 @@ export class LocalBackend implements FileSystemBackend {
 
   async read(path: string): Promise<string> {
     const fullPath = this.resolvePath(path)
+    
+    // Check symlink safety
+    const symlinkCheck = checkSymlinkSafety(this.workspace, path)
+    if (!symlinkCheck.safe) {
+      throw new FileSystemError(
+        `Cannot read file: ${symlinkCheck.reason}`,
+        ERROR_CODES.PATH_ESCAPE_ATTEMPT,
+        `read ${path}`
+      )
+    }
+    
     try {
       return await readFile(fullPath, 'utf-8')
     } catch (error) {
@@ -161,6 +219,20 @@ export class LocalBackend implements FileSystemBackend {
 
   async write(path: string, content: string): Promise<void> {
     const fullPath = this.resolvePath(path)
+    
+    // Check symlink safety for parent directories
+    const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
+    if (parentPath !== '.') {
+      const symlinkCheck = checkSymlinkSafety(this.workspace, parentPath)
+      if (!symlinkCheck.safe) {
+        throw new FileSystemError(
+          `Cannot write file: ${symlinkCheck.reason}`,
+          ERROR_CODES.PATH_ESCAPE_ATTEMPT,
+          `write ${path}`
+        )
+      }
+    }
+    
     try {
       await writeFile(fullPath, content, 'utf-8')
     } catch (error) {
