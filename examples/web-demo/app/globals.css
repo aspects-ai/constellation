@@ -19,6 +19,16 @@ body {
   height: 100vh;
 }
 
+.session-id-display {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 10px;
+  color: #6b7280;
+  z-index: 10;
+}
+
 .main-content {
   flex: 1;
   min-height: 0; /* Allow flex item to shrink */
@@ -172,6 +182,15 @@ body {
 
 .refresh-button:hover {
   background-color: #4b5563;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #94a3b8;
+  font-style: italic;
 }
 
 /* File Viewer Styles */
