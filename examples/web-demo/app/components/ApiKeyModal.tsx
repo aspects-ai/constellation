@@ -1,16 +1,16 @@
 'use client'
 
-import { useState } from 'react'
-import { 
-  Modal, 
-  TextInput, 
-  Button, 
-  Text, 
-  Stack, 
+import {
   Alert,
-  Anchor 
+  Anchor,
+  Button,
+  Modal,
+  Stack,
+  Text,
+  TextInput
 } from '@mantine/core'
-import { IconKey, IconExternalLink, IconAlertCircle } from '@tabler/icons-react'
+import { IconAlertCircle, IconExternalLink, IconKey } from '@tabler/icons-react'
+import { useState } from 'react'
 
 interface ApiKeyModalProps {
   opened: boolean
@@ -32,8 +32,7 @@ export default function ApiKeyModal({ opened, onSubmit }: ApiKeyModalProps) {
       return
     }
     
-    // Store in localStorage and close modal
-    localStorage.setItem('anthropic_api_key', apiKey.trim())
+    // Pass to parent component (stored in React state only)
     onSubmit(apiKey.trim())
     setIsValidating(false)
   }
@@ -41,22 +40,26 @@ export default function ApiKeyModal({ opened, onSubmit }: ApiKeyModalProps) {
   return (
     <Modal
       opened={opened}
-      onClose={() => {}} // Prevent closing without API key
-      title="Enter Your Anthropic API Key"
+      onClose={() => {}}
+      title="Welcome to the ConstellationFS Claude Code demo!"
       closeOnClickOutside={false}
       closeOnEscape={false}
       withCloseButton={false}
       size="md"
     >
       <Stack gap="md">
+        <Text size="md" mb="xs">
+          To get started, enter your Anthropic API key for Claude Code to use.
+        </Text>
+
         <Alert
           icon={<IconAlertCircle size={16} />}
           color="blue"
           variant="light"
         >
           <Text size="sm">
-            Your API key is stored locally in your browser and sent directly to Anthropic's servers. 
-            It is never stored on our servers.
+            Your API key is kept in memory only during this session and sent directly to Anthropic's servers. 
+            It is never stored on our servers or in your browser storage.
           </Text>
         </Alert>
 
@@ -99,8 +102,8 @@ export default function ApiKeyModal({ opened, onSubmit }: ApiKeyModalProps) {
         </Button>
 
         <Text size="xs" c="dimmed" ta="center">
-          Your API key will be stored locally in your browser and used for AI requests.
-          You can clear it anytime from your browser's developer tools.
+          Your API key will only be kept in memory for this session.
+          You'll need to re-enter it if you refresh the page.
         </Text>
       </Stack>
     </Modal>

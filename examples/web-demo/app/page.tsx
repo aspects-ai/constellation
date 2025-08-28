@@ -120,19 +120,14 @@ export default function Home() {
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
   
-  // Generate sessionId and check for API key on client side
+  // Generate sessionId and show API key modal on client side
   useEffect(() => {
     // Generate a sessionId that only contains valid characters (a-z, 0-9)
     const id = Math.random().toString(36).substring(2, 10).replace(/[^a-z0-9]/g, 'x')
     setSessionId(id)
     
-    // Check for stored API key
-    const storedApiKey = localStorage.getItem('anthropic_api_key')
-    if (storedApiKey) {
-      setApiKey(storedApiKey)
-    } else {
-      setShowApiKeyModal(true)
-    }
+    // Always show API key modal on first load (no localStorage)
+    setShowApiKeyModal(true)
   }, [])
 
   const handleApiKeySubmit = (key: string) => {
