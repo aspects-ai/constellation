@@ -1,18 +1,32 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { 
+  Box, 
+  TextInput, 
+  Button, 
+  Stack, 
+  ScrollArea, 
+  Paper, 
+  Text, 
+  Loader,
+  Group
+} from '@mantine/core'
+import { IconSend } from '@tabler/icons-react'
+import ReactMarkdown from 'react-markdown'
 
 interface Message {
   id: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'tool'
   content: string
 }
 
 interface ChatProps {
   sessionId: string
+  apiKey: string | null
 }
 
-export default function Chat({ sessionId }: ChatProps) {
+export default function Chat({ sessionId, apiKey }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -28,7 +42,7 @@ export default function Chat({ sessionId }: ChatProps) {
   }, [messages, currentResponse])
 
   const sendMessage = async () => {
-    if (!input.trim() || isLoading) return
+    if (!input.trim() || isLoading || !apiKey) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -42,7 +56,7 @@ export default function Chat({ sessionId }: ChatProps) {
     setCurrentResponse('')
 
     try {
-      // Send message to API
+      // Send message to API with user's API key
       const response = await fetch('/api/message', {
         method: 'POST',
         headers: {
@@ -51,6 +65,7 @@ export default function Chat({ sessionId }: ChatProps) {
         body: JSON.stringify({
           message: userMessage.content,
           sessionId,
+          apiKey,
         }),
       })
 
@@ -64,39 +79,34 @@ export default function Chat({ sessionId }: ChatProps) {
       eventSource.onmessage = (event) => {
         const data = JSON.parse(event.data)
         
-        if (data.type === 'content') {
+        if (data.type === 'message_start') {
+          // Start a new message
+          setCurrentResponse('')
+        } else if (data.type === 'content') {
           setCurrentResponse(prev => prev + data.text)
-        } else if (data.type === 'done') {
-          // Move the streaming response to permanent messages
-          // Use a ref to prevent duplicate calls in strict mode
-          let hasProcessed = false
+        } else if (data.type === 'message_end') {
+          // Finalize the current message
           setCurrentResponse(streamedContent => {
-            if (hasProcessed) {
-              return ''
-            }
-            hasProcessed = true
-            
-            // Add the complete streamed message to permanent messages
             if (streamedContent.trim()) {
-              const assistantMessage: Message = {
+              const newMessage: Message = {
                 id: Date.now().toString(),
-                role: 'assistant',
+                role: data.role || 'assistant',
                 content: streamedContent
               }
               setMessages(prev => {
                 // Check if we already have this message to prevent duplicates
                 const isDuplicate = prev.some(msg => 
-                  msg.role === 'assistant' && msg.content === streamedContent
+                  msg.role === newMessage.role && msg.content === streamedContent
                 )
                 if (isDuplicate) {
                   return prev
                 }
-                return [...prev, assistantMessage]
+                return [...prev, newMessage]
               })
             }
-            return '' // Clear the streaming preview
+            return '' // Clear for next message
           })
-          
+        } else if (data.type === 'done') {
           setIsLoading(false)
           eventSource.close()
           
@@ -128,43 +138,109 @@ export default function Chat({ sessionId }: ChatProps) {
     }
   }
 
+  const getMessageColor = (role: string) => {
+    switch (role) {
+      case 'user': return 'blue'
+      case 'assistant': return 'gray'
+      case 'tool': return 'green'
+      default: return 'gray'
+    }
+  }
+
   return (
-    <div className="chat-area">
-      <div className="messages">
-        {messages.map((message) => (
-          <div key={message.id} className={`message ${message.role}`}>
-            {message.content}
-          </div>
-        ))}
-        {isLoading && currentResponse && (
-          <div className="message assistant">
-            {currentResponse}
-            <span className="cursor">▋</span>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+    <Box h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
+      <ScrollArea flex={1} p="md">
+        <Stack gap="md">
+          {messages.map((message) => (
+            <Paper
+              key={message.id}
+              p="md"
+              radius="md"
+              style={{
+                backgroundColor: `var(--mantine-color-${getMessageColor(message.role)}-9)`,
+                alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
+                maxWidth: '80%',
+                borderLeft: message.role === 'tool' 
+                  ? '4px solid var(--mantine-color-green-5)' 
+                  : undefined
+              }}
+            >
+              {message.role === 'assistant' ? (
+                <Box 
+                  style={{ 
+                    '& code': { 
+                      backgroundColor: 'var(--mantine-color-dark-7)',
+                      padding: '2px 4px',
+                      borderRadius: '4px',
+                      fontSize: '0.9em'
+                    },
+                    '& pre': {
+                      backgroundColor: 'var(--mantine-color-dark-7)',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      overflow: 'auto'
+                    },
+                    '& pre code': {
+                      backgroundColor: 'transparent',
+                      padding: 0
+                    }
+                  }}
+                >
+                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                </Box>
+              ) : (
+                <Text 
+                  size="sm" 
+                  ff={message.role === 'tool' ? 'monospace' : undefined}
+                >
+                  {message.content}
+                </Text>
+              )}
+            </Paper>
+          ))}
+          
+          {isLoading && currentResponse && (
+            <Paper
+              p="md"
+              radius="md"
+              style={{
+                backgroundColor: 'var(--mantine-color-gray-9)',
+                alignSelf: 'flex-start',
+                maxWidth: '80%',
+              }}
+            >
+              <Group gap="xs">
+                <ReactMarkdown>{currentResponse}</ReactMarkdown>
+                <Loader size="xs" />
+              </Group>
+            </Paper>
+          )}
+          <div ref={messagesEndRef} />
+        </Stack>
+      </ScrollArea>
       
-      <div className="input-area">
-        <div className="input-container">
-          <input
-            type="text"
+      <Box p="md" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+        <Group gap="md">
+          <TextInput
+            flex={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Ask me to help with your project..."
-            className="message-input"
-            disabled={isLoading}
+            onKeyDown={handleKeyPress}
+            placeholder={apiKey ? "Ask me to help with your project..." : "Please enter your API key to start chatting"}
+            disabled={isLoading || !apiKey}
+            size="md"
           />
-          <button
+          <Button
             onClick={sendMessage}
-            disabled={isLoading || !input.trim()}
-            className="send-button"
+            disabled={isLoading || !input.trim() || !apiKey}
+            loading={isLoading}
+            leftSection={<IconSend size={16} />}
+            size="md"
           >
-            {isLoading ? 'Sending...' : 'Send'}
-          </button>
-        </div>
-      </div>
-    </div>
+            {isLoading ? 'Sending' : 'Send'}
+          </Button>
+        </Group>
+      </Box>
+    </Box>
   )
 }

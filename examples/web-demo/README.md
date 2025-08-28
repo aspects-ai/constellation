@@ -109,20 +109,35 @@ Start a conversation with the AI assistant:
 
 ## Technical Details
 
-### ConstellationFS Integration
+### Claude Code SDK Integration
 
-The demo uses ConstellationFS to provide the AI with filesystem access:
+The demo now uses the official Claude Code SDK with custom ConstellationFS tools:
 
 ```typescript
-import { FileSystem } from 'constellation-fs'
+import { query, createSdkMcpServer, tool } from '@anthropic-ai/claude-code'
+import { FileSystem } from 'constellationfs'
 
-// Each user gets an isolated workspace
-const fs = new FileSystem(`/tmp/demo-${sessionId}`)
+// Create ConstellationFS tools for Claude
+const constellationFSServer = createSdkMcpServer({
+  name: "constellationfs",
+  tools: [
+    tool("fs_read", "Read file contents", /* ... */),
+    tool("fs_write", "Write content to files", /* ... */),
+    tool("fs_exec", "Execute shell commands", /* ... */),
+    tool("fs_ls", "List files and directories", /* ... */)
+  ]
+})
 
-// AI can perform operations
-await fs.write('app.js', 'console.log("Hello World")')
-await fs.exec('npm init -y')
-const files = await fs.ls()
+// Query Claude with filesystem access
+for await (const message of query({
+  prompt: userMessage,
+  options: {
+    mcpServers: { constellationfs: constellationFSServer },
+    allowedTools: ["mcp__constellationfs__fs_read", /* ... */]
+  }
+})) {
+  // Stream responses to client
+}
 ```
 
 ### Safety Features

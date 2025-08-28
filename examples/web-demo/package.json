@@ -9,12 +9,21 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@anthropic-ai/claude-code": "^1.0.96",
+    "@emotion/react": "^11.14.0",
+    "@mantine/code-highlight": "^8.2.7",
+    "@mantine/core": "^8.2.7",
+    "@mantine/dropzone": "^8.2.7",
+    "@mantine/hooks": "^8.2.7",
+    "@mantine/notifications": "^8.2.7",
+    "@tabler/icons-react": "^3.34.1",
+    "constellationfs": "file:../../",
     "next": "^14.0.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
-    "@anthropic-ai/sdk": "^0.29.0",
+    "react-markdown": "^10.1.0",
     "uuid": "^9.0.0",
-    "constellationfs": "file:../../"
+    "zod": "^4.1.5"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

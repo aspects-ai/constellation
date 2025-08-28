@@ -1,6 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { 
+  Box, 
+  Text, 
+  ScrollArea, 
+  Center, 
+  Loader,
+  Alert
+} from '@mantine/core'
+import { CodeHighlight } from '@mantine/code-highlight'
+import { IconAlertCircle, IconFile } from '@tabler/icons-react'
 
 interface FileViewerProps {
   sessionId: string
@@ -43,36 +53,95 @@ export default function FileViewer({ sessionId, selectedFile }: FileViewerProps)
     fetchFileContent()
   }, [sessionId, selectedFile])
 
+  const getFileLanguage = (filename: string): string => {
+    const ext = filename.split('.').pop()?.toLowerCase()
+    switch (ext) {
+      case 'js': case 'jsx': return 'javascript'
+      case 'ts': case 'tsx': return 'typescript'
+      case 'py': return 'python'
+      case 'java': return 'java'
+      case 'cpp': case 'cc': case 'cxx': return 'cpp'
+      case 'c': return 'c'
+      case 'cs': return 'csharp'
+      case 'go': return 'go'
+      case 'rs': return 'rust'
+      case 'php': return 'php'
+      case 'rb': return 'ruby'
+      case 'html': return 'html'
+      case 'css': return 'css'
+      case 'scss': case 'sass': return 'scss'
+      case 'json': return 'json'
+      case 'xml': return 'xml'
+      case 'yaml': case 'yml': return 'yaml'
+      case 'md': return 'markdown'
+      case 'sh': case 'bash': return 'bash'
+      case 'sql': return 'sql'
+      default: return 'text'
+    }
+  }
+
   if (!selectedFile) {
     return (
-      <div className="file-viewer">
-        <div className="file-viewer-header">
-          <h3>File Viewer</h3>
-        </div>
-        <div className="file-viewer-content">
-          <div className="file-viewer-empty">
-            Select a file to view its contents
-          </div>
-        </div>
-      </div>
+      <Box 
+        flex={1} 
+        p="md" 
+        style={{ 
+          backgroundColor: 'var(--mantine-color-dark-8)',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        <Text fw={600} size="lg" mb="md">File Viewer</Text>
+        <Center flex={1}>
+          <Box ta="center">
+            <IconFile size={48} color="var(--mantine-color-gray-5)" />
+            <Text size="sm" c="dimmed" mt="md">
+              Select a file to view its contents
+            </Text>
+          </Box>
+        </Center>
+      </Box>
     )
   }
 
   return (
-    <div className="file-viewer">
-      <div className="file-viewer-header">
-        <h3>File Viewer</h3>
-        <span className="file-name">{selectedFile}</span>
-      </div>
-      <div className="file-viewer-content">
+    <Box 
+      flex={1} 
+      p="md" 
+      style={{ 
+        backgroundColor: 'var(--mantine-color-dark-8)',
+        display: 'flex',
+        flexDirection: 'column'
+      }}
+    >
+      <Box mb="md">
+        <Text fw={600} size="lg">File Viewer</Text>
+        <Text size="sm" c="dimmed" ff="monospace">
+          {selectedFile}
+        </Text>
+      </Box>
+      
+      <ScrollArea flex={1}>
         {isLoading ? (
-          <div className="file-viewer-loading">Loading...</div>
+          <Center p="xl">
+            <Loader size="md" />
+          </Center>
         ) : error ? (
-          <div className="file-viewer-error">{error}</div>
+          <Alert 
+            icon={<IconAlertCircle size={16} />} 
+            color="red" 
+            variant="light"
+          >
+            {error}
+          </Alert>
         ) : (
-          <pre className="file-content">{fileContent}</pre>
+          <CodeHighlight
+            code={fileContent}
+            language={getFileLanguage(selectedFile)}
+            style={{ fontSize: '0.9em' }}
+          />
         )}
-      </div>
-    </div>
+      </ScrollArea>
+    </Box>
   )
 }

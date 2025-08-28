@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { query } from '@anthropic-ai/claude-code'
 import { FileSystem } from 'constellationfs'
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
@@ -6,10 +6,14 @@ import { broadcastToStream } from '../../../lib/streams'
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, sessionId } = await request.json()
+    const { message, sessionId, apiKey } = await request.json()
 
     if (!message || !sessionId) {
       return NextResponse.json({ error: 'Message and sessionId are required' }, { status: 400 })
+    }
+
+    if (!apiKey) {
+      return NextResponse.json({ error: 'API key is required' }, { status: 400 })
     }
 
     // Create a unique stream ID for this request
@@ -21,14 +25,8 @@ export async function POST(request: NextRequest) {
     // Initialize workspace with sample files if empty
     await initializeWorkspace(fs)
 
-    // Initialize Anthropic client
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY || '',
-    })
-
-    // Start the AI processing in the background
-    // Note: We use sessionId for stream identification, not streamId
-    processWithAI(anthropic, fs, message, sessionId, sessionId)
+    // Start the AI processing in the background using Claude Code SDK
+    processWithClaudeCode(fs, message, sessionId, apiKey)
     return NextResponse.json({ streamId })
   } catch (error) {
     console.error('API Error:', error)
@@ -64,94 +62,135 @@ Try asking me to:
   }
 }
 
-async function processWithAI(
-  anthropic: Anthropic, 
-  fs: FileSystem, 
+async function processWithClaudeCode(
+  fs: FileSystem,
   message: string, 
-  sessionId: string, 
-  streamId: string
+  sessionId: string,
+  apiKey: string
 ) {
   try {
-    const systemPrompt = `You are a helpful coding assistant with access to a filesystem through ConstellationFS. You can:
+    const systemPrompt = `You are a helpful coding assistant working in a secure, isolated filesystem workspace.
 
-1. Read files using: await fs.read('filename')
-2. Write files using: await fs.write('filename', 'content')
-3. Execute shell commands using: await fs.exec('command')
-4. List files using: await fs.ls()
+Workspace Details:
+- Current working directory: ${fs.workspace}
+- This is a completely isolated environment where you can safely create, modify, and delete files
+- You can run shell commands, build projects, and help with development tasks
+- All operations are sandboxed to this workspace only
 
-Always explain what you're doing and show the results of any operations.
+Available Tools:
+- **Read**: Read file contents from any file in the workspace
+- **Write**: Create or modify files in the workspace  
+- **Bash**: Execute shell commands (all commands run in the workspace directory)
+- **LS**: List files and directories
+- **Glob**: Find files using patterns
+- **Grep**: Search file contents
+- **Edit**: Edit existing files by replacing specific text
 
-Current workspace: ${fs.workspace}
+Always explain what you're doing and show the results of your operations. The workspace is yours to use freely and safely.`
 
-When executing commands or file operations, use the FileSystem instance provided.`
-
-    const stream = await anthropic.messages.create({
-      model: 'claude-sonnet-4-0',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: message }],
-      stream: true,
-    })
-
-    // Process the stream and execute any filesystem operations
+    // Process with Claude Code SDK using its built-in tools
+    // Set the working directory to our ConstellationFS workspace
     let fullResponse = ''
     
-    for await (const chunk of stream) {
-      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-        const text = chunk.delta.text || ''
-        fullResponse += text
+    for await (const sdkMessage of query({
+      prompt: message,
+      options: {
+        customSystemPrompt: systemPrompt,
+        maxTurns: 3,
+        cwd: fs.workspace,
+        continue: true,
+        env: {
+          ANTHROPIC_API_KEY: apiKey,
+          PATH: process.env.PATH, // Include PATH to ensure node/npm are found
+          NODE_ENV: process.env.NODE_ENV,
+        },
+        executable: 'node', // Explicitly use node for consistency
+        allowedTools: [
+          "Read",
+          "Write", 
+          "Bash",
+          "LS",
+          "Glob",
+          "Grep",
+          "Edit"
+        ]
+      }
+    })) {
+      if (sdkMessage.type === 'assistant') {
+        // Start new assistant message
+        broadcastToStream(sessionId, { type: 'message_start', role: 'assistant' })
         
-        // Send chunk to client via Server-Sent Events
-        broadcastToStream(streamId, { type: 'content', text })
+        // Stream assistant message content
+        const content = sdkMessage.message.content
+        
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block.type === 'text') {
+              // Stream text content in chunks
+              const text = block.text
+              fullResponse += text
+              
+              // Send in smaller chunks for better streaming experience
+              const chunkSize = 50
+              for (let i = 0; i < text.length; i += chunkSize) {
+                const chunk = text.slice(i, i + chunkSize)
+                broadcastToStream(sessionId, { type: 'content', text: chunk })
+                // Small delay for streaming effect
+                await new Promise(resolve => setTimeout(resolve, 10))
+              }
+            } else if (block.type === 'tool_use') {
+              // Stream tool use information
+              const toolText = `🔧 Using ${block.name} tool...`
+              broadcastToStream(sessionId, { type: 'content', text: toolText })
+            }
+          }
+        }
+        
+        // End assistant message
+        broadcastToStream(sessionId, { type: 'message_end', role: 'assistant' })
+        
+      } else if (sdkMessage.type === 'user') {
+        // Start new tool result message
+        broadcastToStream(sessionId, { type: 'message_start', role: 'tool' })
+        
+        // This contains tool results - stream them
+        const content = sdkMessage.message?.content
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block.type === 'tool_result') {
+              const toolResult = `📋 **Tool Output:**\n\`\`\`\n${block.content}\n\`\`\``
+              broadcastToStream(sessionId, { type: 'content', text: toolResult })
+            }
+          }
+        }
+        
+        // End tool result message
+        broadcastToStream(sessionId, { type: 'message_end', role: 'tool' })
+        
+      } else if (sdkMessage.type === 'result') {
+        // Handle completion - only send errors, not duplicate content
+        if (sdkMessage.subtype === 'error_max_turns') {
+          broadcastToStream(sessionId, { type: 'error', message: 'Max turns reached' })
+        } else if (sdkMessage.subtype === 'error_during_execution') {
+          broadcastToStream(sessionId, { type: 'error', message: 'Error during execution' })
+        }
+        
+        // Signal completion
+        broadcastToStream(sessionId, { type: 'done' })
+        break
+      } else if (sdkMessage.type === 'system') {
+        console.log('[Claude SDK] System init:', { subtype: sdkMessage.subtype, cwd: (sdkMessage as any).cwd })
+      } else {
+        console.warn('[Claude SDK] Unhandled message type:', sdkMessage)
       }
     }
-
-    // Execute any filesystem operations mentioned in the response
-    await executeFileSystemOperations(fs, fullResponse)
-
-    // Signal completion
-    broadcastToStream(streamId, { type: 'done' })
     
   } catch (error) {
-    console.error('AI Processing Error:', error)
-    broadcastToStream(streamId, { 
+    console.error('Claude Code Processing Error:', error)
+    broadcastToStream(sessionId, { 
       type: 'error', 
       message: error instanceof Error ? error.message : 'Unknown error'
     })
-  }
-}
-
-
-async function executeFileSystemOperations(fs: FileSystem, response: string) {
-  // Simple pattern matching to find and execute filesystem operations
-  // This is a basic implementation - in a real app you'd want more sophisticated parsing
-  
-  const writeMatches = response.match(/await fs\.write\('([^']+)',\s*'([^']+)'\)/g)
-  if (writeMatches) {
-    for (const match of writeMatches) {
-      const [, filename, content] = match.match(/await fs\.write\('([^']+)',\s*'([^']+)'\)/) || []
-      if (filename && content) {
-        try {
-          await fs.write(filename, content)
-        } catch (error) {
-          console.error(`Failed to write ${filename}:`, error)
-        }
-      }
-    }
-  }
-
-  const execMatches = response.match(/await fs\.exec\('([^']+)'\)/g)
-  if (execMatches) {
-    for (const match of execMatches) {
-      const [, command] = match.match(/await fs\.exec\('([^']+)'\)/) || []
-      if (command) {
-        try {
-          await fs.exec(command)
-        } catch (error) {
-          console.error(`Failed to execute ${command}:`, error)
-        }
-      }
-    }
   }
 }
 

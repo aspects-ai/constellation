@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
             controller.close()
           }
         } catch (error) {
-          console.log(`[Stream API] Error closing controller (expected if already closed):`, error.message)
+          // pass
         }
       }
 
