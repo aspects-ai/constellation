@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "app/api/message/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/stream/route.ts": {
+      "maxDuration": 300
+    }
+  },
+  "env": {
+    "ANTHROPIC_API_KEY": "@anthropic_api_key"
+  }
+}

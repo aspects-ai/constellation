@@ -1,5 +1,4 @@
 import { execSync, spawn } from 'child_process'
-import { existsSync } from 'fs'
 import { readFile, readdir, stat, writeFile } from 'fs/promises'
 import { isAbsolute, join, relative, resolve } from 'path'
 import { ERROR_CODES } from '../constants.js'
@@ -32,25 +31,9 @@ export class LocalBackend implements FileSystemBackend {
     validateLocalBackendConfig(options)
     this.options = options
     
-    // Handle userId-based workspace
-    if (options.userId) {
-      WorkspaceManager.validateUserId(options.userId)
-      this.workspace = WorkspaceManager.ensureUserWorkspace(options.userId)
-    } else if (options.workspace) {
-      this.workspace = resolve(options.workspace)
-      
-      if (!existsSync(this.workspace)) {
-        throw new FileSystemError(
-          `Workspace directory does not exist: ${this.workspace}`,
-          ERROR_CODES.WORKSPACE_NOT_FOUND,
-        )
-      }
-    } else {
-      throw new FileSystemError(
-        'Either workspace or userId must be provided',
-        ERROR_CODES.WORKSPACE_NOT_FOUND,
-      )
-    }
+    // Use userId-based workspace management
+    WorkspaceManager.validateUserId(options.userId)
+    this.workspace = WorkspaceManager.ensureUserWorkspace(options.userId)
     
     this.shell = this.detectShell()
 

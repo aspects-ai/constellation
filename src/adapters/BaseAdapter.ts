@@ -1,5 +1,5 @@
 import type { FileSystem } from '../FileSystem.js'
-import type { FileSystemOptions } from '../types.js'
+import type { BackendConfig } from '../types.js'
 
 /**
  * Base interface that all Agent SDK adapters should implement
@@ -17,9 +17,9 @@ export interface AgentSDKAdapter {
   readonly workspace: string
 
   /**
-   * Get the filesystem options
+   * Get the backend configuration
    */
-  readonly options: FileSystemOptions
+  readonly backendConfig: BackendConfig
 }
 
 /**
@@ -40,8 +40,8 @@ export abstract class BaseSDKAdapter implements AgentSDKAdapter {
     return this.fs.workspace
   }
 
-  get options(): FileSystemOptions {
-    return this.fs.options
+  get backendConfig(): BackendConfig {
+    return this.fs.backendConfig
   }
 
   /**

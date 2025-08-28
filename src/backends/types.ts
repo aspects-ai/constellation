@@ -6,7 +6,6 @@ import type { FileInfo } from '../types.js'
  * Base configuration schema shared by all backends
  */
 const BaseBackendConfigSchema = z.object({
-  workspace: z.string().min(1, 'Workspace path cannot be empty').optional(),
   preventDangerous: z.boolean().default(DEFAULTS.PREVENT_DANGEROUS),
   onDangerousOperation: z
     .function()
@@ -23,7 +22,7 @@ const LocalBackendConfigSchema = BaseBackendConfigSchema.extend({
   type: z.literal('local').default('local'),
   shell: z.enum(SHELL_TYPES).default(DEFAULTS.SHELL),
   validateUtils: z.boolean().default(DEFAULTS.VALIDATE_UTILS),
-  userId: z.string().optional(),
+  userId: z.string().min(1, 'userId is required for local backend'),
 })
 
 const RemoteBackendConfigSchema = BaseBackendConfigSchema.extend({
@@ -62,8 +61,8 @@ export type DockerBackendConfig = z.infer<typeof DockerBackendConfigSchema>
  * Validation helper for LocalBackendConfig
  */
 export function validateLocalBackendConfig(config: LocalBackendConfig): void {
-  if (!config.workspace && !config.userId) {
-    throw new Error('Either workspace or userId must be provided')
+  if (!config.userId) {
+    throw new Error('userId is required for local backend')
   }
 }
 

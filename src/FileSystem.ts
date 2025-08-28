@@ -4,14 +4,11 @@ import type {
   BackendConfig,
   FileInfo,
   FileSystemBackend,
-  FileSystemInput,
   FileSystemInterface,
-  FileSystemOptions,
   LocalBackendConfig,
 } from './types.js'
 import {
   FileSystemError,
-  FileSystemOptionsSchema,
 } from './types.js'
 
 /**
@@ -21,16 +18,16 @@ import {
  * 
  * @example
  * ```typescript
- * // Simple string workspace for a local fs backend. This will use the given directory within the workspace.
- * const fs = new FileSystem('./my-workspace')
- * 
- * // User-based workspace. This will use a subdir for the user in the base workspace.
+ * // Simple userId-based workspace (recommended)
  * const fs = new FileSystem({ userId: 'user123' })
  * 
- * // Advanced configuration with backend options
+ * // Default workspace for single-user apps
+ * const fs = new FileSystem({ userId: 'default' })
+ * 
+ * // Full backend configuration
  * const fs = new FileSystem({
  *   type: 'local',
- *   workspace: './my-workspace',
+ *   userId: 'user123',
  *   shell: 'bash',
  *   preventDangerous: true
  * })
@@ -41,57 +38,27 @@ export class FileSystem implements FileSystemInterface {
 
   /**
    * Create a new FileSystem instance
-   * @param input - Workspace path string, userId object, or full configuration object
-   * @throws {FileSystemError} When workspace doesn't exist or configuration is invalid
+   * @param input - Backend configuration object with userId
+   * @throws {FileSystemError} When configuration is invalid
    */
-  constructor(input: FileSystemInput | BackendConfig | { userId: string }) {
-    if (this.isBackendConfig(input)) {
-      this.backend = BackendFactory.create(input)
-    } else if (this.isUserIdInput(input)) {
-      // Handle simple userId input
-      const backendConfig: LocalBackendConfig = {
+  constructor(input: Partial<BackendConfig>) {
+    let backendConfig: BackendConfig
+    
+    if (input.type) {
+      // Full backend config - use as-is with defaults for missing fields
+      backendConfig = input as BackendConfig
+    } else {
+      // Partial config - assume local backend and fill in defaults
+      backendConfig = {
         type: 'local',
-        userId: input.userId,
         shell: 'auto',
         validateUtils: false,
         preventDangerous: true,
-      }
-      
-      this.backend = BackendFactory.create(backendConfig)
-    } else {
-      const options = this.parseInput(input as FileSystemInput)
-      const validatedOptions = FileSystemOptionsSchema.parse(options)
-      
-      const backendConfig: LocalBackendConfig = {
-        type: 'local',
-        workspace: validatedOptions.workspace,
-        shell: 'auto',
-        validateUtils: false,
-        preventDangerous: validatedOptions.preventDangerous,
-        onDangerousOperation: validatedOptions.onDangerousOperation,
-        maxOutputLength: validatedOptions.maxOutputLength,
-      }
-      
-      this.backend = BackendFactory.create(backendConfig)
+        ...input,
+      } as LocalBackendConfig
     }
-  }
-
-  /**
-   * Type guard to check if input is a BackendConfig
-   */
-  private isBackendConfig(input: unknown): input is BackendConfig {
-    return input !== null && typeof input === 'object' && 'type' in input
-  }
-
-  /**
-   * Type guard to check if input is a userId object
-   */
-  private isUserIdInput(input: unknown): input is { userId: string } {
-    return input !== null && 
-           typeof input === 'object' && 
-           'userId' in input && 
-           typeof (input as any).userId === 'string' &&
-           !('type' in input) // Ensure it's not a full backend config
+    
+    this.backend = BackendFactory.create(backendConfig)
   }
 
   /**
@@ -100,22 +67,6 @@ export class FileSystem implements FileSystemInterface {
    */
   get workspace(): string {
     return this.backend.workspace
-  }
-
-  /**
-   * Get the current configuration options (legacy format for backward compatibility)
-   * @returns FileSystemOptions in legacy format
-   */
-  get options(): FileSystemOptions {
-    const backendOptions = this.backend.options
-    
-    return {
-      workspace: this.backend.workspace, // Use resolved workspace from backend
-      backend: 'local',
-      preventDangerous: backendOptions.preventDangerous,
-      onDangerousOperation: backendOptions.onDangerousOperation,
-      maxOutputLength: backendOptions.maxOutputLength,
-    }
   }
 
   /**
@@ -203,18 +154,4 @@ export class FileSystem implements FileSystemInterface {
     }
   }
 
-  /**
-   * Parse the input parameter to create FileSystemOptions
-   */
-  private parseInput(input: FileSystemInput): FileSystemOptions {
-    if (typeof input === 'string') {
-      return {
-        workspace: input,
-        backend: 'local',
-        preventDangerous: true,
-      }
-    }
-    
-    return input
-  }
 }

@@ -1,5 +1,5 @@
+import { existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
-import { mkdirSync, existsSync } from 'fs'
 import { ConstellationFS } from '../config/Config.js'
 
 /**
@@ -51,10 +51,10 @@ export class WorkspaceManager {
       throw new Error('User ID cannot be empty')
     }
     
-    // Ensure userId is safe for directory naming
-    const invalidChars = /[<>:"|?*\x00-\x1f]/g
-    if (invalidChars.test(userId)) {
-      throw new Error('User ID contains invalid characters for directory naming')
+    // Only allow alphanumeric, hyphens, underscores, and periods
+    const validChars = /^[a-zA-Z0-9._-]+$/
+    if (!validChars.test(userId)) {
+      throw new Error(`User ID '${userId}' can only contain letters, numbers, hyphens, underscores, and periods`)
     }
     
     // Prevent directory traversal

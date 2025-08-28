@@ -1,30 +1,9 @@
-import { z } from 'zod'
 export { BackendConfigSchema, validateLocalBackendConfig } from './backends/types.js'
 export type {
   BackendConfig, DockerBackendConfig,
   FileSystemBackend, LocalBackendConfig,
   RemoteBackendConfig
 } from './backends/types.js'
-
-// Legacy FileSystemOptions for backward compatibility
-export const FileSystemOptionsSchema = z
-  .object({
-    workspace: z.string().min(1, 'Workspace path cannot be empty'),
-    backend: z.literal('local').default('local'),
-    preventDangerous: z.boolean().default(true),
-    onDangerousOperation: z
-      .function()
-      .args(z.string())
-      .returns(z.void())
-      .optional(),
-    maxOutputLength: z.number().positive().optional(),
-  })
-  .strict()
-
-export type FileSystemOptions = z.infer<typeof FileSystemOptionsSchema>
-
-// Allow string shorthand for workspace-only initialization
-export type FileSystemInput = FileSystemOptions | string
 
 /**
  * File metadata information returned by detailed directory listings

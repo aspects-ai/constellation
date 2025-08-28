@@ -34,6 +34,16 @@ const content = await fs.read('config.json')
 const files = await fs.ls('*.txt')
 ```
 
+## 🚀 Interactive Demo
+
+Try ConstellationFS in your browser with our live AI coding assistant:
+
+**[→ Launch Web Demo](https://constellation-fs-demo.vercel.app)**
+
+Chat with an AI agent that uses ConstellationFS to build projects, edit files, and run commands. Watch the filesystem update in real-time as the AI works.
+
+[![Web Demo Screenshot](https://via.placeholder.com/600x300/0a0a0a/ffffff?text=ConstellationFS+Web+Demo)](https://constellation-fs-demo.vercel.app)
+
 ## Core Features
 
 ### ✅ Familiar Interface
@@ -279,21 +289,62 @@ const textFiles = await fs.ls('*.txt', { details: true }) as FileInfo[]
 
 ## Development
 
+### Running from Cloned Repository
+
+To work with ConstellationFS from source:
+
 ```bash
-# Clone and install
+# Clone the repository
 git clone https://github.com/constellation-fs/constellation-fs.git
 cd constellation-fs
+
+# Install dependencies
 npm install
+
+# Build the project
+npm run build
 
 # Run tests
 npm test
 
-# Build
-npm run build
+# Type checking
+npm run typecheck
 
-# Lint and format
+# Linting and formatting
 npm run lint
 npm run format
+```
+
+For development with automatic rebuilding:
+
+```bash
+# Watch mode for continuous development
+npm run dev
+
+# Run tests in watch mode
+npm test -- --watch
+```
+
+### Using the Cloned Version in Your Project
+
+To use your local development version of ConstellationFS in another project:
+
+```bash
+# In the ConstellationFS directory
+npm link
+
+# In your project directory
+npm link constellationfs
+```
+
+Or directly reference the local path in your project's `package.json`:
+
+```json
+{
+  "dependencies": {
+    "constellationfs": "file:../path/to/constellation-fs"
+  }
+}
 ```
 
 ## Roadmap 🚀

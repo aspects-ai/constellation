@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { existsSync } from 'fs'
 import { mkdir, rmdir, writeFile } from 'fs/promises'
 import { join } from 'path'
-import { existsSync } from 'fs'
-import { FileSystem, FileSystemError, DangerousOperationError } from '../src/index.js'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { DangerousOperationError, FileSystem } from '../src/index.js'
 
 describe('FileSystem', () => {
   const testWorkspace = join(process.cwd(), 'test-workspace')
@@ -22,20 +22,20 @@ describe('FileSystem', () => {
   })
 
   describe('Basic Operations', () => {
-    it('should create FileSystem with string workspace', () => {
-      const fs = new FileSystem(testWorkspace)
-      expect(fs.workspace).toBe(testWorkspace)
-      expect(fs.options.preventDangerous).toBe(true)
+    it('should create FileSystem with userId', () => {
+      const fs = new FileSystem({ userId: 'test-user' })
+      expect(fs.workspace).toContain('test-user')
+      expect(fs.backendConfig.preventDangerous).toBe(true)
     })
 
     it('should execute simple commands', async () => {
-      const fs = new FileSystem(testWorkspace)
+      const fs = new FileSystem({ userId: 'testuser' })
       const result = await fs.exec('echo "hello world"')
       expect(result).toBe('hello world')
     })
 
     it('should read and write files', async () => {
-      const fs = new FileSystem(testWorkspace)
+      const fs = new FileSystem({ userId: 'testuser' })
       const testContent = 'Hello, ConstellationFS!'
       
       await fs.write('test.txt', testContent)
@@ -45,11 +45,11 @@ describe('FileSystem', () => {
     })
 
     it('should list files', async () => {
-      const fs = new FileSystem(testWorkspace)
+      const fs = new FileSystem({ userId: 'testuser' })
       
-      // Create some test files
-      await writeFile(join(testWorkspace, 'file1.txt'), 'content1')
-      await writeFile(join(testWorkspace, 'file2.txt'), 'content2')
+      // Create some test files using the filesystem API
+      await fs.write('file1.txt', 'content1')
+      await fs.write('file2.txt', 'content2')
       
       const files = await fs.ls()
       expect(files).toContain('file1.txt')
@@ -59,7 +59,7 @@ describe('FileSystem', () => {
 
   describe('Safety Features', () => {
     it('should block dangerous operations by default', async () => {
-      const fs = new FileSystem(testWorkspace)
+      const fs = new FileSystem({ userId: 'testuser' })
       
       await expect(fs.exec('rm -rf /')).rejects.toThrow(DangerousOperationError)
     })
@@ -68,8 +68,8 @@ describe('FileSystem', () => {
       let calledWith: string | undefined
       
       const fs = new FileSystem({
-        workspace: testWorkspace,
-        onDangerousOperation: (command) => {
+        userId: 'testuser',
+        onDangerousOperation: (command: string) => {
           calledWith = command
         }
       })
