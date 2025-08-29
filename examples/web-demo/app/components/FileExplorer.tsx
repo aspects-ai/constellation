@@ -1,20 +1,20 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { 
-  Box, 
-  Text, 
-  Button, 
-  Group, 
-  Stack, 
-  ActionIcon, 
+import {
+  ActionIcon,
+  Box,
+  Button,
+  Center,
   FileInput,
-  ScrollArea,
+  Group,
   Loader,
-  Center
+  ScrollArea,
+  Stack,
+  Text
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconUpload, IconRefresh, IconDownload, IconFile, IconFolder } from '@tabler/icons-react'
+import { IconDownload, IconFile, IconFolder, IconRefresh, IconUpload } from '@tabler/icons-react'
+import { useEffect, useRef, useState } from 'react'
 
 interface FileItem {
   path: string
@@ -211,7 +211,7 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile }: 
               style={{ display: 'none' }}
               onChange={handleUpload}
               accept="*"
-              ref={fileInputRef}
+              ref={fileInputRef as React.RefObject<HTMLButtonElement>}
             />
             <Button 
               size="xs" 
