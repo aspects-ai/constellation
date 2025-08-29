@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "npx @anthropic-ai/claude-code --version || true"
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.96",

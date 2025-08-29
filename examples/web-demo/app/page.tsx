@@ -1,11 +1,11 @@
 'use client'
 
-import { AppShell, Box, Container, Group, Text } from '@mantine/core'
+import { Box, Container, Group, Text } from '@mantine/core'
 import { useEffect, useRef, useState } from 'react'
+import ApiKeyModal from './components/ApiKeyModal'
 import Chat from './components/Chat'
 import FileExplorer from './components/FileExplorer'
 import FileViewer from './components/FileViewer'
-import ApiKeyModal from './components/ApiKeyModal'
 
 function ResizableLayout({ sessionId, selectedFile, setSelectedFile, apiKey }: {
   sessionId: string
@@ -120,14 +120,21 @@ export default function Home() {
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
   
-  // Generate sessionId and show API key modal on client side
+  // Generate sessionId and check for environment API key
   useEffect(() => {
     // Generate a sessionId that only contains valid characters (a-z, 0-9)
     const id = Math.random().toString(36).substring(2, 10).replace(/[^a-z0-9]/g, 'x')
     setSessionId(id)
     
-    // Always show API key modal on first load (no localStorage)
-    setShowApiKeyModal(true)
+    // Check if API key is provided via environment variable
+    const envApiKey = process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY
+    if (envApiKey) {
+      setApiKey(envApiKey)
+      setShowApiKeyModal(false)
+    } else {
+      // Show API key modal if no environment variable is set
+      setShowApiKeyModal(true)
+    }
   }, [])
 
   const handleApiKeySubmit = (key: string) => {
