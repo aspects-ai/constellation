@@ -1,40 +1,43 @@
 import { describe, expect, it } from 'vitest'
-import { parseCommand, isCommandSafe } from '../src/utils/commandParser.js'
+import { parseCommand, isCommandSafe, isEscapingWorkspace } from '../src/safety.js'
 import { isPathEscaping, validatePaths } from '../src/utils/pathValidator.js'
-import { isEscapingWorkspace } from '../src/safety.js'
 
 describe('Command Parser Security', () => {
   describe('parseCommand', () => {
     it('should detect absolute paths', () => {
       const result = parseCommand('cat /etc/passwd')
       expect(result.hasAbsolutePath).toBe(true)
-      expect(result.filePaths).toContain('/etc/passwd')
-      expect(result.issues).toContain('Absolute path detected: /etc/passwd')
+      expect(result.command).toBe('cat')
+      expect(result.args).toEqual(['/etc/passwd'])
     })
 
     it('should detect parent directory traversal', () => {
       const result = parseCommand('cat ../../etc/passwd')
-      expect(result.hasDangerousPattern).toBe(true)
-      expect(result.issues).toContain('Parent directory traversal detected: ../../etc/passwd')
+      expect(result.hasEscapePattern).toBe(true)
+      expect(result.command).toBe('cat')
+      expect(result.args).toEqual(['../../etc/passwd'])
     })
 
     it('should detect home directory expansion', () => {
       const result = parseCommand('cat ~/secret.txt')
-      expect(result.hasDangerousPattern).toBe(true)
-      expect(result.issues).toContain('Home directory reference detected: ~/secret.txt')
+      expect(result.hasEscapePattern).toBe(true)
+      expect(result.command).toBe('cat')
+      expect(result.args).toEqual(['~/secret.txt'])
     })
 
     it('should detect directory change commands', () => {
       const result = parseCommand('cd /tmp && rm -rf *')
-      expect(result.hasDangerousPattern).toBe(true)
-      expect(result.issues.some(i => i.includes('Directory change commands'))).toBe(true)
+      expect(result.hasEscapePattern).toBe(true)
+      expect(result.hasAbsolutePath).toBe(true)
+      expect(result.command).toBe('cd')
     })
 
     it('should allow safe commands', () => {
       const result = parseCommand('ls -la')
       expect(result.hasAbsolutePath).toBe(false)
-      expect(result.hasDangerousPattern).toBe(false)
-      expect(result.issues).toHaveLength(0)
+      expect(result.hasEscapePattern).toBe(false)
+      expect(result.command).toBe('ls')
+      expect(result.args).toEqual(['-la'])
     })
   })
 

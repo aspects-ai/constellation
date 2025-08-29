@@ -69,28 +69,15 @@ async function processWithClaudeCode(
   apiKey: string
 ) {
   try {
-    const systemPrompt = `You are a helpful coding assistant working in a secure, isolated filesystem workspace.
+    const systemPrompt = `You are a helpful AI assistant working in a secure, isolated filesystem workspace.
 
 Workspace Details:
 - Current working directory: ${fs.workspace}
 - This is a completely isolated environment where you can safely create, modify, and delete files
-- You can run shell commands, build projects, and help with development tasks
+- You can run shell commands, build projects, and help with general tasks as your tools allow.
 - All operations are sandboxed to this workspace only
 
-Available Tools:
-- **Read**: Read file contents from any file in the workspace
-- **Write**: Create or modify files in the workspace  
-- **Bash**: Execute shell commands (all commands run in the workspace directory)
-- **LS**: List files and directories
-- **Glob**: Find files using patterns
-- **Grep**: Search file contents
-- **Edit**: Edit existing files by replacing specific text
-
 Always explain what you're doing and show the results of your operations. The workspace is yours to use freely and safely.`
-
-    // Process with Claude Code SDK using its built-in tools
-    // Set the working directory to our ConstellationFS workspace
-    let fullResponse = ''
     
     for await (const sdkMessage of query({
       prompt: message,
@@ -128,7 +115,6 @@ Always explain what you're doing and show the results of your operations. The wo
             if (block.type === 'text') {
               // Stream text content in chunks
               const text = block.text
-              fullResponse += text
               
               // Send in smaller chunks for better streaming experience
               const chunkSize = 50

@@ -31,7 +31,7 @@ interface FileExplorerProps {
 export default function FileExplorer({ sessionId, onFileSelect, selectedFile }: FileExplorerProps) {
   const [files, setFiles] = useState<FileItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLButtonElement>(null)
 
   const fetchFileSystem = async () => {
     setIsLoading(true)

@@ -2,14 +2,13 @@ import { execSync, spawn } from 'child_process'
 import { readFile, readdir, stat, writeFile } from 'fs/promises'
 import { isAbsolute, join, relative, resolve } from 'path'
 import { ERROR_CODES } from '../constants.js'
-import { isDangerous, isEscapingWorkspace } from '../safety.js'
+import { isDangerous, isCommandSafe } from '../safety.js'
 import type { FileInfo } from '../types.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
 import { getLogger } from '../utils/logger.js'
 import { POSIXCommands } from '../utils/POSIXCommands.js'
 import { WorkspaceManager } from '../utils/workspaceManager.js'
-import { parseCommand, isCommandSafe } from '../utils/commandParser.js'
-import { validatePaths, checkSymlinkSafety } from '../utils/pathValidator.js'
+import { checkSymlinkSafety } from '../utils/pathValidator.js'
 import type { FileSystemBackend, LocalBackendConfig } from './types.js'
 import { validateLocalBackendConfig } from './types.js'
 
@@ -91,48 +90,29 @@ export class LocalBackend implements FileSystemBackend {
   }
 
   async exec(command: string): Promise<string> {
-    // Check for dangerous operations
-    if (this.options.preventDangerous && isDangerous(command)) {
-      if (this.options.onDangerousOperation) {
-        this.options.onDangerousOperation(command)
-        return ''
-      } else {
-        throw new DangerousOperationError(command)
-      }
-    }
-    
-    // Check for workspace escape attempts
-    if (isEscapingWorkspace(command)) {
-      throw new FileSystemError(
-        `Command attempts to escape workspace: ${command}`,
-        ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-        command
-      )
-    }
-    
-    // Parse and validate the command
+    // Comprehensive safety check
     const safetyCheck = isCommandSafe(command)
     if (!safetyCheck.safe) {
+      // Special handling for preventDangerous option
+      if (this.options.preventDangerous && isDangerous(command)) {
+        if (this.options.onDangerousOperation) {
+          this.options.onDangerousOperation(command)
+          return ''
+        } else {
+          throw new DangerousOperationError(command)
+        }
+      }
+      
+      // For other safety violations, always throw
       throw new FileSystemError(
-        `Command failed safety check: ${safetyCheck.reason}`,
+        safetyCheck.reason || 'Command failed safety check',
         ERROR_CODES.DANGEROUS_OPERATION,
         command
       )
     }
     
-    // Extract and validate any file paths in the command
-    const parsed = parseCommand(command)
-    if (parsed.filePaths.length > 0) {
-      const validation = validatePaths(this.workspace, parsed.filePaths)
-      if (!validation.valid) {
-        const reasons = validation.invalidPaths.map(p => `${p.path}: ${p.reason}`).join(', ')
-        throw new FileSystemError(
-          `Command contains invalid paths: ${reasons}`,
-          ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-          command
-        )
-      }
-    }
+    // Note: Path validation is already handled by safety checks above
+    // The command will run in the workspace directory via cwd option
 
     return new Promise((resolve, reject) => {
       const child = spawn(this.shell, ['-c', command], {

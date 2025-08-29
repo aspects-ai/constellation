@@ -21,12 +21,16 @@ const DANGEROUS_PATTERNS = [
   /wget\b.*\|\s*(sh|bash|zsh|fish)\b/,
   /\|\s*(sh|bash|zsh|fish)\s*$/,
   
-  // Direct network tools
+  // Direct network tools (that could be used maliciously)
+  /^wget\b/,
+  /^curl\b/,
   /^nc\b/,
   /^ncat\b/,
   /^telnet\b/,
   /^ftp\b/,
   /^ssh\b/,
+  /^scp\b/,
+  /^rsync\b/,
   
   // Process/system control
   /^kill\s+-9/,
@@ -50,6 +54,9 @@ const DANGEROUS_PATTERNS = [
   
   // Path traversal attempts in sensitive operations
   /^(cp|mv|ln)\b.*\.\.\//,
+  
+  // Symbolic link creation that could escape
+  /\bln\s+-s/,
 ]
 
 /**
@@ -66,14 +73,20 @@ const ESCAPE_PATTERNS = [
   /export\s+HOME=/,
   /export\s+PWD=/,
   
-  // Absolute paths
-  /\s\/[^\s]+/,  // Space followed by /path
-  /^\/[^\s]+/,   // Starting with /path
+  // Absolute paths (except when checking for URLs)
+  /(?<!https?:)\/[^\s]+/,  // Negative lookbehind to exclude URLs
   
   // Shell expansion
   /~\//,         // Home directory
   /\$HOME/,      // HOME variable
-  /\$\{[^}]+\}/, // Shell variable expansion
+  /\$\{HOME\}/,  // HOME variable with braces
+  
+  // Parent directory traversal
+  /\.\.[\/\\]/,
+  
+  // Command substitution (could be used to escape)
+  /\$\([^)]+\)/,  // $() command substitution
+  /`[^`]+`/,      // Backtick command substitution
 ]
 
 /**
@@ -103,4 +116,63 @@ export function isEscapingWorkspace(command: string): boolean {
  */
 export function getBaseCommand(command: string): string {
   return command.trim().split(/\s+/)[0] || ''
+}
+
+/**
+ * Comprehensive safety check for commands
+ * Combines dangerous command checking and workspace escape detection
+ * @param command - The command to check
+ * @returns Object with safety status and optional reason
+ */
+export function isCommandSafe(command: string): { safe: boolean; reason?: string } {
+  // Check for dangerous commands first
+  if (isDangerous(command)) {
+    const baseCmd = getBaseCommand(command)
+    return { safe: false, reason: `Dangerous command '${baseCmd}' is not allowed` }
+  }
+  
+  // Check for workspace escape attempts
+  if (isEscapingWorkspace(command)) {
+    // More specific messages for different escape types
+    if (/\bcd\b/.test(command)) {
+      return { safe: false, reason: 'Directory change commands are not allowed' }
+    }
+    if (/(?<!https?:)\/[^\s]+/.test(command)) {
+      return { safe: false, reason: 'Command contains absolute paths' }
+    }
+    if (/~\//.test(command) || /\$HOME/.test(command)) {
+      return { safe: false, reason: 'Home directory references are not allowed' }
+    }
+    if (/\.\.[\/\\]/.test(command)) {
+      return { safe: false, reason: 'Parent directory traversal is not allowed' }
+    }
+    return { safe: false, reason: 'Command attempts to escape workspace' }
+  }
+  
+  return { safe: true }
+}
+
+/**
+ * Parse a command to extract basic structure
+ * @param command - The command to parse
+ * @returns Parsed command info
+ */
+export interface ParsedCommand {
+  command: string
+  args: string[]
+  hasAbsolutePath: boolean
+  hasEscapePattern: boolean
+}
+
+export function parseCommand(command: string): ParsedCommand {
+  const parts = command.trim().split(/\s+/)
+  const baseCommand = parts[0] || ''
+  const args = parts.slice(1)
+  
+  return {
+    command: baseCommand,
+    args,
+    hasAbsolutePath: /(?<!https?:)\/[^\s]+/.test(command),
+    hasEscapePattern: isEscapingWorkspace(command),
+  }
 }

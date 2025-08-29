@@ -1,13 +1,12 @@
 import type { FileSystem } from '../FileSystem.js'
-import type { FileInfo } from '../types.js'
-import type { GrepOptions } from '../utils/POSIXCommands.js'
-import { POSIXCommands } from '../utils/POSIXCommands.js'
 import { BaseSDKAdapter } from './BaseAdapter.js'
 
 /**
- * Adapter mapping Claude Code tools to ConstellationFS operations
- * This provides a plug-and-play interface for agents using Claude Code SDK.
- * Available tools for Claude Code SDK: https://docs.anthropic.com/en/docs/claude-code/settings#tools-available-to-claude
+ * Adapter for Claude Code SDK that provides file system operations.
+ * 
+ * Claude Code SDK executes all commands with the specified working directory (cwd),
+ * which provides automatic isolation within the workspace. The SDK's built-in safety
+ * features combined with ConstellationFS's workspace isolation ensure secure operation.
  */
 export class ClaudeCodeAdapter extends BaseSDKAdapter {
   constructor(fs: FileSystem) {
@@ -25,101 +24,74 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
 
   /**
    * List files and directories - maps to Claude's LS tool
-   * @param path - Optional path to list (defaults to workspace root)
+   * @param _path - Optional path to list (defaults to workspace root)
    * @returns Promise resolving to array of file/directory names
    */
-  async LS(path?: string): Promise<string[]> {
-    if (path) {
-      const command = POSIXCommands.ls(path)
-      return this.exec(command).then(output => 
-        output ? output.split('\n').filter(Boolean) : [],
-      )
-    } else {
-      const result = await this.ls()
-      return Array.isArray(result) && typeof result[0] === 'string' 
-        ? result as string[]
-        : (result as FileInfo[]).map(f => f.name)
-    }
+  async LS(_path?: string): Promise<string[]> {
+    // Claude Code SDK will handle this via bash commands with proper cwd
+    throw new Error('LS operations should be handled via Bash tool with proper cwd set in Claude Code SDK')
   }
 
   /**
    * Find files using glob patterns - maps to Claude's Glob tool
-   * @param pattern - Glob pattern to match files
-   * @param path - Optional path to search in (defaults to current directory)
+   * @param _pattern - Glob pattern to match files
+   * @param _path - Optional path to search in (defaults to current directory)
    * @returns Promise resolving to array of matching file paths
    */
-  async Glob(pattern: string, path?: string): Promise<string[]> {
-    const searchPath = path || '.'
-    const command = POSIXCommands.find(pattern, searchPath, { type: 'f' })
-    const result = await this.exec(command)
-    return result ? result.split('\n').filter(Boolean) : []
+  async Glob(_pattern: string, _path?: string): Promise<string[]> {
+    // Claude Code SDK will handle this via bash commands with proper cwd
+    throw new Error('Glob operations should be handled via Bash tool with proper cwd set in Claude Code SDK')
   }
 
   /**
    * Search for patterns in file contents - maps to Claude's Grep tool
-   * @param pattern - Pattern to search for
-   * @param options - Search options
+   * @param _pattern - Pattern to search for
+   * @param _options - Search options
    * @returns Promise resolving to search results
    */
   async Grep(
-    pattern: string, 
-    options: {
+    _pattern: string, 
+    _options: {
       files?: string
       ignoreCase?: boolean
       lineNumbers?: boolean
       context?: number
     } = {},
   ): Promise<string> {
-     // We use recursive search if no specific files are provided
-    const grepOptions: GrepOptions = {
-      ignoreCase: options.ignoreCase,
-      lineNumbers: options.lineNumbers,
-      context: options.context,
-      recursive: !options.files,
-    }
-    
-    const command = POSIXCommands.grep(pattern, options.files, grepOptions)
-    
-    try {
-      return await this.exec(command)
-    } catch {
-      return ''
-    }
+    // Claude Code SDK will handle this via bash commands with proper cwd
+    throw new Error('Grep operations should be handled via Bash tool with proper cwd set in Claude Code SDK')
   }
 
   /**
    * Read file contents - maps to Claude's Read tool
-   * @param path - Path to file to read
+   * @param _path - Path to file to read
    * @returns Promise resolving to file contents
    */
-  async Read(path: string): Promise<string> {
-    return this.read(path)
+  async Read(_path: string): Promise<string> {
+    // Claude Code SDK will handle this via bash commands with proper cwd
+    throw new Error('Read operations should be handled via Bash tool with proper cwd set in Claude Code SDK')
   }
 
   /**
    * Write content to file - maps to Claude's Write tool
-   * @param path - Path to file to write
-   * @param content - Content to write to file
+   * @param _path - Path to file to write
+   * @param _content - Content to write to file
    * @returns Promise that resolves when write is complete
    */
-  async Write(path: string, content: string): Promise<void> {
-    return this.write(path, content)
+  async Write(_path: string, _content: string): Promise<void> {
+    // Claude Code SDK will handle this via bash commands with proper cwd
+    throw new Error('Write operations should be handled via Bash tool with proper cwd set in Claude Code SDK')
   }
 
   /**
    * Edit files by replacing specific text - maps to Claude's Edit tool
-   * This is a simplified version that uses sed for basic find-replace operations
-   * @param path - Path to file to edit
-   * @param oldText - Text to replace
-   * @param newText - Replacement text
+   * @param _path - Path to file to edit
+   * @param _oldText - Text to replace
+   * @param _newText - Replacement text
    * @returns Promise that resolves when edit is complete
    */
-  async Edit(path: string, oldText: string, newText: string): Promise<void> {
-    // Escape special characters for sed
-    const escapedOld = oldText.replace(/[/\\&]/g, '\\$&')
-    const escapedNew = newText.replace(/[/\\&]/g, '\\$&')
-    
-    // Use sed for in-place editing
-    await this.exec(`sed -i '' 's/${escapedOld}/${escapedNew}/g' "${path}"`)
+  async Edit(_path: string, _oldText: string, _newText: string): Promise<void> {
+    // Claude Code SDK will handle this via bash commands with proper cwd
+    throw new Error('Edit operations should be handled via Bash tool with proper cwd set in Claude Code SDK')
   }
 }
