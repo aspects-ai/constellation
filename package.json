@@ -6,10 +6,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist",
-    "src",
-    "tsconfig.json",
-    "vite.config.ts"
+    "dist"
   ],
   "scripts": {
     "build": "vite build",
@@ -19,8 +16,7 @@
     "lint": "eslint src --ext .ts",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build",
-    "postinstall": "npm run build"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "filesystem",
@@ -41,10 +37,7 @@
   },
   "homepage": "https://github.com/constellation-fs/constellation-fs#readme",
   "dependencies": {
-    "zod": "^3.23.8",
-    "typescript": "^5.8.3",
-    "vite": "^5.1.6",
-    "vite-plugin-dts": "^4.2.3"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
@@ -52,6 +45,9 @@
     "@typescript-eslint/parser": "^8.37.0",
     "eslint": "^8.57.0",
     "prettier": "^3.3.3",
+    "typescript": "^5.8.3",
+    "vite": "^5.1.6",
+    "vite-plugin-dts": "^4.2.3",
     "vitest": "^2.1.8"
   },
   "engines": {
