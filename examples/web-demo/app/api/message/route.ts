@@ -1,7 +1,7 @@
-import { query } from '@anthropic-ai/claude-code'
-import { FileSystem } from 'constellationfs'
+import { ClaudeCodeAdapter, FileSystem } from 'constellationfs'
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import { getClaudeQuery } from '../../../lib/claude-init'
 import { broadcastToStream } from '../../../lib/streams'
 
 export async function POST(request: NextRequest) {
@@ -21,6 +21,9 @@ export async function POST(request: NextRequest) {
 
     // Initialize ConstellationFS with session-based userId
     const fs = new FileSystem({ userId: sessionId })
+
+    // Initialize ClaudeCodeAdapter - this sets the static currentInstance for monkey-patching
+    new ClaudeCodeAdapter(fs)
 
     // Initialize workspace with sample files if empty
     await initializeWorkspace(fs)
@@ -69,6 +72,16 @@ async function processWithClaudeCode(
   apiKey: string
 ) {
   try {
+    console.log('[ConstellationFS] Processing with Claude Code SDK - monkey-patching is enabled')
+    console.log('[ConstellationFS] Workspace:', fs.workspace)
+    
+    // Reset and log stats before Claude Code execution
+    ClaudeCodeAdapter.resetInterceptStats()
+    console.log('🔄 [ConstellationFS] Reset intercept stats before Claude Code execution')
+    
+    // Get the query function with monkey-patching enabled
+    const query = await getClaudeQuery()
+    
     const systemPrompt = `You are a helpful AI assistant working in a secure, isolated filesystem workspace.
 
 Workspace Details:
@@ -163,6 +176,12 @@ Always explain what you're doing and show the results of your operations. The wo
         
         // Signal completion
         broadcastToStream(sessionId, { type: 'done' })
+        
+        // Log final intercept statistics
+        const finalStats = ClaudeCodeAdapter.getInterceptStats()
+        console.log('📊 [ConstellationFS] Final intercept stats:', finalStats)
+        console.log(`✅ [ConstellationFS] Total intercepted calls: ${finalStats.exec + finalStats.spawn + finalStats.execSync}`)
+        
         break
       } else if (sdkMessage.type === 'system') {
         console.log('[Claude SDK] System init:', { subtype: sdkMessage.subtype, cwd: (sdkMessage as any).cwd })
