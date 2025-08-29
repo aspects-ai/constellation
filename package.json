@@ -30,7 +30,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/constellation-fs/constellation-fs.git"
+    "url": "git+https://github.com/constellation-fs/constellation-fs.git"
   },
   "bugs": {
     "url": "https://github.com/constellation-fs/constellation-fs/issues"
@@ -52,5 +52,9 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "directories": {
+    "example": "examples",
+    "test": "tests"
   }
 }
