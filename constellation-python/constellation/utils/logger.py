@@ -1,5 +1,3 @@
-"""Structured logging utilities for ConstellationFS."""
-
 import json
 import logging
 import sys

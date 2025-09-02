@@ -1,504 +1,335 @@
-"""Configuration validation and management using Pydantic."""
-
-import os
-import re
+import json
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, Field, validator, root_validator
+from typing import Optional, Dict, Any, Union
+from dataclasses import dataclass, asdict
 
-HAS_PYDANTIC = True
-
-from ..constants import (
-    DEFAULT_SHELL,
-    DEFAULT_PREVENT_DANGEROUS,
-    DEFAULT_VALIDATE_UTILS,
-    DEFAULT_MAX_OUTPUT_LENGTH,
-    USER_ID_PATTERN,
-    MAX_USER_ID_LENGTH
-)
+from ..utils.logger import get_logger
 
 
-class BaseBackendConfig(BaseModel):
-    """Base configuration for all backend types."""
+@dataclass
+class ConstellationFSConfig:
+    """Main configuration for ConstellationFS.
     
-    class Config:
-            extra = "forbid"  # Don't allow extra fields
-            validate_assignment = True  # Validate on assignment
+    This class handles all library settings with a focus on essential functionality.
+    Supports both programmatic configuration and loading from .constellationfs.json files.
+    """
     
-    user_id: str = Field(
-        ...,
-        description="User identifier for workspace isolation",
-        min_length=1,
-        max_length=MAX_USER_ID_LENGTH
-    )
+    workspace_root: str = "~/.constellationfs"
+    """Base directory where user workspaces are stored"""
     
-    prevent_dangerous: bool = Field(
-        DEFAULT_PREVENT_DANGEROUS,
-        description="Block dangerous operations"
-    )
+    default_user_id: str = "default"
+    """Default user ID when none provided (single-tenant mode)"""
     
-    max_output_length: Optional[int] = Field(
-        None,
-        description="Maximum length of command output (truncates if exceeded)",
-        gt=0,
-        le=10_000_000  # 10MB limit
-    )
+    max_workspace_size_mb: Optional[int] = None
+    """Maximum size limit for individual workspaces in MB"""
     
-    on_dangerous_operation: Optional[Callable[[str], None]] = Field(
-        None,
-        description="Callback function for dangerous operations"
-    )
+    workspace_permissions: int = 0o755
+    """File permissions for created workspace directories"""
     
-    @validator('user_id')
-    def validate_user_id(cls, v: str) -> str:
-        """Validate user ID format and content."""
-        if not v or not v.strip():
-            raise ValueError("user_id cannot be empty")
+    cleanup_on_exit: bool = True
+    """Clean up temporary files on library exit"""
+    
+    log_level: str = "INFO"
+    """Global logging level for ConstellationFS"""
+
+    def __post_init__(self):
+        """Validate and normalize configuration after initialization."""
+        # Expand user directory notation
+        self.workspace_root = str(Path(self.workspace_root).expanduser().resolve())
         
-        v = v.strip()
+        # Validate user ID
+        if not self.default_user_id or not self.default_user_id.strip():
+            raise ValueError("default_user_id cannot be empty")
         
-        # Check pattern (alphanumeric, dash, underscore only)
-        if not re.match(USER_ID_PATTERN, v):
-            raise ValueError(
-                "user_id can only contain letters, numbers, dashes, and underscores"
-            )
+        # Validate workspace permissions
+        if not isinstance(self.workspace_permissions, int) or self.workspace_permissions < 0:
+            raise ValueError("workspace_permissions must be a positive integer")
         
-        # Check for forbidden names
-        forbidden_names = {'.', '..', 'root', 'admin', 'system', 'null', 'undefined'}
-        if v.lower() in forbidden_names:
-            raise ValueError(f"user_id '{v}' is not allowed")
+        # Validate max workspace size
+        if self.max_workspace_size_mb is not None and self.max_workspace_size_mb <= 0:
+            raise ValueError("max_workspace_size_mb must be positive")
         
-        return v
-    
-    @validator('on_dangerous_operation')
-    def validate_callback(cls, v: Optional[Callable]) -> Optional[Callable]:
-        """Validate callback function."""
-        if v is not None and not callable(v):
-            raise ValueError("on_dangerous_operation must be callable")
-        return v
-
-
-class LocalBackendConfig(BaseBackendConfig):
-    """Configuration for local filesystem backend."""
-    
-    type: Literal['local'] = Field(
-        'local',
-        description="Backend type identifier"
-    )
-    
-    shell: Literal['bash', 'sh', 'auto'] = Field(
-        DEFAULT_SHELL,
-        description="Shell to use for command execution"
-    )
-    
-    validate_utils: bool = Field(
-        DEFAULT_VALIDATE_UTILS,
-        description="Validate that required POSIX utilities are available"
-    )
-    
-    timeout_seconds: Optional[float] = Field(
-        None,
-        description="Command execution timeout in seconds",
-        gt=0,
-        le=3600  # 1 hour max
-    )
-    
-    max_concurrent_commands: int = Field(
-        10,
-        description="Maximum number of concurrent command executions",
-        gt=0,
-        le=100
-    )
-    
-    resource_limits: Optional[Dict[str, Any]] = Field(
-        None,
-        description="Resource limits for command execution"
-    )
-    
-    @validator('resource_limits')
-    def validate_resource_limits(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        """Validate resource limits configuration."""
-        if v is None:
-            return v
-        
-        allowed_keys = {
-            'max_memory_mb', 'max_cpu_percent', 'max_processes',
-            'max_file_size_mb', 'max_open_files'
-        }
-        
-        for key in v.keys():
-            if key not in allowed_keys:
-                raise ValueError(f"Unknown resource limit: {key}")
-        
-        # Validate specific limits
-        if 'max_memory_mb' in v:
-            if not isinstance(v['max_memory_mb'], (int, float)) or v['max_memory_mb'] <= 0:
-                raise ValueError("max_memory_mb must be a positive number")
-        
-        if 'max_cpu_percent' in v:
-            if not isinstance(v['max_cpu_percent'], (int, float)) or not 0 < v['max_cpu_percent'] <= 100:
-                raise ValueError("max_cpu_percent must be between 0 and 100")
-        
-        return v
-
-
-class RemoteBackendConfig(BaseBackendConfig):
-    """Configuration for remote filesystem backend (SSH-based)."""
-    
-    type: Literal['remote'] = Field(
-        'remote',
-        description="Backend type identifier"
-    )
-    
-    host: str = Field(
-        ...,
-        description="Remote host address",
-        min_length=1
-    )
-    
-    port: int = Field(
-        22,
-        description="SSH port number",
-        ge=1,
-        le=65535
-    )
-    
-    username: str = Field(
-        ...,
-        description="SSH username",
-        min_length=1
-    )
-    
-    password: Optional[str] = Field(
-        None,
-        description="SSH password (use key_file instead if possible)"
-    )
-    
-    key_file: Optional[str] = Field(
-        None,
-        description="Path to SSH private key file"
-    )
-    
-    connect_timeout: float = Field(
-        30.0,
-        description="SSH connection timeout in seconds",
-        gt=0,
-        le=300
-    )
-    
-    command_timeout: float = Field(
-        300.0,
-        description="Command execution timeout in seconds", 
-        gt=0,
-        le=3600
-    )
-    
-    @validator('key_file')
-    def validate_key_file(cls, v: Optional[str]) -> Optional[str]:
-        """Validate SSH key file exists."""
-        if v is not None:
-            key_path = Path(v).expanduser()
-            if not key_path.exists():
-                raise ValueError(f"SSH key file not found: {v}")
-            if not key_path.is_file():
-                raise ValueError(f"SSH key path is not a file: {v}")
-        return v
-    
-    @root_validator(pre=True)
-    def validate_auth_method(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """Ensure at least one authentication method is provided."""
-        password = values.get('password')
-        key_file = values.get('key_file')
-        
-        if not password and not key_file:
-            raise ValueError("Either password or key_file must be provided")
-        
-        return values
-
-
-class DockerBackendConfig(BaseBackendConfig):
-    """Configuration for Docker container backend."""
-    
-    type: Literal['docker'] = Field(
-        'docker',
-        description="Backend type identifier"
-    )
-    
-    image: str = Field(
-        ...,
-        description="Docker image to use",
-        min_length=1
-    )
-    
-    container_name: Optional[str] = Field(
-        None,
-        description="Custom container name (auto-generated if None)"
-    )
-    
-    volumes: Optional[Dict[str, str]] = Field(
-        None,
-        description="Volume mounts (host_path: container_path)"
-    )
-    
-    environment: Optional[Dict[str, str]] = Field(
-        None,
-        description="Environment variables"
-    )
-    
-    network_mode: str = Field(
-        'none',
-        description="Docker network mode"
-    )
-    
-    memory_limit: Optional[str] = Field(
-        None,
-        description="Memory limit (e.g., '512m', '1g')"
-    )
-    
-    cpu_limit: Optional[float] = Field(
-        None,
-        description="CPU limit (fraction of CPU cores)",
-        gt=0,
-        le=32  # Reasonable upper limit
-    )
-    
-    auto_remove: bool = Field(
-        True,
-        description="Automatically remove container when done"
-    )
-    
-    container_timeout: float = Field(
-        300.0,
-        description="Container execution timeout in seconds",
-        gt=0,
-        le=3600
-    )
-    
-    @validator('container_name')
-    def validate_container_name(cls, v: Optional[str]) -> Optional[str]:
-        """Validate Docker container name format."""
-        if v is not None:
-            # Docker container names must match: [a-zA-Z0-9][a-zA-Z0-9_.-]*
-            if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]*$', v):
-                raise ValueError("Invalid Docker container name format")
-        return v
-    
-    @validator('memory_limit')
-    def validate_memory_limit(cls, v: Optional[str]) -> Optional[str]:
-        """Validate Docker memory limit format."""
-        if v is not None:
-            # Should match Docker memory format: number + unit (k, m, g)
-            if not re.match(r'^\d+[kmg]?$', v.lower()):
-                raise ValueError("Invalid memory limit format (e.g., '512m', '1g')")
-        return v
-    
-    @validator('environment')
-    def validate_environment(cls, v: Optional[Dict[str, str]]) -> Optional[Dict[str, str]]:
-        """Validate environment variables."""
-        if v is not None:
-            # Check for dangerous environment variables
-            dangerous_vars = {'LD_PRELOAD', 'LD_LIBRARY_PATH', 'DYLD_INSERT_LIBRARIES'}
-            for var_name in v.keys():
-                if var_name in dangerous_vars:
-                    raise ValueError(f"Dangerous environment variable not allowed: {var_name}")
-        return v
-
-
-# Union type for all backend configurations
-BackendConfig = Union[LocalBackendConfig, RemoteBackendConfig, DockerBackendConfig]
-
-
-class ConstellationConfig(BaseModel):
-    """Main ConstellationFS configuration."""
-    
-    class Config:
-        extra = "forbid"
-        validate_assignment = True
-    
-    # Global settings
-    log_level: str = Field(
-        'INFO',
-        description="Global logging level"
-    )
-    
-    log_file: Optional[str] = Field(
-        None,
-        description="Path to log file"
-    )
-    
-    json_logs: bool = Field(
-        False,
-        description="Output logs in JSON format"
-    )
-    
-    # Security settings
-    strict_path_validation: bool = Field(
-        True,
-        description="Enable strict path validation"
-    )
-    
-    audit_commands: bool = Field(
-        True,
-        description="Audit all command executions"
-    )
-    
-    rate_limit_per_user: Optional[int] = Field(
-        None,
-        description="Commands per minute limit per user",
-        gt=0,
-        le=10000
-    )
-    
-    # Workspace settings
-    workspace_base_dir: Optional[str] = Field(
-        None,
-        description="Base directory for user workspaces"
-    )
-    
-    workspace_cleanup_on_exit: bool = Field(
-        True,
-        description="Clean up workspaces on process exit"
-    )
-    
-    max_workspace_size_mb: Optional[int] = Field(
-        None,
-        description="Maximum workspace size in MB",
-        gt=0
-    )
-    
-    @validator('log_level')
-    def validate_log_level(cls, v: str) -> str:
-        """Validate log level."""
+        # Validate log level
         valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
-        if v.upper() not in valid_levels:
-            raise ValueError(f"Invalid log level. Must be one of: {', '.join(valid_levels)}")
-        return v.upper()
+        if self.log_level.upper() not in valid_levels:
+            raise ValueError(f"Invalid log_level. Must be one of: {', '.join(valid_levels)}")
+        self.log_level = self.log_level.upper()
     
-    @validator('workspace_base_dir')
-    def validate_workspace_dir(cls, v: Optional[str]) -> Optional[str]:
-        """Validate workspace base directory."""
-        if v is not None:
-            path = Path(v)
-            if path.exists() and not path.is_dir():
-                raise ValueError("workspace_base_dir must be a directory")
-        return v
-
-
-def load_config_from_file(file_path: Union[str, Path]) -> ConstellationConfig:
-    """Load configuration from a file.
-    
-    Args:
-        file_path: Path to configuration file (JSON or YAML)
+    def get_user_workspace_path(self, user_id: Optional[str] = None) -> Path:
+        """Get the full path to a user's workspace.
         
-    Returns:
-        Loaded configuration
+        Args:
+            user_id: User identifier. If None, uses default_user_id
+            
+        Returns:
+            Path to user's workspace directory
+        """
+        effective_user_id = user_id or self.default_user_id
+        return Path(self.workspace_root) / "users" / effective_user_id
+    
+    def ensure_workspace_exists(self, user_id: Optional[str] = None) -> Path:
+        """Ensure a user's workspace directory exists.
         
-    Raises:
-        ValueError: When file format is unsupported or invalid
-        FileNotFoundError: When file doesn't exist
-    """
-    file_path = Path(file_path)
+        Args:
+            user_id: User identifier. If None, uses default_user_id
+            
+        Returns:
+            Path to created workspace directory
+            
+        Raises:
+            OSError: If workspace creation fails
+            PermissionError: If insufficient permissions to create workspace
+        """
+        workspace_path = self.get_user_workspace_path(user_id)
+        
+        if not workspace_path.exists():
+            try:
+                workspace_path.mkdir(parents=True, exist_ok=True, mode=0o755)
+                get_logger('constellation.config').info(
+                    f"Created workspace: {workspace_path}",
+                    user_id=user_id or self.default_user_id
+                )
+            except (OSError, PermissionError) as e:
+                get_logger('constellation.config').error(
+                    f"Failed to create workspace: {workspace_path}",
+                    error=str(e)
+                )
+                raise
+        
+        return workspace_path
     
-    if not file_path.exists():
-        raise FileNotFoundError(f"Configuration file not found: {file_path}")
+    def get_workspace_size_mb(self, user_id: Optional[str] = None) -> float:
+        """Get the current size of a user's workspace in MB.
+        
+        Args:
+            user_id: User identifier. If None, uses default_user_id
+            
+        Returns:
+            Workspace size in megabytes
+        """
+        workspace_path = self.get_user_workspace_path(user_id)
+        
+        if not workspace_path.exists():
+            return 0.0
+        
+        total_size = 0
+        try:
+            for item in workspace_path.rglob('*'):
+                if item.is_file():
+                    total_size += item.stat().st_size
+        except (OSError, PermissionError):
+            # Return 0 if we can't read the workspace
+            return 0.0
+        
+        return total_size / (1024 * 1024)  # Convert to MB
     
-    import json
+    def check_workspace_size_limit(self, user_id: Optional[str] = None) -> bool:
+        """Check if a user's workspace is within size limits.
+        
+        Args:
+            user_id: User identifier. If None, uses default_user_id
+            
+        Returns:
+            True if within limits or no limit set, False if over limit
+        """
+        if self.max_workspace_size_mb is None:
+            return True
+        
+        current_size = self.get_workspace_size_mb(user_id)
+        return current_size <= self.max_workspace_size_mb
     
-    try:
-        with open(file_path, 'r') as f:
-            if file_path.suffix.lower() == '.json':
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert configuration to dictionary.
+        
+        Returns:
+            Configuration as dictionary
+        """
+        return asdict(self)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ConstellationFSConfig':
+        """Create configuration from dictionary.
+        
+        Args:
+            data: Configuration dictionary
+            
+        Returns:
+            New configuration instance
+        """
+        # Filter out unknown keys to avoid TypeError
+        valid_keys = {field.name for field in cls.__dataclass_fields__.values()}  # type: ignore
+        filtered_data = {k: v for k, v in data.items() if k in valid_keys}
+        return cls(**filtered_data)
+    
+    def save_to_file(self, file_path: Union[str, Path]) -> None:
+        """Save configuration to a JSON file.
+        
+        Args:
+            file_path: Path to save configuration file
+            
+        Raises:
+            OSError: If file cannot be written
+        """
+        file_path = Path(file_path)
+        
+        try:
+            with open(file_path, 'w') as f:
+                json.dump(self.to_dict(), f, indent=2, sort_keys=True)
+        except OSError as e:
+            get_logger('constellation.config').error(
+                f"Failed to save configuration to {file_path}",
+                error=str(e)
+            )
+            raise
+    
+    @classmethod
+    def load_from_file(cls, file_path: Union[str, Path]) -> 'ConstellationFSConfig':
+        """Load configuration from a JSON file.
+        
+        Args:
+            file_path: Path to configuration file
+            
+        Returns:
+            Loaded configuration
+            
+        Raises:
+            FileNotFoundError: If file doesn't exist
+            ValueError: If file is invalid JSON or contains invalid configuration
+        """
+        file_path = Path(file_path)
+        
+        if not file_path.exists():
+            raise FileNotFoundError(f"Configuration file not found: {file_path}")
+        
+        try:
+            with open(file_path, 'r') as f:
                 data = json.load(f)
-            elif file_path.suffix.lower() in ('.yml', '.yaml'):
+            
+            if not isinstance(data, dict):
+                raise ValueError("Configuration file must contain a JSON object")
+            
+            return cls.from_dict(data)
+        
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in configuration file: {e}")
+        except (OSError, IOError) as e:
+            raise ValueError(f"Failed to read configuration file: {e}")
+    
+    @classmethod
+    def find_and_load_config(cls, start_dir: Optional[Union[str, Path]] = None) -> 'ConstellationFSConfig':
+        """Find and load configuration from .constellationfs.json file.
+        
+        Searches for .constellationfs.json in the following order:
+        1. Current working directory
+        2. Parent directories (walking up)
+        3. User's home directory
+        
+        If no config file is found, returns default configuration.
+        
+        Args:
+            start_dir: Directory to start search from. Defaults to current directory.
+            
+        Returns:
+            Loaded or default configuration
+        """
+        start_path = Path(start_dir) if start_dir else Path.cwd()
+        config_filename = '.constellationfs.json'
+        
+        # Search in current directory and parents
+        current = start_path.resolve()
+        while current != current.parent:  # Stop at filesystem root
+            config_path = current / config_filename
+            if config_path.exists():
+                get_logger('constellation.config').info(f"Loading config from {config_path}")
                 try:
-                    import yaml  # type: ignore
-                    data = yaml.safe_load(f)
-                except ImportError:
-                    raise ValueError("PyYAML not installed, cannot load YAML configuration")
-            else:
-                raise ValueError(f"Unsupported configuration file format: {file_path.suffix}")
-    
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in configuration file: {e}")
-    except Exception as e:
-        raise ValueError(f"Failed to load configuration file: {e}")
-    
-    return ConstellationConfig(**data)
+                    return cls.load_from_file(config_path)
+                except (ValueError, FileNotFoundError) as e:
+                    get_logger('constellation.config').warning(
+                        f"Failed to load config from {config_path}: {e}"
+                    )
+            current = current.parent
+        
+        # Search in home directory
+        home_config = Path.home() / config_filename
+        if home_config.exists():
+            get_logger('constellation.config').info(f"Loading config from {home_config}")
+            try:
+                return cls.load_from_file(home_config)
+            except (ValueError, FileNotFoundError) as e:
+                get_logger('constellation.config').warning(
+                    f"Failed to load config from {home_config}: {e}"
+                )
+        
+        # Return default configuration
+        get_logger('constellation.config').info("No configuration file found, using defaults")
+        return cls()
 
 
-def load_config_from_env() -> ConstellationConfig:
-    """Load configuration from environment variables.
-    
-    Environment variables should be prefixed with CONSTELLATION_.
+# Global configuration instance
+_global_config: Optional[ConstellationFSConfig] = None
+
+
+def get_global_config() -> ConstellationFSConfig:
+    """Get the global ConstellationFS configuration.
     
     Returns:
-        Configuration loaded from environment
+        Global configuration instance
     """
-    config_data: Dict[str, Any] = {}
-    
-    # Map environment variables to config fields
-    env_mapping = {
-        'CONSTELLATION_LOG_LEVEL': 'log_level',
-        'CONSTELLATION_LOG_FILE': 'log_file', 
-        'CONSTELLATION_JSON_LOGS': 'json_logs',
-        'CONSTELLATION_STRICT_PATH_VALIDATION': 'strict_path_validation',
-        'CONSTELLATION_AUDIT_COMMANDS': 'audit_commands',
-        'CONSTELLATION_RATE_LIMIT_PER_USER': 'rate_limit_per_user',
-        'CONSTELLATION_WORKSPACE_BASE_DIR': 'workspace_base_dir',
-        'CONSTELLATION_WORKSPACE_CLEANUP_ON_EXIT': 'workspace_cleanup_on_exit',
-        'CONSTELLATION_MAX_WORKSPACE_SIZE_MB': 'max_workspace_size_mb',
-    }
-    
-    for env_var, config_key in env_mapping.items():
-        value = os.environ.get(env_var)
-        if value is not None:
-            # Convert string values to appropriate types
-            if config_key in ('json_logs', 'strict_path_validation', 'audit_commands', 'workspace_cleanup_on_exit'):
-                config_data[config_key] = value.lower() in ('true', '1', 'yes', 'on')
-            elif config_key in ('rate_limit_per_user', 'max_workspace_size_mb'):
-                try:
-                    config_data[config_key] = int(value)
-                except ValueError:
-                    pass  # Skip invalid numeric values
-            else:
-                config_data[config_key] = value
-    
-    return ConstellationConfig(**config_data)
+    global _global_config
+    if _global_config is None:
+        _global_config = ConstellationFSConfig.find_and_load_config()
+    return _global_config
 
 
-def create_backend_config(config_dict: Dict[str, Any]) -> BackendConfig:
-    """Create a backend configuration from a dictionary.
+def set_global_config(config: ConstellationFSConfig) -> None:
+    """Set the global ConstellationFS configuration.
     
     Args:
-        config_dict: Configuration dictionary
-        
-    Returns:
-        Appropriate backend configuration instance
-        
-    Raises:
-        ValueError: When backend type is unknown or configuration is invalid
+        config: Configuration instance to use globally
     """
-    backend_type = config_dict.get('type', 'local')
+    global _global_config
+    _global_config = config
+
+
+def reset_global_config() -> None:
+    """Reset global configuration to default.
     
-    if backend_type == 'local':
-        return LocalBackendConfig(**config_dict)
-    elif backend_type == 'remote':
-        return RemoteBackendConfig(**config_dict)
-    elif backend_type == 'docker':
-        return DockerBackendConfig(**config_dict)
-    else:
-        raise ValueError(f"Unknown backend type: {backend_type}")
+    This will cause the next call to get_global_config() to reload from files.
+    """
+    global _global_config
+    _global_config = None
 
 
-def validate_backend_config(config: Dict[str, Any]) -> BackendConfig:
-    """Validate backend configuration dictionary.
+# Convenience functions for common operations
+
+def get_workspace_root() -> str:
+    """Get the configured workspace root directory.
+    
+    Returns:
+        Workspace root directory path
+    """
+    return get_global_config().workspace_root
+
+
+def get_user_workspace_path(user_id: Optional[str] = None) -> Path:
+    """Get path to a user's workspace using global configuration.
     
     Args:
-        config: Configuration dictionary to validate
+        user_id: User identifier. If None, uses configured default
         
     Returns:
-        Validated backend configuration
-        
-    Raises:
-        ValueError: When configuration is invalid
+        Path to user's workspace directory
     """
-    return create_backend_config(config)
+    return get_global_config().get_user_workspace_path(user_id)
+
+
+def ensure_user_workspace(user_id: Optional[str] = None) -> Path:
+    """Ensure a user's workspace exists using global configuration.
+    
+    Args:
+        user_id: User identifier. If None, uses configured default
+        
+    Returns:
+        Path to created workspace directory
+    """
+    return get_global_config().ensure_workspace_exists(user_id)

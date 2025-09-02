@@ -1,12 +1,13 @@
 """SDK adapters for ConstellationFS."""
 
 from typing import List
-
-# Adapters will be implemented in Phase 3
-# from .base_adapter import BaseSDKAdapter
-# from .claude_adapter import ClaudeAdapter
+from .base_adapter import BaseSDKAdapter, SDKAdapterProtocol
+from .claude_adapter import ClaudeAdapter
+from .subprocess_patch import SubprocessInterceptor
 
 __all__: List[str] = [
-    # "BaseSDKAdapter",
-    # "ClaudeAdapter",
+    "BaseSDKAdapter",
+    "SDKAdapterProtocol", 
+    "ClaudeAdapter",
+    "SubprocessInterceptor",
 ]

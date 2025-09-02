@@ -9,12 +9,7 @@ from unittest.mock import Mock, patch
 from constellation.utils.logger import ConstellationLogger, get_logger, LogLevel
 from constellation.utils.posix_commands import POSIXCommands
 from constellation.utils.path_validator import PathValidator
-from constellation.config.config import (
-    LocalBackendConfig, 
-    ConstellationConfig,
-    load_config_from_file,
-    create_backend_config
-)
+from constellation.config.config import ConstellationFSConfig
 
 
 class TestStructuredLogging:
@@ -313,76 +308,50 @@ class TestPathValidator:
 class TestConfigurationValidation:
     """Test configuration validation."""
     
-    def test_local_backend_config_creation(self):
-        """Test local backend configuration."""
-        try:
-            from constellation.config.config import LocalBackendConfig, HAS_PYDANTIC
-            
-            if not HAS_PYDANTIC:
-                pytest.skip("Pydantic not available")
-            
-            config = LocalBackendConfig(
-                user_id="test-user",
-                shell="bash",
-                timeout_seconds=300.0,
-                resource_limits={
-                    "max_memory_mb": 512,
-                    "max_cpu_percent": 75
-                }
-            )
-            
-            assert config.user_id == "test-user"
-            assert config.shell == "bash"
-            assert config.timeout_seconds == 300.0
-        except ImportError:
-            pytest.skip("Configuration module not available")
+    def test_config_validation(self):
+        """Test configuration validation."""
+        # Test valid configuration
+        config = ConstellationFSConfig(
+            workspace_root="/tmp/test",
+            default_user_id="test-user",
+            max_workspace_size_mb=1024
+        )
+        assert config.default_user_id == "test-user"
+        assert config.max_workspace_size_mb == 1024
     
     def test_config_validation_errors(self):
         """Test configuration validation errors."""
-        try:
-            from constellation.config.config import LocalBackendConfig, HAS_PYDANTIC
-            
-            if not HAS_PYDANTIC:
-                pytest.skip("Pydantic not available")
-            
-            # Test invalid user_id
-            with pytest.raises(Exception):  # Should raise ValidationError
-                LocalBackendConfig(user_id="")
-            
-            with pytest.raises(Exception):
-                LocalBackendConfig(user_id="invalid/user")
-            
-            # Test invalid resource limits
-            with pytest.raises(Exception):
-                LocalBackendConfig(
-                    user_id="test",
-                    resource_limits={"invalid_limit": 100}
-                )
-        except ImportError:
-            pytest.skip("Configuration module not available")
+        # Test invalid user_id
+        with pytest.raises(ValueError):
+            ConstellationFSConfig(default_user_id="")
+        
+        # Test invalid workspace size
+        with pytest.raises(ValueError):
+            ConstellationFSConfig(max_workspace_size_mb=-100)
+        
+        # Test invalid log level
+        with pytest.raises(ValueError):
+            ConstellationFSConfig(log_level="INVALID_LEVEL")
     
     def test_config_from_dict(self):
         """Test configuration creation from dictionary."""
         config_dict = {
-            "type": "local",
-            "user_id": "test-user",
-            "shell": "bash",
-            "prevent_dangerous": True
+            "workspace_root": "/tmp/test-workspace",
+            "default_user_id": "test-user",
+            "log_level": "DEBUG"
         }
         
-        try:
-            config = create_backend_config(config_dict)
-            assert config["user_id"] == "test-user"
-            assert config["type"] == "local"
-        except ImportError:
-            pytest.skip("Configuration module not available")
+        config = ConstellationFSConfig.from_dict(config_dict)
+        assert config.default_user_id == "test-user"
+        assert config.log_level == "DEBUG"
+        assert config.workspace_root == "/tmp/test-workspace"
     
     def test_config_from_file(self):
         """Test loading configuration from file."""
         config_data = {
             "log_level": "DEBUG",
-            "strict_path_validation": True,
-            "audit_commands": True
+            "default_user_id": "test-user",
+            "max_workspace_size_mb": 100
         }
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -390,30 +359,23 @@ class TestConfigurationValidation:
             config_file = f.name
         
         try:
-            config = load_config_from_file(config_file)
+            config = ConstellationFSConfig.load_from_file(config_file)
             assert config.log_level == "DEBUG"
-            assert config.strict_path_validation is True
-        except ImportError:
-            pytest.skip("Configuration module not available")
+            assert config.default_user_id == "test-user"
+            assert config.max_workspace_size_mb == 100
         finally:
             Path(config_file).unlink()
     
-    @patch.dict('os.environ', {
-        'CONSTELLATION_LOG_LEVEL': 'DEBUG',
-        'CONSTELLATION_JSON_LOGS': 'true',
-        'CONSTELLATION_RATE_LIMIT_PER_USER': '100'
-    })
-    def test_config_from_env(self):
-        """Test loading configuration from environment variables."""
-        try:
-            from constellation.config.config import load_config_from_env
-            
-            config = load_config_from_env()
-            assert config.log_level == "DEBUG"
-            assert config.json_logs is True
-            assert config.rate_limit_per_user == 100
-        except ImportError:
-            pytest.skip("Configuration module not available")
+    def test_config_env_integration(self):
+        """Test configuration integration with environment."""
+        # Test default config creation
+        config = ConstellationFSConfig()
+        assert config.log_level == "INFO"
+        assert config.default_user_id == "default"
+        
+        # Test config file discovery
+        default_config = ConstellationFSConfig.find_and_load_config()
+        assert isinstance(default_config, ConstellationFSConfig)
 
 
 class TestResourceMonitoring:

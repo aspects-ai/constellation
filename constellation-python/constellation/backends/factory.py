@@ -1,5 +1,3 @@
-"""Backend factory for creating filesystem backend instances."""
-
 from typing import Dict, Type, cast
 from .base import FileSystemBackend
 from .local import LocalBackend

@@ -1,0 +1,9 @@
+{
+  "workspace_root": "./dev_workspaces/",
+  "default_user_id": "developer",
+  "auto_create_workspace": true,
+  "workspace_permissions": 755,
+  "max_workspace_size_mb": null,
+  "cleanup_on_exit": false,
+  "log_level": "DEBUG"
+}

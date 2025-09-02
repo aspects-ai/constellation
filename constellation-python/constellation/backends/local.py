@@ -1,5 +1,3 @@
-"""Local filesystem backend implementation."""
-
 import asyncio
 import os
 import shlex
@@ -27,7 +25,7 @@ from ..constants import (
     SAFE_PATH,
     SAFE_LOCALE
 )
-from ..safety import is_command_safe, validate_path_safety, is_dangerous_operation
+from ..security import is_command_safe, validate_path_safety, is_dangerous_operation
 from ..utils.workspace import WorkspaceManager
 from ..utils.logger import get_logger
 from ..utils.path_validator import PathValidator

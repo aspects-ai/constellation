@@ -1,0 +1,409 @@
+/* ConstellationFS Python Web Demo Styles */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    color: #333;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* Header */
+.header {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 1rem 0;
+}
+
+.header-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #4a5568;
+}
+
+.header p {
+    color: #718096;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+
+.session-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.session-id {
+    font-size: 0.8rem;
+    color: #718096;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+/* Main Layout */
+.main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+/* Panels */
+.chat-panel, .file-panel {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Chat Panel */
+.chat-header, .file-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chat-header h2, .file-header h2 {
+    font-size: 1.2rem;
+    color: #4a5568;
+    font-weight: 600;
+}
+
+.status-indicator {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.status-indicator.ready {
+    background: #c6f6d5;
+    color: #276749;
+}
+
+.status-indicator.thinking {
+    background: #fef5e7;
+    color: #c05621;
+}
+
+.status-indicator.error {
+    background: #fed7d7;
+    color: #c53030;
+}
+
+/* Chat Messages */
+.chat-messages {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+    max-height: 400px;
+}
+
+.message {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-radius: 8px;
+    max-width: 85%;
+}
+
+.message.user {
+    background: #e6fffa;
+    border: 1px solid #b2f5ea;
+    margin-left: auto;
+    text-align: right;
+}
+
+.message.assistant {
+    background: #f7fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.message.tool {
+    background: #fef5e7;
+    border: 1px solid #f6e05e;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9rem;
+}
+
+.message-content {
+    line-height: 1.5;
+}
+
+.message-content strong {
+    color: #2d3748;
+}
+
+.message-content ul {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.message-content li {
+    margin-bottom: 0.25rem;
+}
+
+/* Chat Input */
+.chat-input-form {
+    padding: 1rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.input-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.chat-input:focus {
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+}
+
+/* File Panel */
+.file-info {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background: rgba(247, 250, 252, 0.5);
+}
+
+.workspace-path {
+    font-size: 0.9rem;
+    color: #718096;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.file-tree {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+    max-height: 500px;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.file-item:hover {
+    background: rgba(66, 153, 225, 0.1);
+}
+
+.file-icon {
+    margin-right: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.file-name {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9rem;
+}
+
+.file-size {
+    margin-left: auto;
+    font-size: 0.8rem;
+    color: #718096;
+}
+
+.loading {
+    text-align: center;
+    color: #718096;
+    font-style: italic;
+    padding: 2rem;
+}
+
+.empty-state {
+    text-align: center;
+    color: #718096;
+    padding: 2rem;
+}
+
+/* Buttons */
+.btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    outline: none;
+}
+
+.btn-primary {
+    background: #4299e1;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #3182ce;
+}
+
+.btn-primary:disabled {
+    background: #a0aec0;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background: #edf2f7;
+    color: #4a5568;
+    border: 1px solid #e2e8f0;
+}
+
+.btn-secondary:hover {
+    background: #e2e8f0;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    max-width: 800px;
+    max-height: 80vh;
+    width: 90%;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    flex: 1;
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+
+.modal-body pre {
+    background: #f7fafc;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .main {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+    }
+    
+    .header-content {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+    
+    .session-info {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.file-item {
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* Scrollbar Styling */
+.chat-messages::-webkit-scrollbar,
+.file-tree::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track,
+.file-tree::-webkit-scrollbar-track,
+.modal-body::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+.chat-messages::-webkit-scrollbar-thumb,
+.file-tree::-webkit-scrollbar-thumb,
+.modal-body::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover,
+.file-tree::-webkit-scrollbar-thumb:hover,
+.modal-body::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
+}

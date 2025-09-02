@@ -1,5 +1,3 @@
-"""Main FileSystem class providing unified interface for file operations."""
-
 import asyncio
 from typing import Union, List, Optional, Dict, Any, overload, cast
 from pathlib import Path

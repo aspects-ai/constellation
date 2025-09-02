@@ -1,5 +1,3 @@
-"""Constants and error codes for ConstellationFS."""
-
 from typing import Final
 
 
@@ -21,6 +19,9 @@ class ErrorCodes:
     DANGEROUS_OPERATION: Final[str] = "DANGEROUS_OPERATION"
     ABSOLUTE_PATH_REJECTED: Final[str] = "ABSOLUTE_PATH_REJECTED"
     PATH_ESCAPE_ATTEMPT: Final[str] = "PATH_ESCAPE_ATTEMPT"
+    INVALID_PATH: Final[str] = "INVALID_PATH"
+    PATH_TRAVERSAL: Final[str] = "PATH_TRAVERSAL"
+    UNSAFE_PATH: Final[str] = "UNSAFE_PATH"
     
     # Configuration errors
     INVALID_CONFIG: Final[str] = "INVALID_CONFIG"
