@@ -211,7 +211,7 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
         (childProcessModule as any).exec = originalFunctions.exec;
         (childProcessModule as any).spawn = originalFunctions.spawn;
         (childProcessModule as any).execSync = originalFunctions.execSync
-      } catch (assignmentError) {
+      } catch {
         // If direct assignment fails, try defineProperty
         try {
           Object.defineProperty(childProcessModule, 'exec', {
@@ -231,8 +231,8 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
             configurable: true,
             writable: true
           })
-        } catch (definePropertyError) {
-          console.warn('[ConstellationFS] Could not restore original child_process functions:', definePropertyError)
+        } catch (_definePropertyError) {
+          console.warn('[ConstellationFS] Could not restore original child_process functions:', _definePropertyError)
         }
       }
 

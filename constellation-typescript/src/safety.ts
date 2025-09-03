@@ -82,7 +82,7 @@ const ESCAPE_PATTERNS = [
   /\$\{HOME\}/,  // HOME variable with braces
   
   // Parent directory traversal
-  /\.\.[\/\\]/,
+  /\.\.[/\\]/,
   
   // Command substitution (could be used to escape)
   /\$\([^)]+\)/,  // $() command substitution
@@ -143,7 +143,7 @@ export function isCommandSafe(command: string): { safe: boolean; reason?: string
     if (/~\//.test(command) || /\$HOME/.test(command)) {
       return { safe: false, reason: 'Home directory references are not allowed' }
     }
-    if (/\.\.[\/\\]/.test(command)) {
+    if (/\.\.[/\\]/.test(command)) {
       return { safe: false, reason: 'Parent directory traversal is not allowed' }
     }
     return { safe: false, reason: 'Command attempts to escape workspace' }

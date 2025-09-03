@@ -73,7 +73,7 @@ export function checkSymlinkSafety(workspacePath: string, targetPath: string): {
             }
           }
         }
-      } catch (err) {
+      } catch {
         // Path doesn't exist yet, which is fine for write operations
         break
       }

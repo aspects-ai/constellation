@@ -1,6 +1,7 @@
 import type { ChildProcess, Serializable } from 'child_process'
 import { EventEmitter } from 'events'
-import { Readable, PassThrough } from 'stream'
+import type { Readable} from 'stream'
+import { PassThrough } from 'stream'
 import type { BaseSDKAdapter } from './BaseAdapter.js'
 
 export interface ConstellationChildProcessOptions {

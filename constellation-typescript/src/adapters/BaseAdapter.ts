@@ -1,5 +1,5 @@
 import type { FileSystem } from '../FileSystem.js'
-import type { BackendConfig } from '../types.js'
+import type { BackendConfig, FileInfo } from '../types.js'
 
 /**
  * Base interface that all Agent SDK adapters should implement
@@ -77,7 +77,7 @@ export abstract class BaseSDKAdapter implements AgentSDKAdapter {
    * @param pattern - Optional pattern to filter files
    * @returns Promise resolving to file list
    */
-  protected async ls(pattern?: string) {
+  protected async ls(pattern?: string): Promise<FileInfo[] | string[]> {
     return this.fs.ls(pattern)
   }
 }
