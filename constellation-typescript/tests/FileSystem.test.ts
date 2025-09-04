@@ -51,7 +51,8 @@ describe('FileSystem', () => {
       await fs.write('file1.txt', 'content1')
       await fs.write('file2.txt', 'content2')
       
-      const files = await fs.ls()
+      const result = await fs.exec('ls')
+      const files = result.split('\n').filter(Boolean)
       expect(files).toContain('file1.txt')
       expect(files).toContain('file2.txt')
     })

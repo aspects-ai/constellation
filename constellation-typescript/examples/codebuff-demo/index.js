@@ -158,9 +158,9 @@ async function main() {
     // Show workspace contents
     console.log('📁 Final Workspace Contents:')
     console.log('-'.repeat(30))
-    const files = await fs.ls()
-    for (const file of files) {
-      const fileName = typeof file === 'string' ? file : file.name
+    const result = await fs.exec('ls')
+    const files = result ? result.split('\n').filter(Boolean) : []
+    for (const fileName of files) {
       console.log(`📄 ${fileName}`)
       try {
         const content = await fs.read(fileName)

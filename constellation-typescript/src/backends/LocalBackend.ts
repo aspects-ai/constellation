@@ -1,14 +1,11 @@
 import { execSync, spawn } from 'child_process'
-import { readFile, readdir, stat, writeFile } from 'fs/promises'
+import { readFile, writeFile } from 'fs/promises'
 import { isAbsolute, join, relative, resolve } from 'path'
 import { ERROR_CODES } from '../constants.js'
-import { isDangerous, isCommandSafe } from '../safety.js'
-import type { FileInfo } from '../types.js'
+import { isCommandSafe, isDangerous } from '../safety.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
-import { getLogger } from '../utils/logger.js'
-import { POSIXCommands } from '../utils/POSIXCommands.js'
-import { WorkspaceManager } from '../utils/workspaceManager.js'
 import { checkSymlinkSafety } from '../utils/pathValidator.js'
+import { WorkspaceManager } from '../utils/workspaceManager.js'
 import type { FileSystemBackend, LocalBackendConfig } from './types.js'
 import { validateLocalBackendConfig } from './types.js'
 
@@ -218,80 +215,6 @@ export class LocalBackend implements FileSystemBackend {
     } catch (error) {
       throw this.wrapError(error, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${path}`)
     }
-  }
-
-  // eslint-disable-next-line no-dupe-class-members
-  async ls(patternOrOptions?: string | { details: true }): Promise<string[] | FileInfo[]>
-  // eslint-disable-next-line no-dupe-class-members
-  async ls(pattern: string, options: { details: true }): Promise<FileInfo[]>
-  // eslint-disable-next-line no-dupe-class-members
-  async ls(
-    patternOrOptions?: string | { details: true },
-    options?: { details: true },
-  ): Promise<string[] | FileInfo[]> {
-    try {
-      // Parse arguments to determine what was requested
-      let pattern: string | undefined
-      let wantDetails = false
-
-      if (typeof patternOrOptions === 'string') {
-        pattern = patternOrOptions
-        wantDetails = options?.details === true
-      } else if (patternOrOptions?.details === true) {
-        wantDetails = true
-      }
-
-      if (wantDetails) {
-        return this.lsWithDetails(pattern)
-      } else {
-        return this.lsNamesOnly(pattern)
-      }
-    } catch (error) {
-      throw this.wrapError(error, 'List directory', ERROR_CODES.LS_FAILED, `ls ${patternOrOptions || ''}`)
-    }
-  }
-
-  private async lsNamesOnly(pattern?: string): Promise<string[]> {
-    if (pattern) {
-      const result = await this.exec(POSIXCommands.ls(pattern))
-      return result ? result.split('\n').filter(Boolean) : []
-    } else {
-      return await readdir(this.workspace)
-    }
-  }
-
-  private async lsWithDetails(pattern?: string): Promise<FileInfo[]> {
-    const filenames = await this.lsNamesOnly(pattern)
-    const fileInfos: FileInfo[] = []
-
-    for (const name of filenames) {
-      try {
-        const fullPath = join(this.workspace, name)
-        const stats = await stat(fullPath)
-        
-        let type: 'file' | 'directory' | 'symlink'
-        if (stats.isFile()) {
-          type = 'file'
-        } else if (stats.isDirectory()) {
-          type = 'directory'
-        } else if (stats.isSymbolicLink()) {
-          type = 'symlink'
-        } else {
-          type = 'file'
-        }
-
-        fileInfos.push({
-          name,
-          type,
-          size: stats.size,
-          modified: stats.mtime,
-        })
-      } catch (error) {
-        getLogger().warn(`Failed to get stats for ${name}:`, error)
-      }
-    }
-
-    return fileInfos
   }
 
   /**

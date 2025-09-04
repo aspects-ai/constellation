@@ -1,4 +1,3 @@
-import type { FileInfo } from '@/types.js';
 import type { FileSystem } from '../FileSystem.js';
 import { BaseSDKAdapter } from './BaseAdapter.js';
 
@@ -13,29 +12,34 @@ export interface CodebuffToolHandlers {
    * @param cwd - Current working directory
    * @returns Command output or error
    */
-  run_terminal_command?: (command: string, cwd?: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>
+  run_terminal_command: (command: string, cwd?: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>
   
   /**
    * Override for read_files tool
    * @param paths - Array of file paths to read
    * @returns File contents mapped by path
    */
-  read_files?: (paths: string[]) => Promise<Record<string, string>>
+  read_files: (paths: string[]) => Promise<Record<string, string>>
   
   /**
    * Override for write_file tool
    * @param path - File path to write
    * @param content - Content to write
    */
-  write_file?: (path: string, content: string) => Promise<void>
+  write_file: (path: string, content: string) => Promise<void>
   
   /**
    * Override for str_replace tool
    * @param path - File path to edit
-   * @param oldText - Text to replace
-   * @param newText - Replacement text
+   * @param replacements - Array of replacement objects
    */
-  str_replace?: (path: string, oldText: string, newText: string) => Promise<void>
+  str_replace: (path: string, replacements: Array<{old: string, new: string, allowMultiple?: boolean}>) => Promise<{
+    file: string
+    message?: string
+    unifiedDiff?: string
+    errorMessage?: string
+    patch?: string
+  }>
   
   /**
    * Override for find_files tool
@@ -43,7 +47,7 @@ export interface CodebuffToolHandlers {
    * @param path - Directory to search in
    * @returns Array of matching file paths
    */
-  find_files?: (pattern: string, path?: string) => Promise<string[]>
+  find_files: (pattern: string, path?: string) => Promise<Record<string, string | boolean>>
   
   /**
    * Override for code_search tool
@@ -52,7 +56,7 @@ export interface CodebuffToolHandlers {
    * @param fileType - File type filter
    * @returns Search results with matches
    */
-  code_search?: (pattern: string, path?: string, fileType?: string) => Promise<Array<{ file: string; line: number; content: string }>>
+  code_search: (pattern: string, path?: string, fileType?: string) => Promise<Array<{ file: string; line: number; content: string }>>
 }
 
 /**
@@ -63,21 +67,19 @@ export interface CodebuffToolHandlers {
  * cleaner integration with ConstellationFS backends.
  */
 export class CodebuffAdapter extends BaseSDKAdapter {
-  private handlers: CodebuffToolHandlers = {}
+  
+  private handlers: CodebuffToolHandlers
 
   constructor(fs: FileSystem) {
     super(fs)
-    this.setupDefaultHandlers()
+    this.handlers = this.getDefaultHandlers()
   }
 
   /**
    * Set up default tool handlers that route through ConstellationFS
    */
-  private setupDefaultHandlers() {
-    this.handlers = {
-      /**
-       * Override terminal command execution to use ConstellationFS
-       */
+  private getDefaultHandlers(): CodebuffToolHandlers {
+    return {
       run_terminal_command: async (command: string, cwd?: string) => {
         console.log(`🔍 [ConstellationFS/Codebuff] Executing command: ${command}`)
         
@@ -103,81 +105,78 @@ export class CodebuffAdapter extends BaseSDKAdapter {
         }
       },
 
-      /**
-       * Override file reading to use ConstellationFS
-       */
       read_files: async (paths: string[]) => {
         const results: Record<string, string> = {}
         
         for (const path of paths) {
           try {
             console.log(`📖 [ConstellationFS/Codebuff] Reading file: ${path}`)
-            results[path] = await this.read(path)
+            results['path'] = path
+            results['content'] = await this.read(path)
           } catch (error) {
             console.error(`[ConstellationFS/Codebuff] Failed to read ${path}:`, error)
-            results[path] = `ERROR: Could not read file - ${error instanceof Error ? error.message : String(error)}`
+            results['path'] = path
+            results['content'] = `ERROR: Could not read file - ${error instanceof Error ? error.message : String(error)}`
           }
         }
         
         return results
       },
 
-      /**
-       * Override file writing to use ConstellationFS
-       */
       write_file: async (path: string, content: string) => {
         console.log(`✍️ [ConstellationFS/Codebuff] Writing file: ${path}`)
         await this.write(path, content)
       },
 
-      /**
-       * Override string replacement in files
-       */
-      str_replace: async (path: string, oldText: string, newText: string) => {
+      str_replace: async (path: string, replacements: Array<{old: string, new: string, allowMultiple?: boolean}>) => {
         console.log(`🔄 [ConstellationFS/Codebuff] Replacing text in: ${path}`)
         
-        // Read the file
-        const content = await this.read(path)
-        
-        // Replace the text
-        if (!content.includes(oldText)) {
-          throw new Error(`Text to replace not found in ${path}`)
-        }
-        
-        const updatedContent = content.replace(oldText, newText)
-        
-        // Write back
-        await this.write(path, updatedContent)
-      },
-
-      /**
-       * Override file finding to use ConstellationFS
-       */
-      find_files: async (pattern: string, _path?: string): Promise<string[]> => {
-        console.log(`🔍 [ConstellationFS/Codebuff] Finding files with pattern: ${pattern}`)
-        
-        // Use ls method through ConstellationFS for listing files
         try {
-          const files = await this.ls(pattern)
-          // Convert FileInfo[] to string[] if needed
-          if (Array.isArray(files) && files.length > 0) {
-            if (typeof files[0] === 'string') {
-              return files as string[]
-            } else {
-              // Extract file names from FileInfo objects
-              return (files as FileInfo[]).map(f => f.name)
+          // Read the file
+          const originalContent = await this.read(path)
+          let currentContent = originalContent
+          
+          // Apply each replacement
+          for (const replacement of replacements) {
+            const { old: oldText, new: newText, allowMultiple = false } = replacement
+            
+            // Check if old text exists
+            if (!currentContent.includes(oldText)) {
+              throw new Error(`Text to replace not found: "${oldText}"`)
             }
+            
+            if (allowMultiple) {
+              currentContent = currentContent.replaceAll(oldText, newText)
+            } else if (!allowMultiple) {
+              const occurrences = (currentContent.match(new RegExp(oldText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length
+              if (occurrences > 1) {
+                throw new Error(`Multiple occurrences found for "${oldText}" but allowMultiple is false`)
+              }
+            }
+            currentContent = currentContent.replace(oldText, newText)
           }
-          return []
+          
+          // Write back
+          await this.write(path, currentContent)
+          
+          // Generate simple diff info
+          const linesChanged = originalContent !== currentContent
+          return {
+            file: path,
+            message: linesChanged ? `Successfully applied ${replacements.length} replacement(s)` : 'No changes made',
+            unifiedDiff: linesChanged ? `--- ${path}\n+++ ${path}\n@@ Changes applied @@` : 'No changes'
+          }
+          
         } catch (error) {
-          console.error(`[ConstellationFS/Codebuff] Find failed: ${error}`)
-          return []
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          return {
+            file: path,
+            errorMessage,
+            patch: undefined
+          }
         }
       },
 
-      /**
-       * Override code search to use ConstellationFS
-       */
       code_search: async (pattern: string, path?: string, fileType?: string) => {
         console.log(`🔎 [ConstellationFS/Codebuff] Searching for pattern: ${pattern}`)
         
@@ -287,9 +286,9 @@ export class CodebuffAdapter extends BaseSDKAdapter {
               yield handlers.write_file(path, content)
               result = gen.next()
             } else if (toolCall.toolName === 'str_replace' && handlers.str_replace) {
-              const { path, oldText, newText } = toolCall.input || {}
-              yield handlers.str_replace(path, oldText, newText)
-              result = gen.next()
+              const { path, replacements } = toolCall.input || {}
+              const output = yield handlers.str_replace(path, replacements || [])
+              result = gen.next(output)
             } else if (toolCall.toolName === 'find_files' && handlers.find_files) {
               const { pattern, path } = toolCall.input || {}
               const output = yield handlers.find_files(pattern, path)

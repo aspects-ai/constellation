@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { AUTH_TYPES, DEFAULTS, SHELL_TYPES } from '../constants.js'
-import type { FileInfo } from '../types.js'
 
 /**
  * Base configuration schema shared by all backends
@@ -102,20 +101,4 @@ export interface FileSystemBackend {
    */
   write(path: string, content: string): Promise<void>
   
-  /**
-   * List files and directories in the backend storage
-   * @param patternOrOptions - Optional glob pattern or options object
-   * @returns Promise resolving to file/directory names or FileInfo objects
-   * @throws {FileSystemError} When directory listing fails
-   */
-  ls(patternOrOptions?: string | { details: true }): Promise<string[] | FileInfo[]>
-  
-  /**
-   * List files and directories with detailed metadata
-   * @param pattern - Glob pattern to filter results  
-   * @param options - Options including details flag
-   * @returns Promise resolving to an array of FileInfo objects
-   * @throws {FileSystemError} When directory listing fails
-   */
-  ls(pattern: string, options: { details: true }): Promise<FileInfo[]>
 }

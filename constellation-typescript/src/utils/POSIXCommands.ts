@@ -3,11 +3,6 @@
  * Focuses on GNU coreutils compatibility for macOS and Linux distributions
  */
 
-export interface LSOptions {
-  long?: boolean
-  all?: boolean
-  recursive?: boolean
-}
 
 export interface GrepOptions {
   ignoreCase?: boolean
@@ -26,22 +21,6 @@ export interface FindOptions {
  * These commands are specific shell commands used in agent SDKs outside of the general shell execution command (e.g. Claude Code's `bash`), which we implement a simple convenience wrapper for.
  */
 export class POSIXCommands {
-  /**
-   * Generate ls command with consistent options
-   */
-  static ls(path?: string, options: LSOptions = {}): string {
-    let flags = ''
-    
-    if (options.long) {flags += 'l'}
-    if (options.all) {flags += 'a'}
-    if (options.recursive) {flags += 'R'}
-    
-    // Default to single-column output for consistency
-    if (!flags) {flags = '1'}
-    
-    const cmd = `ls -${flags}`
-    return path ? `${cmd} "${path}"` : cmd
-  }
 
   /**
    * Generate find command with proper escaping and options

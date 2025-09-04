@@ -2,7 +2,6 @@ import { BackendFactory } from './backends/index.js'
 import { ERROR_CODES } from './constants.js'
 import type {
   BackendConfig,
-  FileInfo,
   FileSystemBackend,
   FileSystemInterface,
   LocalBackendConfig,
@@ -121,37 +120,5 @@ export class FileSystem implements FileSystemInterface {
     return this.backend.write(path, content)
   }
 
-  /**
-   * List files and directories
-   * @param patternOrOptions - Optional glob pattern or options object
-   * @returns Promise resolving to file/directory names or FileInfo objects
-   * @throws {FileSystemError} When directory listing fails
-   */
-  // eslint-disable-next-line no-dupe-class-members
-  async ls(patternOrOptions?: string | { details: true }): Promise<string[] | FileInfo[]>
-  
-  /**
-   * List files and directories with detailed metadata
-   * @param pattern - Glob pattern to filter results  
-   * @param options - Options including details flag
-   * @returns Promise resolving to an array of FileInfo objects
-   * @throws {FileSystemError} When directory listing fails
-   */
-  // eslint-disable-next-line no-dupe-class-members
-  async ls(pattern: string, options: { details: true }): Promise<FileInfo[]>
-  
-  // eslint-disable-next-line no-dupe-class-members
-  async ls(
-    patternOrOptions?: string | { details: true },
-    options?: { details: true },
-  ): Promise<string[] | FileInfo[]> {
-    if (typeof patternOrOptions === 'string' && options?.details === true) {
-      return this.backend.ls(patternOrOptions, options)
-    } else if (patternOrOptions && typeof patternOrOptions === 'object' && patternOrOptions.details === true) {
-      return this.backend.ls(patternOrOptions)
-    } else {
-      return this.backend.ls(patternOrOptions as string | undefined)
-    }
-  }
 
 }

@@ -2,7 +2,7 @@ import { CodebuffClient } from '@codebuff/sdk'
 import { CodebuffAdapter, FileSystem } from 'constellationfs'
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { createConstellationToolDefinitions, getCodebuffClient } from '../../../lib/codebuff-init'
+import { getCodebuffClient } from '../../../lib/codebuff-init'
 import { broadcastToStream } from '../../../lib/streams'
 
 export async function POST(request: NextRequest) {
@@ -42,14 +42,11 @@ export async function POST(request: NextRequest) {
     // Initialize ConstellationFS with session-based userId
     const fs = new FileSystem({ userId: sessionId })
 
-    // Initialize CodebuffAdapter for clean tool overrides
-    const adapter = new CodebuffAdapter(fs)
-
     // Initialize workspace with sample files if empty
     await initializeWorkspace(fs)
 
     // Start the AI processing in the background using Codebuff SDK
-    processWithCodebuff(fs, adapter, message, sessionId, apiKey)
+    processWithCodebuff(fs, message, sessionId, apiKey)
     return NextResponse.json({ streamId })
   } catch (error) {
     console.error('API Error:', error)
@@ -59,7 +56,8 @@ export async function POST(request: NextRequest) {
 
 async function initializeWorkspace(fs: FileSystem) {
   try {
-    const files = await fs.ls()
+    const result = await fs.exec('ls')
+    const files = result ? result.split('\n').filter(Boolean) : []
     
     // If workspace is empty, create some sample files
     if (files.length === 0) {
@@ -87,7 +85,6 @@ Try asking me to:
 
 async function processWithCodebuff(
   fs: FileSystem,
-  adapter: CodebuffAdapter,
   message: string, 
   sessionId: string,
   apiKey: string
@@ -96,22 +93,18 @@ async function processWithCodebuff(
     console.log('[ConstellationFS] Processing with Codebuff SDK - clean tool overrides enabled')
     console.log('[ConstellationFS] Workspace:', fs.workspace)
     
-    // Get Codebuff client
+    // Get Codebuff client with tool overrides already configured
     const client: CodebuffClient = await getCodebuffClient(fs, apiKey)
     
-    // Create custom tool definitions using ConstellationFS
-    const customToolDefinitions = createConstellationToolDefinitions(adapter)
-    
-    console.log('🔧 [ConstellationFS] Created custom tool definitions:', customToolDefinitions.length)
+    console.log('🔧 [ConstellationFS] Using tool overrides for secure execution')
     
     // Start streaming response
     broadcastToStream(sessionId, { type: 'message_start', role: 'assistant' })
     
-    // Run Codebuff agent with ConstellationFS tool overrides
+    // Run Codebuff agent (tool overrides are handled by client configuration)
     const result = await client.run({
       agent: 'base',
       prompt: message,
-      customToolDefinitions,
       
       handleEvent: (event: any) => {
         if (event.type === 'assistant_message_delta') {
