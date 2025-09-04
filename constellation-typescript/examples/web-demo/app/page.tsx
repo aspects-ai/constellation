@@ -127,7 +127,7 @@ export default function Home() {
     setSessionId(id)
     
     // Check if API key is provided via environment variable
-    const envApiKey = process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY
+    const envApiKey = process.env.NEXT_PUBLIC_CODEBUFF_API_KEY
     if (envApiKey) {
       setApiKey(envApiKey)
       setShowApiKeyModal(false)
@@ -170,7 +170,7 @@ export default function Home() {
           }}
         >
           <Text size="lg" fw={600}>
-            Claude Code on ConstellationFS Demo
+            Codebuff SDK on ConstellationFS Demo
           </Text>
           <Group gap="md">
             <Text size="sm" c="dimmed" ff="monospace">

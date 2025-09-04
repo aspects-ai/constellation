@@ -1,12 +1,32 @@
-import { ClaudeCodeAdapter, FileSystem } from 'constellationfs'
+import { CodebuffClient } from '@codebuff/sdk'
+import { CodebuffAdapter, FileSystem } from 'constellationfs'
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { getClaudeQuery } from '../../../lib/claude-init'
+import { createConstellationToolDefinitions, getCodebuffClient } from '../../../lib/codebuff-init'
 import { broadcastToStream } from '../../../lib/streams'
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, sessionId, apiKey } = await request.json()
+    // Check if request has a body
+    const contentType = request.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
+      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 400 })
+    }
+
+    // Parse JSON with better error handling
+    let body
+    try {
+      const text = await request.text()
+      if (!text) {
+        return NextResponse.json({ error: 'Request body is empty' }, { status: 400 })
+      }
+      body = JSON.parse(text)
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError)
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
+    }
+
+    const { message, sessionId, apiKey } = body
 
     if (!message || !sessionId) {
       return NextResponse.json({ error: 'Message and sessionId are required' }, { status: 400 })
@@ -22,14 +42,14 @@ export async function POST(request: NextRequest) {
     // Initialize ConstellationFS with session-based userId
     const fs = new FileSystem({ userId: sessionId })
 
-    // Initialize ClaudeCodeAdapter - this sets the static currentInstance for monkey-patching
-    new ClaudeCodeAdapter(fs)
+    // Initialize CodebuffAdapter for clean tool overrides
+    const adapter = new CodebuffAdapter(fs)
 
     // Initialize workspace with sample files if empty
     await initializeWorkspace(fs)
 
-    // Start the AI processing in the background using Claude Code SDK
-    processWithClaudeCode(fs, message, sessionId, apiKey)
+    // Start the AI processing in the background using Codebuff SDK
+    processWithCodebuff(fs, adapter, message, sessionId, apiKey)
     return NextResponse.json({ streamId })
   } catch (error) {
     console.error('API Error:', error)
@@ -65,133 +85,82 @@ Try asking me to:
   }
 }
 
-async function processWithClaudeCode(
+async function processWithCodebuff(
   fs: FileSystem,
+  adapter: CodebuffAdapter,
   message: string, 
   sessionId: string,
   apiKey: string
 ) {
   try {
-    console.log('[ConstellationFS] Processing with Claude Code SDK - monkey-patching is enabled')
+    console.log('[ConstellationFS] Processing with Codebuff SDK - clean tool overrides enabled')
     console.log('[ConstellationFS] Workspace:', fs.workspace)
     
-    // Reset and log stats before Claude Code execution
-    ClaudeCodeAdapter.resetInterceptStats()
-    console.log('🔄 [ConstellationFS] Reset intercept stats before Claude Code execution')
+    // Get Codebuff client
+    const client: CodebuffClient = await getCodebuffClient(fs, apiKey)
     
-    // Get the query function with monkey-patching enabled
-    const query = await getClaudeQuery()
+    // Create custom tool definitions using ConstellationFS
+    const customToolDefinitions = createConstellationToolDefinitions(adapter)
     
-    const systemPrompt = `You are a helpful AI assistant working in a secure, isolated filesystem workspace.
-
-Workspace Details:
-- Current working directory: ${fs.workspace}
-- This is a completely isolated environment where you can safely create, modify, and delete files
-- You can run shell commands, build projects, and help with general tasks as your tools allow.
-- All operations are sandboxed to this workspace only
-
-Always explain what you're doing and show the results of your operations. The workspace is yours to use freely and safely.`
+    console.log('🔧 [ConstellationFS] Created custom tool definitions:', customToolDefinitions.length)
     
-    for await (const sdkMessage of query({
+    // Start streaming response
+    broadcastToStream(sessionId, { type: 'message_start', role: 'assistant' })
+    
+    // Run Codebuff agent with ConstellationFS tool overrides
+    const result = await client.run({
+      agent: 'base',
       prompt: message,
-      options: {
-        customSystemPrompt: systemPrompt,
-        maxTurns: 3,
-        cwd: fs.workspace,
-        continue: true,
-        env: {
-          ANTHROPIC_API_KEY: apiKey,
-          PATH: process.env.PATH, // Include PATH to ensure node/npm are found
-          NODE_ENV: process.env.NODE_ENV,
-        },
-        executable: 'node', // Explicitly use node for consistency
-        allowedTools: [
-          "Read",
-          "Write", 
-          "Bash",
-          "LS",
-          "Glob",
-          "Grep",
-          "Edit"
-        ]
-      }
-    })) {
-      if (sdkMessage.type === 'assistant') {
-        // Start new assistant message
-        broadcastToStream(sessionId, { type: 'message_start', role: 'assistant' })
-        
-        // Stream assistant message content
-        const content = sdkMessage.message.content
-        
-        if (Array.isArray(content)) {
-          for (const block of content) {
-            if (block.type === 'text') {
-              // Stream text content in chunks
-              const text = block.text
-              
-              // Send in smaller chunks for better streaming experience
-              const chunkSize = 50
-              for (let i = 0; i < text.length; i += chunkSize) {
-                const chunk = text.slice(i, i + chunkSize)
-                broadcastToStream(sessionId, { type: 'content', text: chunk })
-                // Small delay for streaming effect
-                await new Promise(resolve => setTimeout(resolve, 10))
-              }
-            } else if (block.type === 'tool_use') {
-              // Stream tool use information
-              const toolText = `🔧 Using ${block.name} tool...`
-              broadcastToStream(sessionId, { type: 'content', text: toolText })
-            }
+      customToolDefinitions,
+      
+      handleEvent: (event: any) => {
+        if (event.type === 'assistant_message_delta') {
+          // Stream assistant message content in chunks for real-time typing
+          const text = event.delta
+          const chunkSize = 30
+          
+          for (let i = 0; i < text.length; i += chunkSize) {
+            const chunk = text.slice(i, i + chunkSize)
+            broadcastToStream(sessionId, { type: 'assistant_delta', text: chunk })
           }
+        } else if (event.type === 'tool_call') {
+          // Send tool call as a separate message type with unique ID
+          broadcastToStream(sessionId, { 
+            type: 'tool_use',
+            id: uuidv4(),
+            toolName: event.toolName,
+            params: event.params || {}
+          })
+        } else if (event.type === 'tool_result') {
+          // Send tool result as a separate message type with unique ID
+          broadcastToStream(sessionId, {
+            type: 'tool_result',
+            id: uuidv4(),
+            toolName: event.toolName,
+            output: event.output 
+          })
+        } else if (event.type === 'text') {
+          // Send text as complete message that gets interleaved with tools
+          broadcastToStream(sessionId, { 
+            type: 'assistant_message',
+            id: uuidv4(),
+            text: event.text 
+          })
         }
-        
-        // End assistant message
-        broadcastToStream(sessionId, { type: 'message_end', role: 'assistant' })
-        
-      } else if (sdkMessage.type === 'user') {
-        // Start new tool result message
-        broadcastToStream(sessionId, { type: 'message_start', role: 'tool' })
-        
-        // This contains tool results - stream them
-        const content = sdkMessage.message?.content
-        if (Array.isArray(content)) {
-          for (const block of content) {
-            if (block.type === 'tool_result') {
-              const toolResult = `📋 **Tool Output:**\n\`\`\`\n${block.content}\n\`\`\``
-              broadcastToStream(sessionId, { type: 'content', text: toolResult })
-            }
-          }
-        }
-        
-        // End tool result message
-        broadcastToStream(sessionId, { type: 'message_end', role: 'tool' })
-        
-      } else if (sdkMessage.type === 'result') {
-        // Handle completion - only send errors, not duplicate content
-        if (sdkMessage.subtype === 'error_max_turns') {
-          broadcastToStream(sessionId, { type: 'error', message: 'Max turns reached' })
-        } else if (sdkMessage.subtype === 'error_during_execution') {
-          broadcastToStream(sessionId, { type: 'error', message: 'Error during execution' })
-        }
-        
-        // Signal completion
-        broadcastToStream(sessionId, { type: 'done' })
-        
-        // Log final intercept statistics
-        const finalStats = ClaudeCodeAdapter.getInterceptStats()
-        console.log('📊 [ConstellationFS] Final intercept stats:', finalStats)
-        console.log(`✅ [ConstellationFS] Total intercepted calls: ${finalStats.exec + finalStats.spawn + finalStats.execSync}`)
-        
-        break
-      } else if (sdkMessage.type === 'system') {
-        console.log('[Claude SDK] System init:', { subtype: sdkMessage.subtype, cwd: (sdkMessage as any).cwd })
-      } else {
-        console.warn('[Claude SDK] Unhandled message type:', sdkMessage)
       }
-    }
+    })
+    
+    console.log('✅ [ConstellationFS] Codebuff agent execution completed')
+    
+    // End assistant message and signal completion
+    broadcastToStream(sessionId, { type: 'message_end', id: uuidv4(), role: 'assistant' })
+    broadcastToStream(sessionId, { type: 'done' })
+    
+    // Close connection
+    client.closeConnection()
     
   } catch (error) {
-    console.error('Claude Code Processing Error:', error)
+    console.error('Codebuff Processing Error:', error)
     broadcastToStream(sessionId, { 
       type: 'error', 
       message: error instanceof Error ? error.message : 'Unknown error'

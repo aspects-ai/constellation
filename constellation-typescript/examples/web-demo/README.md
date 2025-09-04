@@ -1,10 +1,10 @@
 # ConstellationFS Web Demo
 
-An interactive web demo showcasing ConstellationFS with an AI coding assistant. Chat with Claude and watch as it creates files, runs commands, and builds projects using ConstellationFS.
+An interactive web demo showcasing ConstellationFS with the Codebuff SDK. Chat with AI agents and watch as they create files, run commands, and build projects using ConstellationFS.
 
 ## Features
 
-- 🤖 **AI Chat Interface**: Chat with Claude-3.5-Sonnet powered by ConstellationFS
+- 🤖 **AI Chat Interface**: Chat with AI agents powered by ConstellationFS and Codebuff SDK
 - 📁 **Live File Explorer**: See filesystem changes in real-time
 - 🔄 **Streaming Responses**: Watch AI responses stream in like ChatGPT
 - 🛡️ **Safe Sandboxing**: Each session gets an isolated workspace

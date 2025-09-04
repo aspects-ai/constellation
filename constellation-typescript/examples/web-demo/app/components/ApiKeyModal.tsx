@@ -41,7 +41,7 @@ export default function ApiKeyModal({ opened, onSubmit }: ApiKeyModalProps) {
     <Modal
       opened={opened}
       onClose={() => {}}
-      title="Welcome to the ConstellationFS Claude Code demo!"
+      title="Welcome to the ConstellationFS Codebuff demo!"
       closeOnClickOutside={false}
       closeOnEscape={false}
       withCloseButton={false}
@@ -49,7 +49,7 @@ export default function ApiKeyModal({ opened, onSubmit }: ApiKeyModalProps) {
     >
       <Stack gap="md">
         <Text size="md" mb="xs">
-          To get started, enter your Anthropic API key for Claude Code to use.
+          To get started, enter your Anthropic API key for Codebuff to use.
         </Text>
 
         <Alert
