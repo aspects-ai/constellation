@@ -1,6 +1,6 @@
 export { BackendConfigSchema, validateLocalBackendConfig } from './backends/types.js'
 export type {
-  BackendConfig, DockerBackendConfig,
+  BackendConfig,
   FileSystemBackend, LocalBackendConfig,
   RemoteBackendConfig
 } from './backends/types.js'

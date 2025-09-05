@@ -1,4 +1,4 @@
-import { FileSystem, CodebuffAdapter } from 'constellationfs'
+import { CodebuffAdapter, FileSystem } from 'constellationfs'
 
 // Note: The @codebuff/sdk package currently has ES module import issues
 // This demo shows the ConstellationFS integration pattern that would work 
@@ -205,7 +205,7 @@ function createConstellationToolDefinitions(adapter) {
         { command: 'npm init -y' }
       ],
       handler: async ({ command }) => {
-        console.log(`\n🔍 [ConstellationFS] Executing: ${command}`)
+        console.log(`\n🔍 Executing: ${command}`)
         const result = await toolHandlers.run_terminal_command(command)
         
         if (result.exitCode === 0) {
@@ -229,7 +229,7 @@ function createConstellationToolDefinitions(adapter) {
         { path: 'README.md', content: '# My Project\n\nDescription...' }
       ],
       handler: async ({ path, content }) => {
-        console.log(`\n✍️ [ConstellationFS] Writing: ${path}`)
+        console.log(`\n✍️ Writing: ${path}`)
         await toolHandlers.write_file(path, content)
         return { toolResultMessage: `Successfully wrote ${path}` }
       },
@@ -247,7 +247,7 @@ function createConstellationToolDefinitions(adapter) {
         { paths: ['README.md', 'index.js'] }
       ],
       handler: async ({ paths }) => {
-        console.log(`\n📖 [ConstellationFS] Reading: ${paths.join(', ')}`)
+        console.log(`\n📖 Reading: ${paths.join(', ')}`)
         const results = await toolHandlers.read_files(paths)
         
         let output = ''
@@ -270,7 +270,7 @@ function createConstellationToolDefinitions(adapter) {
         { pattern: '*.json' }
       ],
       handler: async ({ pattern }) => {
-        console.log(`\n🔍 [ConstellationFS] Finding files: ${pattern}`)
+        console.log(`\n🔍 Finding files: ${pattern}`)
         const files = await toolHandlers.find_files(pattern)
         return { toolResultMessage: `Found files: ${files.join(', ') || 'none'}` }
       },

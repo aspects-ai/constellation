@@ -43,7 +43,7 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
    */
   static async enableMonkeyPatching(): Promise<void> {
     if (isPatchingEnabled) {
-      console.warn('[ConstellationFS] Monkey-patching already enabled')
+      console.warn('Monkey-patching already enabled')
       return
     }
 
@@ -65,12 +65,12 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
         callback?: (error: Error | null, stdout: string, stderr: string) => void
       ) {
         ClaudeCodeAdapter.interceptedCalls.exec++
-        console.log(`🔍 [ConstellationFS] Intercepted exec (#${ClaudeCodeAdapter.interceptedCalls.exec}):`, command)
+        console.log(`🔍 Intercepted exec (#${ClaudeCodeAdapter.interceptedCalls.exec}):`, command)
         
         const cb = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback
         
         if (!ClaudeCodeAdapter.currentInstance) {
-          console.warn('[ConstellationFS] No adapter instance, using original exec')
+          console.warn('No adapter instance, using original exec')
           return originalFunctions.exec(command, optionsOrCallback, callback)
         }
 
@@ -123,10 +123,10 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
         options?: SpawnOptions
       ) {
         ClaudeCodeAdapter.interceptedCalls.spawn++
-        console.log(`🔍 [ConstellationFS] Intercepted spawn (#${ClaudeCodeAdapter.interceptedCalls.spawn}):`, command, args)
+        console.log(`🔍 Intercepted spawn (#${ClaudeCodeAdapter.interceptedCalls.spawn}):`, command, args)
         
         if (!ClaudeCodeAdapter.currentInstance) {
-          console.warn('[ConstellationFS] No adapter instance, using original spawn')
+          console.warn('No adapter instance, using original spawn')
           return originalFunctions.spawn(command, args, options)
         }
 
@@ -141,14 +141,14 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
 
       const interceptedExecSync = function(command: string, options?: any) {
         ClaudeCodeAdapter.interceptedCalls.execSync++
-        console.log(`🔍 [ConstellationFS] Intercepted execSync (#${ClaudeCodeAdapter.interceptedCalls.execSync}):`, command)
+        console.log(`🔍 Intercepted execSync (#${ClaudeCodeAdapter.interceptedCalls.execSync}):`, command)
         
         if (!ClaudeCodeAdapter.currentInstance) {
-          console.warn('[ConstellationFS] No adapter instance, using original execSync')
+          console.warn('No adapter instance, using original execSync')
           return originalFunctions.execSync(command, options)
         }
 
-        throw new Error('[ConstellationFS] execSync is not supported when using ConstellationFS. Please use exec or spawn instead.')
+        throw new Error('execSync is not supported when using ConstellationFS. Please use exec or spawn instead.')
       }
 
       // Try to override the entire module by replacing it in Node's module cache
@@ -185,10 +185,10 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
       }
 
       isPatchingEnabled = true
-      console.log('[ConstellationFS] Child process module override enabled')
+      console.log('Child process module override enabled')
       
     } catch (error) {
-      console.error('[ConstellationFS] Failed to enable monkey-patching:', error)
+      console.error('Failed to enable monkey-patching:', error)
       // Don't throw - just continue without patching
       isPatchingEnabled = true // Prevent repeated attempts
     }
@@ -232,16 +232,16 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
             writable: true
           })
         } catch (_definePropertyError) {
-          console.warn('[ConstellationFS] Could not restore original child_process functions:', _definePropertyError)
+          console.warn('Could not restore original child_process functions:', _definePropertyError)
         }
       }
 
       isPatchingEnabled = false
       originalFunctions = null
-      console.log('[ConstellationFS] Child process monkey-patching disabled')
+      console.log('Child process monkey-patching disabled')
       
     } catch (error) {
-      console.error('[ConstellationFS] Failed to disable monkey-patching:', error)
+      console.error('Failed to disable monkey-patching:', error)
     }
   }
 

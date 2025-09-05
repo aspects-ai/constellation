@@ -12,12 +12,20 @@ import {
 import { CodeHighlight } from '@mantine/code-highlight'
 import { IconAlertCircle, IconFile } from '@tabler/icons-react'
 
+interface BackendConfig {
+  type: 'local' | 'remote'
+  host?: string
+  username?: string
+  workspace?: string
+}
+
 interface FileViewerProps {
   sessionId: string
   selectedFile: string | null
+  backendConfig: BackendConfig
 }
 
-export default function FileViewer({ sessionId, selectedFile }: FileViewerProps) {
+export default function FileViewer({ sessionId, selectedFile, backendConfig }: FileViewerProps) {
   const [fileContent, setFileContent] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -34,7 +42,20 @@ export default function FileViewer({ sessionId, selectedFile }: FileViewerProps)
       setError(null)
       
       try {
-        const response = await fetch(`/api/file-content?sessionId=${sessionId}&filePath=${encodeURIComponent(selectedFile)}`)
+        const params = new URLSearchParams({
+          sessionId: sessionId,
+          filePath: selectedFile,
+          backendType: backendConfig.type
+        })
+        
+        // Add remote backend parameters if needed
+        if (backendConfig.type === 'remote') {
+          if (backendConfig.host) params.append('host', backendConfig.host)
+          if (backendConfig.username) params.append('username', backendConfig.username)
+          if (backendConfig.workspace) params.append('workspace', backendConfig.workspace)
+        }
+        
+        const response = await fetch(`/api/file-content?${params}`)
         
         if (!response.ok) {
           throw new Error(`Failed to fetch file: ${response.statusText}`)
@@ -51,7 +72,7 @@ export default function FileViewer({ sessionId, selectedFile }: FileViewerProps)
     }
 
     fetchFileContent()
-  }, [sessionId, selectedFile])
+  }, [sessionId, selectedFile, backendConfig])
 
   const getFileLanguage = (filename: string): string => {
     const ext = filename.split('.').pop()?.toLowerCase()

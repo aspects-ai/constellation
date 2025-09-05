@@ -1,5 +1,5 @@
 import { CodebuffClient } from '@codebuff/sdk'
-import { CodebuffAdapter, FileSystem } from 'constellationfs'
+import { FileSystem } from 'constellationfs'
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { getCodebuffClient } from '../../../lib/codebuff-init'
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
     }
 
-    const { message, sessionId, apiKey } = body
+    const { message, sessionId, apiKey, backendConfig } = body
 
     if (!message || !sessionId) {
       return NextResponse.json({ error: 'Message and sessionId are required' }, { status: 400 })
@@ -39,8 +39,40 @@ export async function POST(request: NextRequest) {
     // Create a unique stream ID for this request
     const streamId = uuidv4()
 
-    // Initialize ConstellationFS with session-based userId
-    const fs = new FileSystem({ userId: sessionId })
+    // Create backend configuration
+    let fsConfig: any
+
+    if (backendConfig && backendConfig.type === 'remote') {
+      if (!backendConfig.host || !backendConfig.username || !backendConfig.workspace) {
+        return NextResponse.json({ 
+          error: 'Remote backend requires host, username, and workspace parameters' 
+        }, { status: 400 })
+      }
+
+      fsConfig = {
+        type: 'remote',
+        host: backendConfig.host,
+        workspace: backendConfig.workspace,
+        auth: {
+          type: 'password',
+          credentials: {
+            username: backendConfig.username,
+            password: 'constellation'
+          }
+        }
+      }
+    } else {
+      fsConfig = {
+        type: 'local',
+        userId: sessionId
+      }
+    }
+
+    // Initialize ConstellationFS with specified backend
+    const fs = new FileSystem({ 
+      userId: sessionId,
+      ...fsConfig
+    })
 
     // Initialize workspace with sample files if empty
     await initializeWorkspace(fs)
@@ -90,18 +122,15 @@ async function processWithCodebuff(
   apiKey: string
 ) {
   try {
-    console.log('[ConstellationFS] Processing with Codebuff SDK - clean tool overrides enabled')
-    console.log('[ConstellationFS] Workspace:', fs.workspace)
+    console.log('Workspace:', fs.workspace)
     
-    // Get Codebuff client with tool overrides already configured
+    // Get Codebuff client - it will use the ConstellationFS workspace directly
     const client: CodebuffClient = await getCodebuffClient(fs, apiKey)
-    
-    console.log('🔧 [ConstellationFS] Using tool overrides for secure execution')
     
     // Start streaming response
     broadcastToStream(sessionId, { type: 'message_start', role: 'assistant' })
     
-    // Run Codebuff agent (tool overrides are handled by client configuration)
+    // Run Codebuff agent - it will use native tools directly on the FUSE mount
     const result = await client.run({
       agent: 'base',
       prompt: message,
@@ -143,7 +172,7 @@ async function processWithCodebuff(
       }
     })
     
-    console.log('✅ [ConstellationFS] Codebuff agent execution completed')
+    console.log('✅ Codebuff agent execution completed')
     
     // End assistant message and signal completion
     broadcastToStream(sessionId, { type: 'message_end', id: uuidv4(), role: 'assistant' })

@@ -5,7 +5,7 @@
 /**
  * Supported backend types
  */
-export const BACKEND_TYPES = ['local', 'remote', 'docker'] as const
+export const BACKEND_TYPES = ['local', 'remote'] as const
 export type BackendType = typeof BACKEND_TYPES[number]
 
 /**
@@ -27,7 +27,6 @@ export const DEFAULTS = {
   PREVENT_DANGEROUS: true,
   SHELL: 'auto' as ShellType,
   VALIDATE_UTILS: false,
-  DOCKER_IMAGE: 'ubuntu:latest',
 } as const
 
 /**

@@ -17,7 +17,6 @@ export { DangerousOperationError, FileSystemError } from './types.js'
 // Public Types
 export type {
   BackendConfig,
-  DockerBackendConfig,
   FileInfo,
   FileSystemInterface,
   LocalBackendConfig,

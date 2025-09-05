@@ -2,7 +2,6 @@ import { BACKEND_TYPES, type BackendType, ERROR_CODES } from '../constants.js'
 import { FileSystemError } from '../types.js'
 import type { BackendConfig, FileSystemBackend } from './types.js'
 import { BackendConfigSchema } from './types.js'
-import { DockerBackend } from './DockerBackend.js'
 import { LocalBackend } from './LocalBackend.js'
 import { RemoteBackend } from './RemoteBackend.js'
 
@@ -28,9 +27,6 @@ export class BackendFactory {
       case 'remote':
         return new RemoteBackend(validatedConfig)
       
-      case 'docker':
-        return new DockerBackend(validatedConfig)
-      
       default:
         throw new FileSystemError(
           `Unsupported backend type: ${(validatedConfig as { type: string }).type}`,
@@ -50,7 +46,7 @@ export class BackendFactory {
   /**
    * Get default configuration for a backend type
    */
-  static getDefaultConfig(backendType: 'local' | 'remote' | 'docker', workspace: string): Partial<BackendConfig> {
+  static getDefaultConfig(backendType: 'local' | 'remote', workspace: string): Partial<BackendConfig> {
     const baseConfig = {
       workspace,
       preventDangerous: true,
@@ -74,14 +70,6 @@ export class BackendFactory {
             type: 'key' as const,
             credentials: {},
           },
-        }
-      
-      case 'docker':
-        return {
-          ...baseConfig,
-          type: 'docker',
-          image: 'ubuntu:latest',
-          options: {},
         }
       
       default:

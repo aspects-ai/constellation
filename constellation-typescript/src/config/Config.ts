@@ -8,6 +8,21 @@ import { join } from 'path'
 interface LibraryConfig {
   /** Base directory for all user workspaces */
   workspaceRoot: string
+  /** Enable FUSE filesystem mounting (internal) */
+  fuseEnabled?: boolean
+  /** Base path for FUSE mount points (internal) */
+  fuseMountPoint?: string
+  /** Backend-specific FUSE options (internal) */
+  backends?: {
+    local?: {
+      /** Actual root directory when using FUSE pass-through */
+      actualRoot?: string
+    }
+    remote?: {
+      /** Whether FUSE is required for this backend */
+      requiresFUSE?: boolean
+    }
+  }
 }
 
 /**
@@ -22,6 +37,8 @@ export class ConstellationFS {
     // Default configuration
     this.config = {
       workspaceRoot: join(tmpdir(), 'constellation-fs', 'users'),
+      fuseMountPoint: undefined,
+      backends: {}
     }
 
     // Always try to load from .constellationfs.json in current directory
@@ -67,6 +84,27 @@ export class ConstellationFS {
    */
   get workspaceRoot(): string {
     return this.config.workspaceRoot
+  }
+
+  /**
+   * Check if FUSE is enabled
+   */
+  get fuseEnabled(): boolean {
+    return this.config.fuseEnabled ?? true
+  }
+
+  /**
+   * Get FUSE mount point base path
+   */
+  get fuseMountPoint(): string | undefined {
+    return this.config.fuseMountPoint
+  }
+
+  /**
+   * Get backend-specific configuration
+   */
+  get backends(): LibraryConfig['backends'] {
+    return this.config.backends || {}
   }
 
   /**

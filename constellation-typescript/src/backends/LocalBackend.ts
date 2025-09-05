@@ -18,6 +18,7 @@ export class LocalBackend implements FileSystemBackend {
 
   public readonly workspace: string
   public readonly options: LocalBackendConfig
+  public readonly connected: boolean
   private readonly shell: string
 
   /**
@@ -32,6 +33,7 @@ export class LocalBackend implements FileSystemBackend {
     // Use userId-based workspace management
     WorkspaceManager.validateUserId(options.userId)
     this.workspace = WorkspaceManager.ensureUserWorkspace(options.userId)
+    this.connected = true
     
     this.shell = this.detectShell()
 
@@ -39,7 +41,7 @@ export class LocalBackend implements FileSystemBackend {
       this.validateEnvironment()
     }
   }
-
+  
   /**
    * Detect the best available shell for command execution
    */

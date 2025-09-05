@@ -176,6 +176,29 @@ export class CodebuffAdapter extends BaseSDKAdapter {
           }
         }
       },
+      
+      find_files: async (pattern: string, _path?: string): Promise<Record<string, string | boolean>> => {
+        console.log(`🔍 [ConstellationFS/Codebuff] Finding files with pattern: ${pattern}`)
+        
+        try {
+          const result = await this.exec(`find . -name "${pattern}"`)
+          const files = result ? result.split('\n').filter(Boolean) : []
+          const results: Record<string, string | boolean> = {}
+          
+          // Convert string[] to Record<string, string>
+          if (Array.isArray(files) && files.length > 0) {
+            for (const fileName of files) {
+              results['path'] = fileName
+              results['contentOmittedForLength'] = true
+            }
+          }
+          
+          return results
+        } catch (error) {
+          console.error(`[ConstellationFS/Codebuff] Find failed: ${error}`)
+          return {}
+        }
+      },
 
       code_search: async (pattern: string, path?: string, fileType?: string) => {
         console.log(`🔎 [ConstellationFS/Codebuff] Searching for pattern: ${pattern}`)

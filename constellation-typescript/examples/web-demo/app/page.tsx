@@ -1,17 +1,19 @@
 'use client'
 
-import { Box, Container, Group, Text } from '@mantine/core'
+import { Box, Container, Group, Tabs, Text } from '@mantine/core'
 import { useEffect, useRef, useState } from 'react'
 import ApiKeyModal from './components/ApiKeyModal'
+import BackendSelector, { BackendConfig } from './components/BackendSelector'
 import Chat from './components/Chat'
 import FileExplorer from './components/FileExplorer'
 import FileViewer from './components/FileViewer'
 
-function ResizableLayout({ sessionId, selectedFile, setSelectedFile, apiKey }: {
+function ResizableLayout({ sessionId, selectedFile, setSelectedFile, apiKey, backendConfig }: {
   sessionId: string
   selectedFile: string | null
   setSelectedFile: (file: string | null) => void
   apiKey: string | null
+  backendConfig: BackendConfig
 }) {
   const [bottomHeight, setBottomHeight] = useState(300)
   const [isDragging, setIsDragging] = useState(false)
@@ -60,7 +62,7 @@ function ResizableLayout({ sessionId, selectedFile, setSelectedFile, apiKey }: {
     <Box style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Chat area */}
       <Box style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <Chat sessionId={sessionId} apiKey={apiKey} />
+        <Chat sessionId={sessionId} apiKey={apiKey} backendConfig={backendConfig} />
       </Box>
       
       {/* Draggable divider */}
@@ -104,10 +106,12 @@ function ResizableLayout({ sessionId, selectedFile, setSelectedFile, apiKey }: {
           sessionId={sessionId} 
           onFileSelect={setSelectedFile}
           selectedFile={selectedFile}
+          backendConfig={backendConfig}
         />
         <FileViewer 
           sessionId={sessionId} 
           selectedFile={selectedFile}
+          backendConfig={backendConfig}
         />
       </Box>
     </Box>
@@ -119,6 +123,8 @@ export default function Home() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
+  const [activeTab, setActiveTab] = useState<string | null>('chat')
+  const [backendConfig, setBackendConfig] = useState<BackendConfig>({ type: 'local' })
   
   // Generate sessionId and check for environment API key
   useEffect(() => {
@@ -140,6 +146,27 @@ export default function Home() {
   const handleApiKeySubmit = (key: string) => {
     setApiKey(key)
     setShowApiKeyModal(false)
+  }
+
+  const testBackendConnection = async (config: BackendConfig): Promise<boolean> => {
+    if (config.type === 'local') return true
+    
+    try {
+      // Test remote connection by trying to list files
+      const params = new URLSearchParams({
+        sessionId: sessionId,
+        backendType: config.type,
+        host: config.host || '',
+        username: config.username || '',
+        workspace: config.workspace || ''
+      })
+      
+      const response = await fetch(`/api/filesystem?${params}`)
+      return response.ok
+    } catch (error) {
+      console.error('Backend connection test failed:', error)
+      return false
+    }
   }
   
   // Don't render until sessionId is generated on client
@@ -176,6 +203,13 @@ export default function Home() {
             <Text size="sm" c="dimmed" ff="monospace">
               Session: {sessionId}
             </Text>
+            <Text 
+              size="sm" 
+              c={backendConfig.type === 'local' ? 'blue' : 'green'}
+              fw={500}
+            >
+              Backend: {backendConfig.type === 'local' ? 'Local' : `Remote (${backendConfig.host})`}
+            </Text>
             {apiKey && (
               <Text size="xs" c="green">
                 API Key: ●●●●●{apiKey.slice(-4)}
@@ -186,7 +220,27 @@ export default function Home() {
 
         {/* Main content area */}
         <Box style={{ flex: 1, minHeight: 0 }}>
-          <ResizableLayout sessionId={sessionId} selectedFile={selectedFile} setSelectedFile={setSelectedFile} apiKey={apiKey} />
+          <Tabs value={activeTab} onChange={setActiveTab} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Tabs.List>
+              <Tabs.Tab value="chat">Chat</Tabs.Tab>
+              <Tabs.Tab value="config">Backend Config</Tabs.Tab>
+            </Tabs.List>
+
+            <Box style={{ flex: 1, minHeight: 0 }}>
+              <Tabs.Panel value="chat" style={{ height: '100%' }}>
+                <ResizableLayout sessionId={sessionId} selectedFile={selectedFile} setSelectedFile={setSelectedFile} apiKey={apiKey} backendConfig={backendConfig} />
+              </Tabs.Panel>
+
+              <Tabs.Panel value="config" style={{ height: '100%', overflow: 'auto', padding: '16px' }}>
+                <BackendSelector
+                  sessionId={sessionId}
+                  config={backendConfig}
+                  onChange={setBackendConfig}
+                  onTestConnection={testBackendConnection}
+                />
+              </Tabs.Panel>
+            </Box>
+          </Tabs>
         </Box>
       </Box>
     </>

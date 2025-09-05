@@ -1,72 +1,22 @@
 // Codebuff SDK integration for ConstellationFS
 import { CodebuffClient } from '@codebuff/sdk'
-import type { CodebuffToolHandlers, FileSystem } from 'constellationfs'
-import { CodebuffAdapter } from 'constellationfs'
+import type { FileSystem } from 'constellationfs'
 
 let codebuffClient: CodebuffClient | null = null
 
 export async function getCodebuffClient(fs: FileSystem, apiKey: string) {
   if (!codebuffClient) {
-    console.log('[ConstellationFS] Initializing Codebuff integration')
+    console.log('Workspace path:', fs.workspace)
     
-    // Get tool handlers from ConstellationFS adapter
-    const adapter = new CodebuffAdapter(fs)
-    const toolHandlers: CodebuffToolHandlers = adapter.getToolHandlers()
-    
-    // Create Codebuff client with tool overrides
+    // We just pass the workspace path directly to Codebuff
     codebuffClient = new CodebuffClient({
       apiKey,
       cwd: fs.workspace,
-      onError: (e) => console.error('❌ Codebuff error:', e.message),
-      overrideTools: {
-        run_terminal_command: async (input) => {
-          console.log(`\n🔍 [ConstellationFS] Executing: ${input.command}`)
-          const result = await toolHandlers.run_terminal_command(input.command)
-          
-          return [{
-            type: 'json',
-            value: {
-              command: input.command,
-              stdout: result.stdout,
-              stderr: result.stderr,
-              exitCode: result.exitCode
-            }
-          }]
-        },
-        
-        read_files: async (input) => {
-          console.log(`\n📖 [ConstellationFS] Reading: ${input.filePaths.join(', ')}`)
-          const results = await toolHandlers.read_files(input.filePaths)
-          return [{
-            type: 'json',
-            value: results
-          }]
-        },
-        
-        find_files: async (input) => {
-          console.log(`\n🔍 [ConstellationFS] Finding files: ${input.prompt}`)
-          const files = await toolHandlers.find_files(input.prompt)
-          return [{
-            type: 'json',
-            value: files
-          }]
-        },
-        
-        write_file: async (input) => {
-          console.log(`\n✍️ [ConstellationFS] Writing: ${input.path}`)
-          await toolHandlers.write_file(input.path, input.content)
-          return [{
-            type: 'json',
-            value: { message: `Successfully wrote ${input.path}` }
-          }]
-        }
-      }
+      onError: (e) => console.error('❌ Codebuff error:', e.message)
     })
     
-    console.log('[ConstellationFS] Codebuff integration initialized with tool overrides')
+    console.log('Codebuff initialized with ConstellationFS workspace')
   }
   
   return codebuffClient
 }
-
-export { CodebuffAdapter }

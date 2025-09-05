@@ -17,7 +17,7 @@ export interface Logger {
  * Can be replaced with custom implementation via setLogger
  */
 class DefaultLogger implements Logger {
-  constructor(private enabled = false) {}
+  constructor(private enabled = true) {}
 
   error(message: string, ...args: unknown[]): void {
     if (this.enabled) {
@@ -48,17 +48,7 @@ class DefaultLogger implements Logger {
   }
 }
 
-/**
- * No-op logger that discards all messages
- */
-class NoOpLogger implements Logger {
-  error(): void {}
-  warn(): void {}
-  info(): void {}
-  debug(): void {}
-}
-
-let currentLogger: Logger = new NoOpLogger()
+let currentLogger: Logger = new DefaultLogger(true)
 
 /**
  * Set a custom logger implementation
@@ -66,14 +56,6 @@ let currentLogger: Logger = new NoOpLogger()
  */
 export function setLogger(logger: Logger): void {
   currentLogger = logger
-}
-
-/**
- * Enable default console logging
- * @param enabled - Whether to enable logging
- */
-export function enableConsoleLogging(enabled = true): void {
-  currentLogger = enabled ? new DefaultLogger(true) : new NoOpLogger()
 }
 
 /**

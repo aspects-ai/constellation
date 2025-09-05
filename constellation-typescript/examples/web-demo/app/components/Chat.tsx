@@ -24,12 +24,20 @@ interface Message {
   output?: any
 }
 
+interface BackendConfig {
+  type: 'local' | 'remote'
+  host?: string
+  username?: string
+  workspace?: string
+}
+
 interface ChatProps {
   sessionId: string
   apiKey: string | null
+  backendConfig: BackendConfig
 }
 
-export default function Chat({ sessionId, apiKey }: ChatProps) {
+export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -75,6 +83,7 @@ export default function Chat({ sessionId, apiKey }: ChatProps) {
         message: userMessage.content,
         sessionId,
         apiKey,
+        backendConfig,
       }
       
       // Send message to API with user's API key

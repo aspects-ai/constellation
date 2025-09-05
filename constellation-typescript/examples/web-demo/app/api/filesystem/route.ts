@@ -9,22 +9,80 @@ interface FileItem {
   name: string
 }
 
+interface BackendConfig {
+  type: 'local' | 'remote'
+  host?: string
+  username?: string
+  workspace?: string
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get('sessionId')
+    const backendType = searchParams.get('backendType') || 'local'
+    const host = searchParams.get('host')
+    const username = searchParams.get('username')
+    const workspace = searchParams.get('workspace')
 
     if (!sessionId) {
       return NextResponse.json({ error: 'SessionId is required' }, { status: 400 })
     }
 
-    console.log('Filesystem API: sessionId =', JSON.stringify(sessionId))
+    console.log('Filesystem API: sessionId =', JSON.stringify(sessionId), 'backend =', backendType)
 
-    // Initialize ConstellationFS with session-based userId
-    const fs = new FileSystem({ userId: sessionId })
-    const files = await getFileTree(fs.workspace)
+    // Create backend configuration
+    let backendConfig: any
 
-    return NextResponse.json({ files })
+    if (backendType === 'remote') {
+      if (!host || !username || !workspace) {
+        return NextResponse.json({ 
+          error: 'Remote backend requires host, username, and workspace parameters' 
+        }, { status: 400 })
+      }
+
+      backendConfig = {
+        type: 'remote',
+        host,
+        workspace,
+        auth: {
+          type: 'password',
+          credentials: {
+            username,
+            password: 'constellation' // Default password for Docker container
+          }
+        }
+      }
+    } else {
+      backendConfig = {
+        type: 'local',
+        userId: sessionId
+      }
+    }
+
+    // Initialize ConstellationFS with specified backend
+    const fs = new FileSystem({ 
+      userId: sessionId,
+      ...backendConfig
+    })
+
+    let files: FileItem[]
+
+    if (backendType === 'remote') {
+      // For remote backend, use ConstellationFS exec to list files
+      try {
+        const output = await fs.exec('find . -type f -o -type d | head -100')
+        files = parseRemoteFileTree(output)
+      } catch (error) {
+        console.error('Remote file listing failed:', error)
+        files = []
+      }
+    } else {
+      // For local backend, use direct filesystem access
+      files = await getFileTree(fs.workspace)
+    }
+
+    return NextResponse.json({ files, backend: backendType })
   } catch (error) {
     console.error('Filesystem API Error:', error)
     if (error instanceof Error) {
@@ -35,6 +93,30 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json({ error: 'Failed to read filesystem' }, { status: 500 })
   }
+}
+
+function parseRemoteFileTree(output: string): FileItem[] {
+  const lines = output.split('\n').filter(line => line.trim())
+  const files: FileItem[] = []
+  
+  for (const line of lines) {
+    const path = line.replace(/^\.\//, '') // Remove leading ./
+    if (!path || path === '.') continue
+    
+    const name = path.split('/').pop() || path
+    
+    // Heuristic: if it has an extension or doesn't end with common directory patterns, treat as file
+    const isFile = name.includes('.') && !name.endsWith('/') && 
+                   !(['bin', 'lib', 'etc', 'usr', 'var', 'tmp', 'opt'].includes(name))
+    
+    files.push({
+      path,
+      type: isFile ? 'file' : 'directory',
+      name
+    })
+  }
+  
+  return files
 }
 
 async function getFileTree(basePath: string, currentPath: string = '', files: FileItem[] = []): Promise<FileItem[]> {

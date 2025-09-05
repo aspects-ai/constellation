@@ -7,9 +7,10 @@ import { AUTH_TYPES, DEFAULTS, SHELL_TYPES } from '../constants.js'
 const BaseBackendConfigSchema = z.object({
   preventDangerous: z.boolean().default(DEFAULTS.PREVENT_DANGEROUS),
   onDangerousOperation: z
-    .function()
-    .args(z.string())
-    .returns(z.void())
+    .function({
+      input: [z.string()],
+      output: z.void(),
+    })
     .optional(),
   maxOutputLength: z.number().positive().optional(),
 })
@@ -30,31 +31,18 @@ const RemoteBackendConfigSchema = BaseBackendConfigSchema.extend({
   host: z.string().min(1, 'Host is required for remote backend'),
   auth: z.object({
     type: z.enum(AUTH_TYPES),
-    credentials: z.record(z.unknown()),
+    credentials: z.record(z.string(), z.unknown()),
   }),
-})
-
-const DockerBackendConfigSchema = BaseBackendConfigSchema.extend({
-  type: z.literal('docker'),
-  workspace: z.string().min(1, 'Workspace path is required for docker backend'),
-  image: z.string().default(DEFAULTS.DOCKER_IMAGE),
-  options: z.object({
-    network: z.string().optional(),
-    volumes: z.array(z.string()).optional(),
-    environment: z.record(z.string()).optional(),
-  }).optional(),
 })
 
 export const BackendConfigSchema = z.discriminatedUnion('type', [
   LocalBackendConfigSchema,
   RemoteBackendConfigSchema,
-  DockerBackendConfigSchema,
 ])
 
 export type BackendConfig = z.infer<typeof BackendConfigSchema>
 export type LocalBackendConfig = z.infer<typeof LocalBackendConfigSchema>
 export type RemoteBackendConfig = z.infer<typeof RemoteBackendConfigSchema>
-export type DockerBackendConfig = z.infer<typeof DockerBackendConfigSchema>
 
 /**
  * Validation helper for LocalBackendConfig
@@ -74,6 +62,8 @@ export interface FileSystemBackend {
   readonly workspace: string
   /** The configuration options for this backend */
   readonly options: BackendConfig
+  /** Whether backend connection was successfully established */
+  readonly connected: boolean
   
   /**
    * Execute a shell command in the backend environment

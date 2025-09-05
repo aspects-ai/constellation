@@ -17,7 +17,7 @@ export default defineConfig({
       formats: ['es', 'cjs']
     },
     rollupOptions: {
-      external: ['fs', 'fs/promises', 'path', 'child_process', 'os', 'url'],
+      external: ['fs', 'fs/promises', 'path', 'child_process', 'os', 'url', 'ssh2', 'node-fuse-bindings', 'util', 'events'],
       output: {
         exports: 'auto'
       }

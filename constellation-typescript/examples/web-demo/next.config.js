@@ -6,7 +6,10 @@ const nextConfig = {
   },
   serverExternalPackages: [
     '@anthropic-ai/sdk',
-    '@codebuff/sdk'
+    '@codebuff/sdk',
+    'ssh2',
+    'node-fuse-bindings',
+    'constellationfs'
   ],
   webpack: (config, { isServer }) => {
     if (isServer) {
@@ -14,6 +17,21 @@ const nextConfig = {
       config.resolve.alias = {
         ...config.resolve.alias,
         'tree-sitter.wasm': false,
+      }
+      
+      // Mark native dependencies as external for server-side
+      config.externals.push(
+        'ssh2',
+        'node-fuse-bindings', 
+        'cpu-features'
+      )
+      
+      // Ignore native modules that can't be bundled
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        'cpu-features': false,
+        'utf-8-validate': false,
+        'bufferutil': false
       }
     }
     

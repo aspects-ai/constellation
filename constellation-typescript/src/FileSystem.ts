@@ -9,6 +9,7 @@ import type {
 import {
   FileSystemError,
 } from './types.js'
+import { getLogger } from './utils/logger.js'
 
 /**
  * Main FileSystem class providing a unified interface for file operations
@@ -47,6 +48,7 @@ export class FileSystem implements FileSystemInterface {
       // Full backend config - use as-is with defaults for missing fields
       backendConfig = input as BackendConfig
     } else {
+      getLogger().debug('No backend config provided, assuming local backend: %s', input)
       // Partial config - assume local backend and fill in defaults
       backendConfig = {
         type: 'local',
@@ -119,6 +121,5 @@ export class FileSystem implements FileSystemInterface {
     
     return this.backend.write(path, content)
   }
-
 
 }

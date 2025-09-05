@@ -22,13 +22,21 @@ interface FileItem {
   name: string
 }
 
+interface BackendConfig {
+  type: 'local' | 'remote'
+  host?: string
+  username?: string
+  workspace?: string
+}
+
 interface FileExplorerProps {
   sessionId: string
   onFileSelect?: (filePath: string) => void
   selectedFile?: string | null
+  backendConfig: BackendConfig
 }
 
-export default function FileExplorer({ sessionId, onFileSelect, selectedFile }: FileExplorerProps) {
+export default function FileExplorer({ sessionId, onFileSelect, selectedFile, backendConfig }: FileExplorerProps) {
   const [files, setFiles] = useState<FileItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const fileInputRef = useRef<HTMLButtonElement>(null)
@@ -36,7 +44,19 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile }: 
   const fetchFileSystem = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/filesystem?sessionId=${sessionId}`)
+      const params = new URLSearchParams({
+        sessionId: sessionId,
+        backendType: backendConfig.type
+      })
+      
+      // Add remote backend parameters if needed
+      if (backendConfig.type === 'remote') {
+        if (backendConfig.host) params.append('host', backendConfig.host)
+        if (backendConfig.username) params.append('username', backendConfig.username)
+        if (backendConfig.workspace) params.append('workspace', backendConfig.workspace)
+      }
+      
+      const response = await fetch(`/api/filesystem?${params}`)
       if (response.ok) {
         const data = await response.json()
         setFiles(data.files || [])
@@ -49,7 +69,7 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile }: 
 
   useEffect(() => {
     fetchFileSystem()
-  }, [sessionId])
+  }, [sessionId, backendConfig])
 
   useEffect(() => {
     // Listen for filesystem updates from chat
