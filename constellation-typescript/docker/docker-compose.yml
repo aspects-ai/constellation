@@ -1,41 +1,70 @@
 version: '3.8'
 
 services:
-  constellation-ssh:
+  # Remote filesystem backend (SSH server)
+  constellation-fs-backend:
     build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: constellation-ssh-server
-    hostname: constellation-ssh
-    ports:
-      - "2222:22"  # SSH port mapping to avoid conflicts with host SSH
-    volumes:
-      # Mount workspace for persistence
-      - ./workspace:/workspace/projects
-      # Mount SSH keys if they exist (created by setup script)
-      - ./keys:/keys:ro
-      # Mount shared directory for file transfers
-      - ./shared:/workspace/shared
-    environment:
-      - DEBIAN_FRONTEND=noninteractive
-      - SSH_USER=root
-      - WORKSPACE_PATH=/workspace
+      context: ..
+      dockerfile: docker/backend/Dockerfile
+    container_name: constellation-fs-backend
+    hostname: constellation-fs-backend
     networks:
-      - constellation-network
-    restart: unless-stopped
+      constellation-net:
+        ipv4_address: 172.20.0.10
+    ports:
+      - "2222:22"
+    volumes:
+      - constellation-workspace:/workspace
+    environment:
+      - SSH_USER=root
+      - SSH_PASSWORD=constellation
     healthcheck:
-      test: ["CMD", "service", "ssh", "status"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "pgrep", "sshd"]
+      interval: 10s
+      timeout: 5s
       retries: 3
       start_period: 10s
+    restart: unless-stopped
+
+  # Development environment (web demo with LD_PRELOAD)
+  constellation-fs-devenv:
+    build:
+      context: ..
+      dockerfile: docker/devenv/Dockerfile
+    container_name: constellation-fs-devenv
+    hostname: constellation-fs-devenv
+    networks:
+      constellation-net:
+        ipv4_address: 172.20.0.20
+    ports:
+      - "3000:3000"
+    volumes:
+      # Bind mount for live development
+      - ../examples/web-demo:/app:rw
+      # Shared workspace with backend
+      - constellation-workspace:/workspace
+      # Mount the built ConstellationFS library and source
+      - ../:/constellation-fs:ro
+    environment:
+      - NODE_ENV=development
+      - REMOTE_VM_HOST=constellation-fs-backend
+      - REMOTE_VM_PORT=2222
+      - CONSTELLATION_CWD=/workspace
+      - CONSTELLATION_DEBUG=1
+    depends_on:
+      constellation-fs-backend:
+        condition: service_healthy
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
 
 networks:
-  constellation-network:
+  constellation-net:
     driver: bridge
-    name: constellation-fs-network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
-  # Named volume for workspace persistence
   constellation-workspace:
-    name: constellation-fs-workspace
+    driver: local

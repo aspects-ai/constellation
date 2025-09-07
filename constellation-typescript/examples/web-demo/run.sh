@@ -214,6 +214,7 @@ main() {
         export LD_PRELOAD="$INTERCEPT_LIB"
         export REMOTE_VM_HOST="root@localhost:2222"
         export CONSTELLATION_CWD="/workspace"
+        export CONSTELLATION_DEBUG="1"  # Enable LD_PRELOAD debug logging
         
         npm run dev
         

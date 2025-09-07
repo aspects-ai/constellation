@@ -1,15 +1,12 @@
 #!/bin/bash
 
-# ConstellationFS Docker Cleanup Script
-# Stops and cleans up Docker SSH container and related resources
+# ConstellationFS Docker Environment Cleanup Script
+# Stops and cleans up all ConstellationFS Docker containers and resources
 
 set -e  # Exit on any error
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKER_DIR="$SCRIPT_DIR/docker"
-KEYS_DIR="$DOCKER_DIR/keys"
-WORKSPACE_DIR="$DOCKER_DIR/workspace"
-SHARED_DIR="$DOCKER_DIR/shared"
 
 # Colors for output
 RED='\033[0;31m'
@@ -265,8 +262,8 @@ parse_args() {
 # Main execution
 main() {
     echo -e "${BLUE}"
-    echo "🧹 ConstellationFS Docker Cleanup"
-    echo "=================================="
+    echo "🧹 ConstellationFS Docker Environment Cleanup"
+    echo "=============================================="
     echo -e "${NC}"
     
     if [[ "$SHOW_HELP" == "true" ]]; then
@@ -279,19 +276,20 @@ main() {
         return
     fi
     
-    check_compose
-    stop_containers
-    cleanup_networks
-    cleanup_images "$REMOVE_IMAGES"
-    cleanup_volumes "$REMOVE_VOLUMES"
-    cleanup_directories "$REMOVE_DIRS"
-    
-    echo ""
-    success "Cleanup completed!"
-    
-    if [[ "$REMOVE_IMAGES" == "false" || "$REMOVE_VOLUMES" == "false" || "$REMOVE_DIRS" == "false" ]]; then
+    # Use the new stop script
+    if [[ -x "$DOCKER_DIR/scripts/stop-constellation.sh" ]]; then
+        exec "$DOCKER_DIR/scripts/stop-constellation.sh"
+    else
+        error "Stop script not found. Running fallback cleanup..."
+        check_compose
+        stop_containers
+        cleanup_networks
+        cleanup_images "$REMOVE_IMAGES"
+        cleanup_volumes "$REMOVE_VOLUMES"
+        cleanup_directories "$REMOVE_DIRS"
+        
         echo ""
-        log "For complete cleanup, run: $0 --all"
+        success "Fallback cleanup completed!"
     fi
 }
 

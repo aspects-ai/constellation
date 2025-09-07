@@ -1,15 +1,12 @@
 #!/bin/bash
 
-# ConstellationFS Docker Setup Script
-# Sets up Docker SSH container for testing RemoteBackend locally
+# ConstellationFS Docker Environment Setup Script
+# Sets up both backend and development environment containers
 
 set -e  # Exit on any error
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKER_DIR="$SCRIPT_DIR/docker"
-KEYS_DIR="$DOCKER_DIR/keys"
-WORKSPACE_DIR="$DOCKER_DIR/workspace"
-SHARED_DIR="$DOCKER_DIR/shared"
 
 # Colors for output
 RED='\033[0;31m'
@@ -229,19 +226,14 @@ show_usage_info() {
 # Main execution
 main() {
     echo -e "${BLUE}"
-    echo "🐳 ConstellationFS Docker SSH Server Setup"
-    echo "=========================================="
+    echo "🐳 ConstellationFS Docker Environment Setup"
+    echo "==========================================="
     echo -e "${NC}"
     
     check_docker
-    check_compose
-    create_directories
-    generate_ssh_keys
-    start_container
-    wait_for_ssh
-    create_ssh_config
-    test_ssh_connection
-    show_usage_info
+    
+    log "Starting ConstellationFS Docker environment..."
+    exec "$DOCKER_DIR/scripts/start-constellation.sh"
 }
 
 # Handle script interruption

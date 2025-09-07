@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Initialize ConstellationFS with specified backend
-    const fs = new FileSystem({ 
+    const fs = new FileSystem({
       userId: sessionId,
       ...backendConfig
     })

@@ -1,6 +1,6 @@
-import { execSync } from 'child_process'
 import { existsSync } from 'fs'
-import { resolve, join } from 'path'
+import { resolve } from 'path'
+import type { ConnectConfig } from 'ssh2'
 import { Client } from 'ssh2'
 import { ERROR_CODES } from '../constants.js'
 import { isCommandSafe, isDangerous } from '../safety.js'
@@ -35,7 +35,7 @@ export class RemoteBackend implements FileSystemBackend {
     this.initSSHClient()
     
     // Test SSH connection
-    this.connected = this.testSSHConnection()
+    this.connected = true
     
     if (!this.connected) {
       throw new FileSystemError(
@@ -85,23 +85,6 @@ export class RemoteBackend implements FileSystemBackend {
     getLogger().info('LD_PRELOAD intercept library not found, LD_PRELOAD functionality will be disabled')
     getLogger().debug('Searched paths:', possiblePaths)
     return null
-  }
-  
-  /**
-   * Test SSH connection
-   */
-  private testSSHConnection(): boolean {
-    if (!this.sshClient) {
-      return false
-    }
-    
-    try {
-      // Simple connection test - we'll implement full connection later
-      return true
-    } catch (error) {
-      getLogger().error('SSH connection test failed:', error)
-      return false
-    }
   }
   
   /**
@@ -245,7 +228,6 @@ export class RemoteBackend implements FileSystemBackend {
     return this.execViaSSH(command)
   }
   
-  
   /**
    * Execute command via SSH
    */
@@ -258,12 +240,17 @@ export class RemoteBackend implements FileSystemBackend {
     await this.ensureSSHConnection()
     
     return new Promise((resolve, reject) => {
+      if (!this.sshClient) {
+        throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
+      }
       // Build full command with workspace change
       const fullCommand = this.workspace && this.workspace !== '/' 
         ? `cd "${this.workspace}" && ${command}`
         : command
       
-      this.sshClient!.exec(fullCommand, (err, stream) => {
+      getLogger().debug(`[SSH exec] Executing command: ${fullCommand}`)
+      
+      this.sshClient.exec(fullCommand, (err, stream) => {
         if (err) {
           reject(new FileSystemError(
             `SSH command failed: ${err.message}`,
@@ -277,11 +264,15 @@ export class RemoteBackend implements FileSystemBackend {
         let stderr = ''
         
         stream.on('data', (data: Buffer) => {
-          stdout += data.toString()
+          const chunk = data.toString()
+          getLogger().debug(`[SSH stdout] ${chunk.trim()}`)
+          stdout += chunk
         })
         
         stream.stderr.on('data', (data: Buffer) => {
-          stderr += data.toString()
+          const chunk = data.toString()
+          getLogger().debug(`[SSH stderr] ${chunk.trim()}`)
+          stderr += chunk
         })
         
         stream.on('close', (code: number) => {
@@ -315,8 +306,10 @@ export class RemoteBackend implements FileSystemBackend {
       throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
     }
     
-    // Check if already connected (this is a simplified check)
-    // In a full implementation, you'd check the actual connection state
+    // TODO: Check if already connected
+    // if (this.sshClient && this.sshClient.readyState === 'open') {
+    //   return Promise.resolve()
+    // }
     
     return this.connectSSH()
   }
@@ -325,84 +318,33 @@ export class RemoteBackend implements FileSystemBackend {
    * Connect to SSH server
    */
   private async connectSSH(): Promise<void> {
-    if (!this.sshClient) {
-      throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
-    }
-    
     return new Promise((resolve, reject) => {
+      if (!this.sshClient) {
+        throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
+      }
       const auth = this.options.auth
       const { host, port } = this.parseHostPort(this.options.host)
-      const connectOptions: any = {
-        host: host,
-        port: port,
-        username: this.getUserFromAuth()
+      const connectOptions: ConnectConfig = {
+        host,
+        port,
+        username: this.getUserFromAuth(),
+        debug: (message: string, ...args: unknown[]) => getLogger().debug(`SSH: ${message}`, ...args)
       }
       
       if (auth.type === 'password') {
-        connectOptions.password = auth.credentials.password
+        connectOptions.password = auth.credentials.password as string
       } else if (auth.type === 'key') {
-        connectOptions.privateKey = auth.credentials.privateKey
+        connectOptions.privateKey = auth.credentials.privateKey as string
         if (auth.credentials.passphrase) {
-          connectOptions.passphrase = auth.credentials.passphrase
+          connectOptions.passphrase = auth.credentials.passphrase as string
         }
       }
       
-      this.sshClient!.on('ready', () => resolve())
-      this.sshClient!.on('error', (err) => reject(err))
-      this.sshClient!.connect(connectOptions)
+      this.sshClient.on('ready', () => resolve())
+      this.sshClient.on('error', (err) => reject(err))
+      this.sshClient.connect(connectOptions)
     })
   }
-  
-  // /**
-  //  * Execute a command via SSH
-  //  */
-  // private executeSSHCommand(
-  //   command: string,
-  //   resolve: (value: string) => void,
-  //   reject: (reason: any) => void
-  // ): void {
-  //   if (!this.sshClient) {
-  //     reject(new Error('SSH client not available'))
-  //     return
-  //   }
-    
-  //   // Change to workspace directory and execute command
-  //   const fullCommand = `cd "${this.actualWorkspace}" && ${command}`
-    
-  //   this.sshClient.exec(fullCommand, (err, stream) => {
-  //     if (err) {
-  //       reject(new FileSystemError(
-  //         `SSH command failed: ${err.message}`,
-  //         ERROR_CODES.EXEC_FAILED,
-  //         command
-  //       ))
-  //       return
-  //     }
-      
-  //     let stdout = ''
-  //     let stderr = ''
-      
-  //     stream.on('data', (data: Buffer) => {
-  //       stdout += data.toString()
-  //     })
-      
-  //     stream.stderr.on('data', (data: Buffer) => {
-  //       stderr += data.toString()
-  //     })
-      
-  //     stream.on('close', (code: number) => {
-  //       if (code === 0) {
-  //         resolve(stdout.trim())
-  //       } else {
-  //         reject(new FileSystemError(
-  //           `Command failed with exit code ${code}: ${stderr.trim() || stdout.trim()}`,
-  //           ERROR_CODES.EXEC_FAILED,
-  //           command
-  //         ))
-  //       }
-  //     })
-  //   })
-  // }
 
   async read(path: string): Promise<string> {
     // Validate path
@@ -416,7 +358,10 @@ export class RemoteBackend implements FileSystemBackend {
     await this.ensureSSHConnection()
     
     return new Promise((resolve, reject) => {
-      this.sshClient!.sftp((err, sftp) => {
+      if (!this.sshClient) {
+        throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+      }
+      this.sshClient.sftp((err, sftp) => {
         if (err) {
           reject(this.wrapError(err, 'SFTP session', ERROR_CODES.READ_FAILED, `read ${path}`))
           return
@@ -447,7 +392,10 @@ export class RemoteBackend implements FileSystemBackend {
     await this.ensureSSHConnection()
     
     return new Promise((resolve, reject) => {
-      this.sshClient!.sftp((err, sftp) => {
+      if (!this.sshClient) {
+        throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+      }
+      this.sshClient.sftp((err, sftp) => {
         if (err) {
           reject(this.wrapError(err, 'SFTP session', ERROR_CODES.WRITE_FAILED, `write ${path}`))
           return
@@ -489,7 +437,6 @@ export class RemoteBackend implements FileSystemBackend {
       command,
     )
   }
-  
   
   /**
    * Clean up resources on destruction

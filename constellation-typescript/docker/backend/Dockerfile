@@ -56,7 +56,7 @@ RUN mkdir -p /root/.ssh && \
     chmod 600 /root/.ssh/authorized_keys
 
 # Copy startup script
-COPY entrypoint.sh /entrypoint.sh
+COPY docker/backend/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Create a non-root user for testing (optional)
