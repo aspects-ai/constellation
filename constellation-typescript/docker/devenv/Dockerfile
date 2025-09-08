@@ -28,9 +28,10 @@ RUN apt-get update && apt-get install -y \
     jq \
     zip \
     unzip \
-    # SSH client for connecting to backend
+    # SSH client and sshpass for connecting to backend
     && apt-get install -y \
     openssh-client \
+    sshpass \
     # Cleanup
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean

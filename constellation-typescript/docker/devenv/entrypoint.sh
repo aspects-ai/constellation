@@ -26,18 +26,36 @@ fi
 # Install ConstellationFS from mounted source
 echo "📦 Installing ConstellationFS dependency..."
 if [ -f "/constellation-fs/package.json" ]; then
-    # Copy ConstellationFS to a writable location
-    cp -r /constellation-fs /tmp/constellation-fs-build
+    echo "🔍 DEBUG: Found ConstellationFS source at /constellation-fs/"
+    echo "🔍 DEBUG: Source size: $(du -sh /constellation-fs | cut -f1)"
+    echo "🔍 DEBUG: Starting copy operation..."
+    
+    # Copy ConstellationFS to a writable location, excluding heavy directories
+    echo "🔍 DEBUG: Creating build directory..."
+    mkdir -p /tmp/constellation-fs-build
+    echo "🔍 DEBUG: Copying source files using tar (excluding node_modules and heavy dirs)..."
+    cd /constellation-fs && tar --exclude='node_modules' --exclude='examples/*/node_modules' --exclude='.DS_Store' -cf - . | (cd /tmp/constellation-fs-build && tar -xf -)
+    echo "🔍 DEBUG: Copy completed. Target size: $(du -sh /tmp/constellation-fs-build | cut -f1)"
+    
     cd /tmp/constellation-fs-build
+    echo "🔍 DEBUG: Changed to build directory: $(pwd)"
+    echo "🔍 DEBUG: Contents: $(ls -la | wc -l) items"
+    
     # Build ConstellationFS
-    npm install && npm run build
-    # Link it globally
-    npm link
-    # Link it in the app
-    cd /app && npm link constellationfs
-    echo "✅ ConstellationFS linked from mounted source"
+    echo "🔍 DEBUG: Starting npm install..."
+    npm install
+    echo "🔍 DEBUG: npm install completed, starting build..."
+    npm run build
+    echo "🔍 DEBUG: Build completed"
+    
+    # Install it directly in the app instead of using npm link
+    echo "🔍 DEBUG: Installing in app directory..."
+    cd /app && rm -f package-lock.json && rm -rf node_modules && npm install /tmp/constellation-fs-build
+    echo "✅ ConstellationFS installed from mounted source"
 else
-    echo "⚠️  ConstellationFS source not found, will try to use existing installation"
+    echo "⚠️  ConstellationFS source not found at /constellation-fs/package.json"
+    echo "🔍 DEBUG: Checking what's at /constellation-fs/:"
+    ls -la /constellation-fs/ || echo "Directory does not exist"
 fi
 
 echo ""
@@ -49,7 +67,7 @@ echo ""
 # Wait for backend to be ready
 echo "⏳ Waiting for backend container to be ready..."
 for i in {1..30}; do
-    if ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=2 -p 2222 root@constellation-fs-backend exit 2>/dev/null; then
+    if sshpass -p "constellation" ssh -o BatchMode=no -o StrictHostKeyChecking=no -o ConnectTimeout=2 root@constellation-fs-backend exit 2>/dev/null; then
         echo "✅ Backend container is ready"
         break
     fi
