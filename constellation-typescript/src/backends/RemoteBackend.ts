@@ -1,11 +1,10 @@
-import { existsSync } from 'fs'
-import { resolve } from 'path'
 import type { ConnectConfig } from 'ssh2'
 import { Client } from 'ssh2'
 import { ERROR_CODES } from '../constants.js'
 import { isCommandSafe, isDangerous } from '../safety.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
 import { getLogger } from '../utils/logger.js'
+import { getRemoteBackendLibrary, getPlatformGuidance } from '../utils/nativeLibrary.js'
 import type { FileSystemBackend, RemoteBackendConfig } from './types.js'
 
 /**
@@ -28,8 +27,27 @@ export class RemoteBackend implements FileSystemBackend {
     this.options = options
     this.workspace = options.workspace
     
-    // Locate the LD_PRELOAD intercept library (don't build during runtime)
-    this.interceptLibPath = this.locateInterceptLibrary()
+    // Check platform support and locate native library
+    const guidance = getPlatformGuidance('remote')
+    if (!guidance.supported) {
+      const suggestions = guidance.suggestions.join('\n  ')
+      throw new FileSystemError(
+        guidance.message || 'Remote backend not supported on this platform',
+        ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
+        `Suggestions:\n  ${suggestions}`
+      )
+    }
+    
+    // Locate the LD_PRELOAD intercept library using platform detection
+    this.interceptLibPath = getRemoteBackendLibrary()
+    if (!this.interceptLibPath) {
+      const suggestions = guidance.suggestions.join('\n  ')
+      throw new FileSystemError(
+        'Native library required for remote backend but not found',
+        ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
+        `Suggestions:\n  ${suggestions}`
+      )
+    }
     
     // Initialize SSH client
     this.initSSHClient()
@@ -56,36 +74,6 @@ export class RemoteBackend implements FileSystemBackend {
     }
   }
   
-  /**
-   * Locate the LD_PRELOAD intercept library (without building)
-   */
-  private locateInterceptLibrary(): string | null {
-    // Try multiple possible paths for the LD_PRELOAD library
-    const possiblePaths = [
-      // From node_modules (when ConstellationFS is installed as a package)
-      resolve(__dirname, '../../../native/libintercept.so'),
-      resolve(__dirname, '../../native/libintercept.so'),
-      // From development/source directory
-      resolve(process.cwd(), 'native/libintercept.so'),
-      resolve(process.cwd(), '../native/libintercept.so'),
-      resolve(process.cwd(), '../../native/libintercept.so'),
-      // Absolute path based on ConstellationFS root
-      resolve(process.cwd(), '../../../constellation-typescript/native/libintercept.so')
-    ]
-    
-    for (const interceptPath of possiblePaths) {
-      if (existsSync(interceptPath)) {
-        getLogger().info(`LD_PRELOAD intercept library found at: ${interceptPath}`)
-        return interceptPath
-      }
-    }
-    
-    // Library doesn't exist - this is fine for web environments
-    // The library is only needed when running with LD_PRELOAD
-    getLogger().info('LD_PRELOAD intercept library not found, LD_PRELOAD functionality will be disabled')
-    getLogger().debug('Searched paths:', possiblePaths)
-    return null
-  }
   
   /**
    * Extract username from auth configuration
@@ -157,8 +145,10 @@ export class RemoteBackend implements FileSystemBackend {
       }
     })
     
+    // Set LD_PRELOAD with validated library path
     if (this.interceptLibPath) {
       env.LD_PRELOAD = this.interceptLibPath
+      getLogger().debug(`Setting LD_PRELOAD to: ${this.interceptLibPath}`)
     }
     
     // Set remote host for interception
@@ -189,19 +179,47 @@ export class RemoteBackend implements FileSystemBackend {
   }
 
   /**
-   * Get SSH host string for connection
+   * Get SSH host string for connection from environment
    */
   private getSSHHostString(): string {
-    const auth = this.options.auth
-    let user = 'root'
-    
-    if (auth.type === 'password' && auth.credentials.username) {
-      user = auth.credentials.username as string
-    } else if (auth.type === 'key' && auth.credentials.username) {
-      user = auth.credentials.username as string
+    // Get host from environment variable (required for LD_PRELOAD)
+    const remoteHost = process.env.REMOTE_VM_HOST
+    if (!remoteHost) {
+      throw new FileSystemError(
+        'REMOTE_VM_HOST environment variable is required for remote backend',
+        ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
+        'Set REMOTE_VM_HOST=user@hostname:port before running'
+      )
     }
     
-    return `${user}@${this.options.host}`
+    return remoteHost
+  }
+
+  /**
+   * Get host and port from environment variable
+   */
+  private getHostAndPortFromEnv(): { host: string; port: number } {
+    const remoteHost = process.env.REMOTE_VM_HOST
+    if (!remoteHost) {
+      throw new FileSystemError(
+        'REMOTE_VM_HOST environment variable is required for remote backend',
+        ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
+        'Set REMOTE_VM_HOST=user@hostname:port before running'
+      )
+    }
+    
+    // Parse user@host:port format
+    const parts = remoteHost.split('@')
+    if (parts.length !== 2) {
+      throw new FileSystemError(
+        'REMOTE_VM_HOST must be in format user@hostname:port',
+        ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
+        `Invalid format: ${remoteHost}`
+      )
+    }
+    
+    const hostPart = parts[1] // hostname:port
+    return this.parseHostPort(hostPart)
   }
 
   async exec(command: string): Promise<string> {
@@ -323,7 +341,7 @@ export class RemoteBackend implements FileSystemBackend {
         throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
       }
       const auth = this.options.auth
-      const { host, port } = this.parseHostPort(this.options.host)
+      const { host, port } = this.getHostAndPortFromEnv()
       const connectOptions: ConnectConfig = {
         host,
         port,

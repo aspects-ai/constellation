@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  web-demo:
+    build: 
+      context: ../..
+      dockerfile: examples/web-demo/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - REMOTE_VM_HOST=root@constellation-remote:22
+      - LD_PRELOAD=/app/native/libintercept.so
+    volumes:
+      # Mount native library for remote backend
+      - ../../constellation-typescript/dist-native:/app/native:ro
+    networks:
+      - constellation-net
+    depends_on:
+      - constellation-remote
+  
+  # ConstellationFS Remote Backend
+  constellation-remote:
+    image: constellationfs/remote-backend:latest
+    build:
+      context: ../../constellation-typescript
+      dockerfile: remote/Dockerfile.runtime
+    ports:
+      - "2222:22"
+    networks:
+      - constellation-net
+
+networks:
+  constellation-net:
+    driver: bridge

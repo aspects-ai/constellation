@@ -12,32 +12,34 @@ An interactive web demo showcasing ConstellationFS with the Codebuff SDK. Chat w
 
 ## Quick Start
 
-### Local Development
+### Local Development (Local Backend Only)
 
-1. **Build ConstellationFS package** (from repository root):
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) - you'll have access to the local backend filesystem.
+
+### Docker Development (Full Remote Backend Testing)
+
+For testing remote backend functionality on macOS/Windows:
+
+1. **Build native library first**:
    ```bash
-   npm install
-   npm run build
+   npx constellationfs build-native
    ```
 
-2. **Set up the demo**:
+2. **Start both services with Docker Compose**:
    ```bash
-   cd examples/web-demo
-   npm install
+   docker-compose up --build
    ```
 
-3. **Set up environment**:
-   ```bash
-   cp .env.local.example .env.local
-   # Edit .env.local and add your Anthropic API key
-   ```
+This starts:
+- **web-demo** on `localhost:3000` (Linux container with LD_PRELOAD support)
+- **constellation-remote** backend on `localhost:2222` (SSH service)
 
-4. **Run the development server**:
-   ```bash
-   npm run dev
-   ```
-
-5. **Open [http://localhost:3000](http://localhost:3000)** in your browser
+The web demo runs with LD_PRELOAD intercepting commands and routing them to the SSH backend.
 
 ### Deploy to Vercel
 

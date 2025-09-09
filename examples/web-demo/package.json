@@ -19,11 +19,12 @@
     "@mantine/notifications": "^8.2.7",
     "@tabler/icons-react": "^3.34.1",
     "@types/ws": "^8.18.1",
-    "constellationfs": "file:../tmp/constellation-fs-build",
+    "constellationfs": "file:../../constellation-typescript/",
     "next": "^15.5.2",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-markdown": "^10.1.0",
+    "ssh2": "^1.17.0",
     "uuid": "^9.0.0",
     "ws": "^8.18.3",
     "zod": "^4.1.5"

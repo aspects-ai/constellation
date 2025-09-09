@@ -14,6 +14,16 @@ export {
 // Error Classes
 export { DangerousOperationError, FileSystemError } from './types.js'
 
+// Platform Detection
+export {
+  detectPlatformCapabilities,
+  findNativeLibrary,
+  validateNativeLibrary,
+  getRemoteBackendLibrary,
+  getPlatformGuidance,
+  type PlatformCapabilities
+} from './utils/nativeLibrary.js'
+
 // Public Types
 export type {
   BackendConfig,
