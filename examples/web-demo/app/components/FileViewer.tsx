@@ -107,12 +107,12 @@ export default function FileViewer({ sessionId, selectedFile, backendConfig }: F
         flex={1} 
         p="md" 
         style={{ 
-          backgroundColor: 'var(--mantine-color-dark-8)',
+          backgroundColor: 'var(--mantine-color-dark-7)',
           display: 'flex',
           flexDirection: 'column'
         }}
       >
-        <Text fw={600} size="lg" mb="md">File Viewer</Text>
+        <Text fw={700} size="lg" mb="md">File Viewer</Text>
         <Center flex={1}>
           <Box ta="center">
             <IconFile size={48} color="var(--mantine-color-gray-5)" />
@@ -130,19 +130,23 @@ export default function FileViewer({ sessionId, selectedFile, backendConfig }: F
       flex={1} 
       p="md" 
       style={{ 
-        backgroundColor: 'var(--mantine-color-dark-8)',
+        backgroundColor: 'var(--mantine-color-dark-7)',
         display: 'flex',
         flexDirection: 'column'
       }}
     >
-      <Box mb="md">
-        <Text fw={600} size="lg">File Viewer</Text>
+      <Box mb="md" pb="sm" style={{ borderBottom: '1px solid var(--mantine-color-dark-5)' }}>
+        <Text fw={700} size="lg">File Viewer</Text>
         <Text size="sm" c="dimmed" ff="monospace">
           {selectedFile}
         </Text>
       </Box>
       
-      <ScrollArea flex={1}>
+      <ScrollArea flex={1} styles={{
+        viewport: {
+          paddingRight: '12px'
+        }
+      }}>
         {isLoading ? (
           <Center p="xl">
             <Loader size="md" />
@@ -156,11 +160,18 @@ export default function FileViewer({ sessionId, selectedFile, backendConfig }: F
             {error}
           </Alert>
         ) : (
-          <CodeHighlight
-            code={fileContent}
-            language={getFileLanguage(selectedFile)}
-            style={{ fontSize: '0.9em' }}
-          />
+          <Box style={{ 
+            backgroundColor: 'var(--mantine-color-dark-8)',
+            borderRadius: '8px',
+            padding: '16px',
+            border: '1px solid var(--mantine-color-dark-5)'
+          }}>
+            <CodeHighlight
+              code={fileContent}
+              language={getFileLanguage(selectedFile)}
+              style={{ fontSize: '0.95em', lineHeight: 1.6 }}
+            />
+          </Box>
         )}
       </ScrollArea>
     </Box>

@@ -1,129 +1,41 @@
 'use client'
 
 import { Box, Container, Group, Tabs, Text } from '@mantine/core'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import ApiKeyModal from './components/ApiKeyModal'
 import BackendSelector, { BackendConfig } from './components/BackendSelector'
 import Chat from './components/Chat'
 import FileExplorer from './components/FileExplorer'
 import FileViewer from './components/FileViewer'
 
-function ResizableLayout({ sessionId, selectedFile, setSelectedFile, apiKey, backendConfig }: {
+function FileExplorerTab({ sessionId, backendConfig }: {
   sessionId: string
-  selectedFile: string | null
-  setSelectedFile: (file: string | null) => void
-  apiKey: string | null
   backendConfig: BackendConfig
 }) {
-  const [bottomHeight, setBottomHeight] = useState(300)
-  const [isDragging, setIsDragging] = useState(false)
-  const dragRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return
-      
-      const availableHeight = window.innerHeight - 60 // Total height minus header
-      const mouseYFromTop = e.clientY - 60 // Mouse position relative to content area (after header)
-      const newBottomHeight = availableHeight - mouseYFromTop
-      
-      // Constrain the height between 200px and 80% of available space
-      const minHeight = 200
-      const maxHeight = availableHeight * 0.8
-      const constrainedHeight = Math.max(minHeight, Math.min(maxHeight, newBottomHeight))
-      
-      setBottomHeight(constrainedHeight)
-    }
-
-    const handleMouseUp = () => {
-      setIsDragging(false)
-      document.body.style.cursor = 'default'
-      document.body.style.userSelect = 'auto'
-    }
-
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = 'ns-resize'
-      document.body.style.userSelect = 'none'
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isDragging])
-
-  const handleMouseDown = () => {
-    setIsDragging(true)
-  }
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
 
   return (
-    <Box style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Chat area */}
-      <Box style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <Chat sessionId={sessionId} apiKey={apiKey} backendConfig={backendConfig} />
-      </Box>
-      
-      {/* Draggable divider */}
-      <Box
-        ref={dragRef}
-        onMouseDown={handleMouseDown}
-        className="draggable-divider"
-        style={{
-          height: '6px',
-          backgroundColor: 'var(--mantine-color-dark-4)',
-          cursor: 'ns-resize',
-          borderTop: '1px solid var(--mantine-color-dark-3)',
-          borderBottom: '1px solid var(--mantine-color-dark-5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative'
-        }}
-      >
-        <Box 
-          className="divider-handle"
-          style={{
-            width: '60px',
-            height: '3px',
-            backgroundColor: 'var(--mantine-color-gray-5)',
-            borderRadius: '2px',
-            transition: 'background-color 0.2s ease'
-          }}
-        />
-      </Box>
-      
-      {/* File explorer and viewer */}
-      <Box 
-        style={{ 
-          height: `${bottomHeight}px`, 
-          display: 'flex',
-          minHeight: '200px'
-        }}
-      >
-        <FileExplorer 
-          sessionId={sessionId} 
-          onFileSelect={setSelectedFile}
-          selectedFile={selectedFile}
-          backendConfig={backendConfig}
-        />
-        <FileViewer 
-          sessionId={sessionId} 
-          selectedFile={selectedFile}
-          backendConfig={backendConfig}
-        />
-      </Box>
+    <Box style={{ height: '100%', display: 'flex' }}>
+      <FileExplorer 
+        sessionId={sessionId} 
+        onFileSelect={setSelectedFile}
+        selectedFile={selectedFile}
+        backendConfig={backendConfig}
+      />
+      <FileViewer 
+        sessionId={sessionId} 
+        selectedFile={selectedFile}
+        backendConfig={backendConfig}
+      />
     </Box>
   )
 }
 
 export default function Home() {
   const [sessionId, setSessionId] = useState<string>('')
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [showApiKeyModal, setShowApiKeyModal] = useState(false)
-  const [activeTab, setActiveTab] = useState<string | null>('chat')
+  const [activeTab, setActiveTab] = useState<string | null>('files')
   const [backendConfig, setBackendConfig] = useState<BackendConfig>({ type: 'local' })
   
   // Generate sessionId and check for environment API key
@@ -209,65 +121,140 @@ export default function Home() {
     <>
       <ApiKeyModal opened={showApiKeyModal} onSubmit={handleApiKeySubmit} />
       
-      <Box style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Box style={{ 
+        height: '100vh', 
+        display: 'flex', 
+        flexDirection: 'column',
+        backgroundColor: 'var(--mantine-color-dark-7)'
+      }}>
         {/* Header */}
         <Box
           style={{
-            height: '60px',
+            height: '72px',
             backgroundColor: 'var(--mantine-color-dark-6)',
             borderBottom: '1px solid var(--mantine-color-dark-4)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 16px',
-            flexShrink: 0
+            flexShrink: 0,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
           }}
         >
-          <Text size="lg" fw={600}>
-            Codebuff SDK on ConstellationFS Demo
-          </Text>
-          <Group gap="md">
-            <Text size="sm" c="dimmed" ff="monospace">
-              Session: {sessionId}
-            </Text>
-            <Text 
-              size="sm" 
-              c={backendConfig.type === 'local' ? 'blue' : 'green'}
-              fw={500}
-            >
-              Backend: {backendConfig.type === 'local' ? 'Local' : `Remote (${backendConfig.host})`}
-            </Text>
-            {apiKey && (
-              <Text size="xs" c="green">
-                API Key: ●●●●●{apiKey.slice(-4)}
+          <Container size="xl" style={{ width: '100%', maxWidth: '100%', padding: '0 24px' }}>
+            <Group justify="space-between">
+              <Text size="xl" fw={700}>
+                Codebuff SDK on ConstellationFS Demo
               </Text>
-            )}
-          </Group>
+              <Group gap="lg">
+                <Text size="sm" c="dimmed" ff="monospace">
+                  Session: {sessionId}
+                </Text>
+                <Text 
+                  size="sm" 
+                  c={backendConfig.type === 'local' ? 'blue' : 'green'}
+                  fw={500}
+                >
+                  Backend: {backendConfig.type === 'local' ? 'Local' : `Remote (${backendConfig.host})`}
+                </Text>
+                {apiKey && (
+                  <Text size="xs" c="green">
+                    API Key: ●●●●●{apiKey.slice(-4)}
+                  </Text>
+                )}
+              </Group>
+            </Group>
+          </Container>
         </Box>
 
-        {/* Main content area */}
-        <Box style={{ flex: 1, minHeight: 0 }}>
-          <Tabs value={activeTab} onChange={setActiveTab} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Tabs.List>
-              <Tabs.Tab value="chat">Chat</Tabs.Tab>
-              <Tabs.Tab value="config">Backend Config</Tabs.Tab>
-            </Tabs.List>
+        {/* Main content area with center content and chat panel */}
+        <Box style={{ flex: 1, minHeight: 0, display: 'flex', padding: '24px', gap: '24px' }}>
+          {/* Center content area */}
+          <Box style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <Box style={{ 
+              flex: 1,
+              backgroundColor: 'var(--mantine-color-dark-6)',
+              borderRadius: '12px',
+              boxShadow: '0 4px 24px rgba(0, 0, 0, 0.2)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <Tabs 
+                value={activeTab} 
+                onChange={setActiveTab} 
+                style={{ 
+                  height: '100%', 
+                  display: 'flex', 
+                  flexDirection: 'column'
+                }}
+                styles={{
+                  list: {
+                    backgroundColor: 'var(--mantine-color-dark-5)',
+                    borderBottom: '1px solid var(--mantine-color-dark-4)',
+                    padding: '0 24px',
+                    paddingTop: '8px'
+                  },
+                  tab: {
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    padding: '12px 20px',
+                    '&[data-active]': {
+                      borderColor: 'var(--mantine-color-blue-5)'
+                    }
+                  }
+                }}
+              >
+                <Tabs.List>
+                  <Tabs.Tab value="files">Workspace Files</Tabs.Tab>
+                  <Tabs.Tab value="config">Backend Config</Tabs.Tab>
+                </Tabs.List>
 
-            <Box style={{ flex: 1, minHeight: 0 }}>
-              <Tabs.Panel value="chat" style={{ height: '100%' }}>
-                <ResizableLayout sessionId={sessionId} selectedFile={selectedFile} setSelectedFile={setSelectedFile} apiKey={apiKey} backendConfig={backendConfig} />
-              </Tabs.Panel>
+                <Box style={{ flex: 1, minHeight: 0 }}>
+                  <Tabs.Panel value="files" style={{ height: '100%' }}>
+                    <FileExplorerTab sessionId={sessionId} backendConfig={backendConfig} />
+                  </Tabs.Panel>
 
-              <Tabs.Panel value="config" style={{ height: '100%', overflow: 'auto', padding: '16px' }}>
-                <BackendSelector
-                  sessionId={sessionId}
-                  config={backendConfig}
-                  onChange={setBackendConfig}
-                  onTestConnection={testBackendConnection}
-                />
-              </Tabs.Panel>
+                  <Tabs.Panel value="config" style={{ height: '100%', overflow: 'auto', padding: '24px' }}>
+                    <Box style={{ maxWidth: '800px', margin: '0 auto' }}>
+                      <BackendSelector
+                        sessionId={sessionId}
+                        config={backendConfig}
+                        onChange={setBackendConfig}
+                        onTestConnection={testBackendConnection}
+                      />
+                    </Box>
+                  </Tabs.Panel>
+                </Box>
+              </Tabs>
             </Box>
-          </Tabs>
+          </Box>
+
+          {/* Chat side panel on the right */}
+          <Box 
+            style={{ 
+              width: '400px',
+              flexShrink: 0,
+              backgroundColor: 'var(--mantine-color-dark-6)',
+              borderRadius: '12px',
+              boxShadow: '0 4px 24px rgba(0, 0, 0, 0.2)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <Box 
+              p="md" 
+              style={{ 
+                borderBottom: '1px solid var(--mantine-color-dark-4)',
+                backgroundColor: 'var(--mantine-color-dark-5)',
+                padding: '16px 24px'
+              }}
+            >
+              <Text size="lg" fw={600}>Chat Assistant</Text>
+            </Box>
+            <Box style={{ flex: 1, minHeight: 0 }}>
+              <Chat sessionId={sessionId} apiKey={apiKey} backendConfig={backendConfig} />
+            </Box>
+          </Box>
         </Box>
       </Box>
     </>

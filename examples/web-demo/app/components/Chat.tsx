@@ -226,7 +226,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
 
   return (
     <Box h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
-      <ScrollArea flex={1} p="md">
+      <ScrollArea flex={1} p="md" style={{ backgroundColor: 'var(--mantine-color-dark-6)' }}>
         <Stack gap="md">
           {messages.map((message) => {
             // Tool messages get system-style rendering
@@ -325,27 +325,41 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         </Stack>
       </ScrollArea>
       
-      <Box p="md" style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}>
-        <Group gap="md">
-          <TextInput
-            flex={1}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyPress}
-            placeholder={apiKey ? "Ask me to help with your project..." : "Please enter your API key to start chatting"}
-            disabled={isLoading || !apiKey}
-            size="md"
-          />
-          <Button
-            onClick={sendMessage}
-            disabled={isLoading || !input.trim() || !apiKey}
-            loading={isLoading}
-            leftSection={<IconSend size={16} />}
-            size="md"
-          >
-            {isLoading ? 'Sending' : 'Send'}
-          </Button>
-        </Group>
+      <Box p="md" style={{ 
+        borderTop: '1px solid var(--mantine-color-dark-4)',
+        backgroundColor: 'var(--mantine-color-dark-5)'
+      }}>
+        <Box>
+          <Group gap="md">
+            <TextInput
+              flex={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyPress}
+              placeholder={apiKey ? "Ask me to help with your project..." : "Please enter your API key to start chatting"}
+              disabled={isLoading || !apiKey}
+              size="lg"
+              styles={{
+                input: {
+                  backgroundColor: 'var(--mantine-color-dark-7)',
+                  border: '1px solid var(--mantine-color-dark-4)',
+                  '&:focus': {
+                    borderColor: 'var(--mantine-color-blue-5)'
+                  }
+                }
+              }}
+            />
+            <Button
+              onClick={sendMessage}
+              disabled={isLoading || !input.trim() || !apiKey}
+              loading={isLoading}
+              leftSection={<IconSend size={16} />}
+              size="md"
+            >
+              {isLoading ? 'Sending' : 'Send'}
+            </Button>
+          </Group>
+        </Box>
       </Box>
     </Box>
   )

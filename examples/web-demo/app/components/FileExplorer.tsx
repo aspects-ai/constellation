@@ -174,15 +174,23 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
       <Group 
         key={item.path} 
         justify="space-between"
-        p="xs"
+        p="sm"
         style={{
           cursor: item.type === 'file' ? 'pointer' : 'default',
           backgroundColor: item.type === 'file' && selectedFile === item.path 
             ? 'var(--mantine-color-blue-9)' 
             : undefined,
-          borderRadius: 'var(--mantine-radius-sm)',
-          ':hover': {
-            backgroundColor: 'var(--mantine-color-dark-6)'
+          borderRadius: '8px',
+          transition: 'all 0.2s ease'
+        }}
+        onMouseEnter={(e) => {
+          if (item.type === 'file' && selectedFile !== item.path) {
+            e.currentTarget.style.backgroundColor = 'var(--mantine-color-dark-5)'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (item.type === 'file' && selectedFile !== item.path) {
+            e.currentTarget.style.backgroundColor = ''
           }
         }}
       >
@@ -223,7 +231,7 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
     >
       <Stack gap="md" h="100%">
         <Group justify="space-between">
-          <Text fw={600} size="lg">Workspace Files</Text>
+          <Text fw={700} size="lg">Workspace Files</Text>
           <Group gap="xs">
             <FileInput
               placeholder=""
@@ -252,7 +260,11 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
           </Group>
         </Group>
 
-        <ScrollArea flex={1}>
+        <ScrollArea flex={1} styles={{
+          viewport: {
+            paddingRight: '8px'
+          }
+        }}>
           <Stack gap="xs">
             {isLoading ? (
               <Center p="xl">
