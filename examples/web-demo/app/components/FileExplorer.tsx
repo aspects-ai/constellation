@@ -221,15 +221,18 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
 
   return (
     <Box 
-      w={300} 
-      h="100%" 
-      p="md" 
       style={{ 
+        width: '300px',
+        height: '100%',
+        padding: '16px',
         borderRight: '1px solid var(--mantine-color-dark-4)',
-        backgroundColor: 'var(--mantine-color-dark-7)'
+        backgroundColor: 'var(--mantine-color-dark-7)',
+        display: 'flex',
+        flexDirection: 'column',
+        flexShrink: 0
       }}
     >
-      <Stack gap="md" h="100%">
+      <Stack gap="md" style={{ height: '100%', minHeight: 0 }}>
         <Group justify="space-between">
           <Text fw={700} size="lg">Workspace Files</Text>
           <Group gap="xs">

@@ -7,6 +7,7 @@ import BackendSelector, { BackendConfig } from './components/BackendSelector'
 import Chat from './components/Chat'
 import FileExplorer from './components/FileExplorer'
 import FileViewer from './components/FileViewer'
+import ComponentSandbox from './components/ComponentSandbox'
 
 function FileExplorerTab({ sessionId, backendConfig }: {
   sessionId: string
@@ -15,7 +16,7 @@ function FileExplorerTab({ sessionId, backendConfig }: {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
 
   return (
-    <Box style={{ height: '100%', display: 'flex' }}>
+    <Box style={{ height: '100%', display: 'flex', overflow: 'hidden' }}>
       <FileExplorer 
         sessionId={sessionId} 
         onFileSelect={setSelectedFile}
@@ -166,11 +167,12 @@ export default function Home() {
         </Box>
 
         {/* Main content area with center content and chat panel */}
-        <Box style={{ flex: 1, minHeight: 0, display: 'flex', padding: '24px', gap: '24px' }}>
+        <Box style={{ flex: 1, minHeight: 0, display: 'flex', padding: '24px', gap: '24px', overflow: 'hidden' }}>
           {/* Center content area */}
-          <Box style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <Box style={{ 
               flex: 1,
+              minHeight: 0,
               backgroundColor: 'var(--mantine-color-dark-6)',
               borderRadius: '12px',
               boxShadow: '0 4px 24px rgba(0, 0, 0, 0.2)',
@@ -196,21 +198,23 @@ export default function Home() {
                   tab: {
                     fontSize: '14px',
                     fontWeight: 500,
-                    padding: '12px 20px',
-                    '&[data-active]': {
-                      borderColor: 'var(--mantine-color-blue-5)'
-                    }
+                    padding: '12px 20px'
                   }
                 }}
               >
                 <Tabs.List>
                   <Tabs.Tab value="files">Workspace Files</Tabs.Tab>
+                  <Tabs.Tab value="sandbox">Component Sandbox</Tabs.Tab>
                   <Tabs.Tab value="config">Backend Config</Tabs.Tab>
                 </Tabs.List>
 
-                <Box style={{ flex: 1, minHeight: 0 }}>
-                  <Tabs.Panel value="files" style={{ height: '100%' }}>
+                <Box style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                  <Tabs.Panel value="files" style={{ height: '100%', overflow: 'hidden' }}>
                     <FileExplorerTab sessionId={sessionId} backendConfig={backendConfig} />
+                  </Tabs.Panel>
+
+                  <Tabs.Panel value="sandbox" style={{ height: '100%' }}>
+                    <ComponentSandbox sessionId={sessionId} backendConfig={backendConfig} />
                   </Tabs.Panel>
 
                   <Tabs.Panel value="config" style={{ height: '100%', overflow: 'auto', padding: '24px' }}>

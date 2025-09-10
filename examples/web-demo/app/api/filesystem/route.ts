@@ -130,24 +130,53 @@ function parseRemoteFileTree(output: string): FileItem[] {
   return files
 }
 
-async function getFileTree(basePath: string, currentPath: string = '', files: FileItem[] = []): Promise<FileItem[]> {
+async function getFileTree(basePath: string, currentPath: string = '', files: FileItem[] = [], depth: number = 0): Promise<FileItem[]> {
+  // Limit recursion depth to prevent deep traversal
+  if (depth > 3) return files
+  
+  // Directories to ignore
+  const ignoreDirs = new Set([
+    'node_modules',
+    '.git',
+    '.next',
+    'dist',
+    'build',
+    '.cache',
+    '.vscode',
+    '.idea',
+    '__pycache__',
+    '.pytest_cache',
+    'coverage',
+    '.nyc_output'
+  ])
+  
   try {
     const fullPath = join(basePath, currentPath)
     const items = await readdir(fullPath)
 
     for (const item of items) {
+      // Skip hidden files/directories (except .gitignore, .env, etc.)
+      if (item.startsWith('.') && !item.match(/^\.(gitignore|env|env\..*|prettierrc|eslintrc.*|babelrc.*)$/)) {
+        continue
+      }
+      
       const itemPath = join(fullPath, item)
       const relativePath = currentPath ? join(currentPath, item) : item
       const stats = await stat(itemPath)
 
       if (stats.isDirectory()) {
+        // Skip ignored directories
+        if (ignoreDirs.has(item)) {
+          continue
+        }
+        
         files.push({
           path: relativePath,
           type: 'directory',
           name: item
         })
         // Recursively get subdirectory contents
-        await getFileTree(basePath, relativePath, files)
+        await getFileTree(basePath, relativePath, files, depth + 1)
       } else {
         files.push({
           path: relativePath,
