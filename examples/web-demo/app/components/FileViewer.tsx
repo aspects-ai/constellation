@@ -30,6 +30,7 @@ export default function FileViewer({ sessionId, selectedFile, backendConfig }: F
   const [fileContent, setFileContent] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loadingPhase, setLoadingPhase] = useState<string>('')
 
   useEffect(() => {
     if (!selectedFile) {
@@ -41,6 +42,7 @@ export default function FileViewer({ sessionId, selectedFile, backendConfig }: F
     const fetchFileContent = async () => {
       setIsLoading(true)
       setError(null)
+      setLoadingPhase('Preparing request...')
       
       try {
         const params = new URLSearchParams({
@@ -56,19 +58,37 @@ export default function FileViewer({ sessionId, selectedFile, backendConfig }: F
           if (backendConfig.workspace) params.append('workspace', backendConfig.workspace)
         }
         
+        setLoadingPhase('Sending request to server...')
+        const startTime = Date.now()
+        
         const response = await fetch(`/api/file-content?${params}`)
+        
+        const fetchTime = Date.now() - startTime
+        console.log(`[FileViewer] Fetch completed in ${fetchTime}ms`)
         
         if (!response.ok) {
           throw new Error(`Failed to fetch file: ${response.statusText}`)
         }
         
+        setLoadingPhase('Processing response...')
+        const jsonStartTime = Date.now()
         const data = await response.json()
-        setFileContent(data.content || '')
+        const jsonTime = Date.now() - jsonStartTime
+        console.log(`[FileViewer] JSON parsing took ${jsonTime}ms`)
+        
+        const totalTime = Date.now() - startTime
+        console.log(`[FileViewer] Total load time: ${totalTime}ms`)
+        
+        setLoadingPhase('Rendering content...')
+        const content = data.content || ''
+        console.log(`[FileViewer] File size: ${content.length} bytes`)
+        setFileContent(content)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load file')
         setFileContent('')
       } finally {
         setIsLoading(false)
+        setLoadingPhase('')
       }
     }
 
@@ -163,7 +183,10 @@ export default function FileViewer({ sessionId, selectedFile, backendConfig }: F
       }}>
         {isLoading ? (
           <Center p="xl">
-            <Loader size="md" />
+            <Box ta="center">
+              <Loader size="md" />
+              <Text size="sm" c="dimmed" mt="md">{loadingPhase}</Text>
+            </Box>
           </Center>
         ) : error ? (
           <Alert 
@@ -272,6 +295,29 @@ export default function FileViewer({ sessionId, selectedFile, backendConfig }: F
             }}
           >
             <ReactMarkdown>{fileContent}</ReactMarkdown>
+          </Box>
+        ) : fileContent.length > 50000 ? (
+          // For large files, skip syntax highlighting
+          <Box style={{ 
+            backgroundColor: 'var(--mantine-color-dark-8)',
+            borderRadius: '8px',
+            padding: '16px',
+            border: '1px solid var(--mantine-color-dark-5)'
+          }}>
+            <pre style={{
+              margin: 0,
+              fontSize: '0.95em',
+              lineHeight: 1.6,
+              color: 'var(--mantine-color-gray-2)',
+              fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word'
+            }}>
+              {fileContent}
+            </pre>
+            <Text size="xs" c="dimmed" mt="sm">
+              Syntax highlighting disabled for large file ({Math.round(fileContent.length / 1024)} KB)
+            </Text>
           </Box>
         ) : (
           <Box style={{ 

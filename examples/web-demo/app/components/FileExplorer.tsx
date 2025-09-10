@@ -183,6 +183,7 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
           borderRadius: '8px',
           transition: 'all 0.2s ease'
         }}
+        onClick={() => handleFileClick(item)}
         onMouseEnter={(e) => {
           if (item.type === 'file' && selectedFile !== item.path) {
             e.currentTarget.style.backgroundColor = 'var(--mantine-color-dark-5)'
@@ -194,7 +195,7 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
           }
         }}
       >
-        <Group gap="xs" onClick={() => handleFileClick(item)}>
+        <Group gap="xs">
           {item.type === 'directory' ? 
             <IconFolder size={16} color="var(--mantine-color-yellow-5)" /> : 
             <IconFile size={16} color="var(--mantine-color-blue-5)" />
