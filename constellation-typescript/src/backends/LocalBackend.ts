@@ -118,8 +118,8 @@ export class LocalBackend implements FileSystemBackend {
         cwd: this.workspace,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: {
-          // Start with minimal environment
-          PATH: '/usr/local/bin:/usr/bin:/bin',
+          // Start with minimal environment, including common npm/node locations
+          PATH: '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/opt/homebrew/opt/node/bin:/usr/local/opt/node/bin',
           USER: process.env.USER,
           SHELL: this.shell,
           // Force working directory
