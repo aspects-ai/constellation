@@ -43,6 +43,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageEndProcessed = useRef(false);
 
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -129,16 +130,37 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
             toolName: data.toolName,
             params: data.params,
           };
+          // Always show tool_use messages immediately
           addMessageWithDuplicateCheck(toolUseMessage);
         } else if (data.type === "tool_result") {
-          const toolResultMessage: Message = {
-            id: data.id, // Use ID from backend
-            role: "tool_result",
-            content: `Tool result from ${data.toolName}`,
-            toolName: data.toolName,
-            output: data.output,
-          };
-          addMessageWithDuplicateCheck(toolResultMessage);
+          // Check if this tool result should be displayed
+          const asyncTools = ['write_file', 'update_subgoal', 'add_subgoal', 'str_replace'];
+          const hasEmptyOutput = !data.output || 
+            (typeof data.output === 'object' && Object.keys(data.output).length === 0) ||
+            (typeof data.output === 'string' && data.output.trim() === '');
+          
+          const shouldShowResult = !(asyncTools.includes(data.toolName || '') && hasEmptyOutput);
+          
+          // Only show tool result if it has meaningful content
+          if (shouldShowResult) {
+            const toolResultMessage: Message = {
+              id: data.id + '_result', // Use different ID to avoid conflicts
+              role: "tool_result",
+              content: `Tool result from ${data.toolName}`,
+              toolName: data.toolName,
+              output: data.output,
+            };
+            addMessageWithDuplicateCheck(toolResultMessage);
+          }
+          
+          // Trigger filesystem update when file-related tools are used
+          const fileTools = ['write_file', 'str_replace', 'edit_file', 'create_file'];
+          if (fileTools.includes(data.toolName || '')) {
+            console.log(`[Chat] File tool ${data.toolName} completed, dispatching filesystem-update event`);
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent("filesystem-update"));
+            }, 100);
+          }
         } else if (data.type === "message_end") {
           // Finalize any remaining streaming content
           if (messageEndProcessed.current) return;
@@ -244,9 +266,12 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         }}
       >
         <Stack gap="md">
+
+          
           {messages.map((message) => {
             // Tool messages get system-style rendering
             if (message.role === "tool_use" || message.role === "tool_result") {
+              
               return (
                 <Box
                   key={message.id}

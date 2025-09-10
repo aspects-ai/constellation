@@ -178,20 +178,32 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
         style={{
           cursor: item.type === 'file' ? 'pointer' : 'default',
           backgroundColor: item.type === 'file' && selectedFile === item.path 
-            ? 'var(--mantine-color-blue-9)' 
+            ? 'rgba(34, 139, 230, 0.15)' 
             : undefined,
-          borderRadius: '8px',
-          transition: 'all 0.2s ease'
+          borderRadius: '12px',
+          border: item.type === 'file' && selectedFile === item.path
+            ? '1px solid rgba(34, 139, 230, 0.4)'
+            : '1px solid transparent',
+          transition: 'all 0.3s ease',
+          boxShadow: item.type === 'file' && selectedFile === item.path
+            ? '0 4px 12px rgba(34, 139, 230, 0.1)'
+            : 'none'
         }}
         onClick={() => handleFileClick(item)}
         onMouseEnter={(e) => {
           if (item.type === 'file' && selectedFile !== item.path) {
-            e.currentTarget.style.backgroundColor = 'var(--mantine-color-dark-5)'
+            e.currentTarget.style.backgroundColor = 'rgba(34, 139, 230, 0.08)'
+            e.currentTarget.style.border = '1px solid rgba(34, 139, 230, 0.2)'
+            e.currentTarget.style.transform = 'translateY(-1px)'
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(34, 139, 230, 0.1)'
           }
         }}
         onMouseLeave={(e) => {
           if (item.type === 'file' && selectedFile !== item.path) {
             e.currentTarget.style.backgroundColor = ''
+            e.currentTarget.style.border = '1px solid transparent'
+            e.currentTarget.style.transform = ''
+            e.currentTarget.style.boxShadow = 'none'
           }
         }}
       >
@@ -225,17 +237,25 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
       style={{ 
         width: '300px',
         height: '100%',
-        padding: '16px',
-        borderRight: '1px solid var(--mantine-color-dark-4)',
-        backgroundColor: 'var(--mantine-color-dark-7)',
+        padding: '20px',
+        borderRight: '1px solid rgba(34, 139, 230, 0.2)',
+        background: 'linear-gradient(135deg, var(--mantine-color-dark-7) 0%, var(--mantine-color-dark-6) 100%)',
+        backgroundImage: 'radial-gradient(circle at 20% 80%, rgba(34, 139, 230, 0.03) 0%, transparent 50%)',
         display: 'flex',
         flexDirection: 'column',
-        flexShrink: 0
+        flexShrink: 0,
+        boxShadow: '2px 0 12px rgba(0, 0, 0, 0.1)'
       }}
     >
       <Stack gap="md" style={{ height: '100%', minHeight: 0 }}>
         <Group justify="space-between">
-          <Text fw={700} size="lg">Workspace Files</Text>
+          <Text 
+            fw={700} 
+            size="lg"
+            c="blue.4"
+          >
+            📁 Workspace
+          </Text>
           <Group gap="xs">
             <FileInput
               placeholder=""

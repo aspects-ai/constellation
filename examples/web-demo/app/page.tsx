@@ -1,13 +1,13 @@
 'use client'
 
-import { Box, Container, Group, Tabs, Text } from '@mantine/core'
+import { Box, Container, Tabs, Text } from '@mantine/core'
 import { useEffect, useState } from 'react'
 import ApiKeyModal from './components/ApiKeyModal'
 import BackendSelector, { BackendConfig } from './components/BackendSelector'
 import Chat from './components/Chat'
+import ComponentSandbox from './components/ComponentSandbox'
 import FileExplorer from './components/FileExplorer'
 import FileViewer from './components/FileViewer'
-import ComponentSandbox from './components/ComponentSandbox'
 
 function FileExplorerTab({ sessionId, backendConfig }: {
   sessionId: string
@@ -39,19 +39,15 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<string | null>('files')
   const [backendConfig, setBackendConfig] = useState<BackendConfig>({ type: 'local' })
   
-  // Generate sessionId and check for environment API key
   useEffect(() => {
-    // Generate a sessionId that only contains valid characters (a-z, 0-9)
     const id = Math.random().toString(36).substring(2, 10).replace(/[^a-z0-9]/g, 'x')
     setSessionId(id)
     
-    // Check if API key is provided via environment variable
     const envApiKey = process.env.NEXT_PUBLIC_CODEBUFF_API_KEY
     if (envApiKey) {
       setApiKey(envApiKey)
       setShowApiKeyModal(false)
     } else {
-      // Show API key modal if no environment variable is set
       setShowApiKeyModal(true)
     }
   }, [])
@@ -67,7 +63,6 @@ export default function Home() {
     console.log('Testing backend connection:', config)
     
     try {
-      // Test remote connection by trying to list files with timeout
       const params = new URLSearchParams({
         sessionId: sessionId,
         backendType: config.type,
@@ -109,7 +104,6 @@ export default function Home() {
     }
   }
   
-  // Don't render until sessionId is generated on client
   if (!sessionId) {
     return (
       <Container size="xl" h="100vh" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -124,61 +118,88 @@ export default function Home() {
       
       <Box style={{ 
         height: '100vh', 
-        display: 'flex', 
-        flexDirection: 'column',
-        backgroundColor: 'var(--mantine-color-dark-7)'
+        display: 'flex',
+        backgroundColor: '#0F172A'
       }}>
-        {/* Header */}
+        {/* Left Ribbon Bar */}
         <Box
           style={{
-            height: '72px',
-            backgroundColor: 'var(--mantine-color-dark-6)',
-            borderBottom: '1px solid var(--mantine-color-dark-4)',
+            width: '20px',
+            background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%)',
+            borderRight: '2px solid transparent',
+            borderImage: 'linear-gradient(180deg, #228BE6, #A855F7, #F783AC) 1',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             flexShrink: 0,
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+            boxShadow: '8px 0 32px rgba(0, 0, 0, 0.3), inset -1px 0 0 rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(20px)',
+            position: 'relative',
+            overflow: 'visible',
+            pointerEvents: 'none'
           }}
         >
-          <Container size="xl" style={{ width: '100%', maxWidth: '100%', padding: '0 24px' }}>
-            <Group justify="space-between">
-              <Text size="xl" fw={700}>
-                Codebuff SDK on ConstellationFS Demo
+          <Box
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'radial-gradient(circle at 50% 20%, rgba(34, 139, 230, 0.05) 0%, transparent 50%), radial-gradient(circle at 50% 80%, rgba(168, 85, 247, 0.05) 0%, transparent 50%)',
+              animation: 'headerGlow 8s ease-in-out infinite alternate'
+            }}
+          />
+          
+          <Box style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+            <Box
+              style={{
+                transform: 'rotate(-90deg)',
+                transformOrigin: 'center',
+                whiteSpace: 'nowrap',
+                height: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                position: 'relative',
+                overflow: 'hidden',
+                width: '100vh'
+              }}
+            >
+              <Text
+                size="xs"
+                fw={600}
+                style={{
+                  backgroundImage: 'linear-gradient(135deg, #228BE6 0%, #A855F7 50%, #F783AC 100%)',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  fontSize: '9px',
+                  letterSpacing: '0.1em',
+                  animation: 'scrollBanner 30s linear infinite',
+                  position: 'absolute'
+                }}
+              >
+✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨
               </Text>
-              <Group gap="lg">
-                <Text size="sm" c="dimmed" ff="monospace">
-                  Session: {sessionId}
-                </Text>
-                <Text 
-                  size="sm" 
-                  c={backendConfig.type === 'local' ? 'blue' : 'green'}
-                  fw={500}
-                >
-                  Backend: {backendConfig.type === 'local' ? 'Local' : `Remote (${backendConfig.host})`}
-                </Text>
-                {apiKey && (
-                  <Text size="xs" c="green">
-                    API Key: ●●●●●{apiKey.slice(-4)}
-                  </Text>
-                )}
-              </Group>
-            </Group>
-          </Container>
+            </Box>
+          </Box>
         </Box>
 
-        {/* Main content area with center content and chat panel */}
+        {/* Main content area */}
         <Box style={{ flex: 1, minHeight: 0, display: 'flex', padding: '24px', gap: '24px', overflow: 'hidden' }}>
-          {/* Center content area */}
           <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <Box style={{ 
               flex: 1,
               minHeight: 0,
-              backgroundColor: 'var(--mantine-color-dark-6)',
-              borderRadius: '12px',
-              boxShadow: '0 4px 24px rgba(0, 0, 0, 0.2)',
+              background: 'linear-gradient(135deg, var(--mantine-color-dark-6) 0%, var(--mantine-color-dark-7) 100%)',
+              backgroundImage: 'radial-gradient(circle at 30% 70%, rgba(34, 139, 230, 0.05) 0%, transparent 50%)',
+              borderRadius: '20px',
+              border: '1px solid rgba(34, 139, 230, 0.2)',
+              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
               overflow: 'hidden',
               display: 'flex',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              transition: 'all 0.3s ease'
             }}>
               <Tabs 
                 value={activeTab} 
@@ -198,7 +219,14 @@ export default function Home() {
                   tab: {
                     fontSize: '14px',
                     fontWeight: 500,
-                    padding: '12px 20px'
+                    padding: '12px 20px',
+                    '&:hover': {
+                      backgroundColor: 'var(--mantine-color-dark-4)'
+                    },
+                    '&[dataActive]': {
+                      backgroundColor: 'var(--mantine-color-blue-9)',
+                      color: 'var(--mantine-color-blue-1)'
+                    }
                   }
                 }}
               >
@@ -232,17 +260,20 @@ export default function Home() {
             </Box>
           </Box>
 
-          {/* Chat side panel on the right */}
+          {/* Chat side panel */}
           <Box 
             style={{ 
               width: '400px',
               flexShrink: 0,
-              backgroundColor: 'var(--mantine-color-dark-6)',
-              borderRadius: '12px',
-              boxShadow: '0 4px 24px rgba(0, 0, 0, 0.2)',
+              background: 'linear-gradient(135deg, var(--mantine-color-dark-6) 0%, var(--mantine-color-dark-7) 100%)',
+              backgroundImage: 'radial-gradient(circle at 70% 30%, rgba(168, 85, 247, 0.05) 0%, transparent 50%)',
+              borderRadius: '20px',
+              border: '1px solid rgba(34, 139, 230, 0.2)',
+              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
               overflow: 'hidden',
               display: 'flex',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              transition: 'all 0.3s ease'
             }}
           >
             <Box 
@@ -253,10 +284,80 @@ export default function Home() {
                 padding: '16px 24px'
               }}
             >
-              <Text size="lg" fw={600}>Chat Assistant</Text>
+              <Text 
+                size="lg" 
+                fw={600}
+                c="blue.4"
+              >
+                🤖 AI Assistant
+              </Text>
             </Box>
             <Box style={{ flex: 1, minHeight: 0 }}>
               <Chat sessionId={sessionId} apiKey={apiKey} backendConfig={backendConfig} />
+            </Box>
+          </Box>
+        </Box>
+
+        {/* Right Ribbon Bar */}
+        <Box
+          style={{
+            width: '20px',
+            background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%)',
+            borderLeft: '2px solid transparent',
+            borderImage: 'linear-gradient(180deg, #228BE6, #A855F7, #F783AC) 1',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            flexShrink: 0,
+            boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.3), inset 1px 0 0 rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(20px)',
+            position: 'relative',
+            overflow: 'visible',
+            pointerEvents: 'none'
+          }}
+        >
+          <Box
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'radial-gradient(circle at 50% 20%, rgba(34, 139, 230, 0.05) 0%, transparent 50%), radial-gradient(circle at 50% 80%, rgba(168, 85, 247, 0.05) 0%, transparent 50%)',
+              animation: 'headerGlow 8s ease-in-out infinite alternate'
+            }}
+          />
+          
+          <Box style={{ position: 'relative', zIndex: 1, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+            <Box
+              style={{
+                transform: 'rotate(90deg)',
+                transformOrigin: 'center',
+                whiteSpace: 'nowrap',
+                height: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                position: 'relative',
+                overflow: 'hidden',
+                width: '100vh'
+              }}
+            >
+              <Text
+                size="xs"
+                fw={600}
+                style={{
+                  backgroundImage: 'linear-gradient(135deg, #228BE6 0%, #A855F7 50%, #F783AC 100%)',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  fontSize: '9px',
+                  letterSpacing: '0.1em',
+                  animation: 'scrollBannerLeftToRight 30s linear infinite',
+                  position: 'absolute'
+                }}
+              >
+✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨ BUILD • CODE • DREAM • SHIP • REPEAT ✨ POWERED BY AI • INFINITE POSSIBILITIES • CREATE THE FUTURE ✨
+              </Text>
             </Box>
           </Box>
         </Box>

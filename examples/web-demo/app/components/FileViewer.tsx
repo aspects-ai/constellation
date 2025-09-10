@@ -133,14 +133,22 @@ export default function FileViewer({ sessionId, selectedFile, backendConfig }: F
         style={{ 
           flex: 1,
           minWidth: 0,
-          padding: '16px',
-          backgroundColor: 'var(--mantine-color-dark-7)',
+          padding: '24px',
+          background: 'linear-gradient(135deg, var(--mantine-color-dark-7) 0%, var(--mantine-color-dark-6) 100%)',
+          backgroundImage: 'radial-gradient(circle at 80% 20%, rgba(168, 85, 247, 0.03) 0%, transparent 50%)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden'
         }}
       >
-        <Text fw={700} size="lg" mb="md">File Viewer</Text>
+        <Text 
+          fw={700} 
+          size="lg" 
+          mb="md"
+          c="blue.4"
+        >
+          📄 File Viewer
+        </Text>
         <Center flex={1}>
           <Box ta="center">
             <IconFile size={48} color="var(--mantine-color-gray-5)" />
@@ -165,7 +173,14 @@ export default function FileViewer({ sessionId, selectedFile, backendConfig }: F
         overflow: 'hidden'
       }}
     >
-      <Box mb="md" pb="sm" style={{ borderBottom: '1px solid var(--mantine-color-dark-5)', flexShrink: 0 }}>
+      <Box mb="lg" pb="md" style={{ 
+        borderBottom: '1px solid rgba(34, 139, 230, 0.1)', 
+        flexShrink: 0,
+        background: 'linear-gradient(90deg, rgba(34, 139, 230, 0.05) 0%, transparent 100%)',
+        margin: '-24px -24px 24px -24px',
+        padding: '24px 24px 16px 24px',
+        borderRadius: '0 0 16px 16px'
+      }}>
         <Text fw={700} size="lg">File Viewer</Text>
         <Text size="sm" c="dimmed" ff="monospace" style={{ 
           overflow: 'hidden',

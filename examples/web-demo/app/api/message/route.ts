@@ -1,99 +1,128 @@
-import { CodebuffClient } from '@codebuff/sdk'
-import { FileSystem } from 'constellationfs'
-import { NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
-import { getCodebuffClient } from '../../../lib/codebuff-init'
-import { broadcastToStream } from '../../../lib/streams'
+import { CodebuffClient } from "@codebuff/sdk";
+import { FileSystem } from "constellationfs";
+import { NextRequest, NextResponse } from "next/server";
+import { v4 as uuidv4 } from "uuid";
+import { getCodebuffClient } from "../../../lib/codebuff-init";
+import { broadcastToStream } from "../../../lib/streams";
+import reactTypescriptAgent from "../../../lib/react-typescript-agent";
 
 export async function POST(request: NextRequest) {
   try {
     // Check if request has a body
-    const contentType = request.headers.get('content-type')
-    if (!contentType || !contentType.includes('application/json')) {
-      return NextResponse.json({ error: 'Content-Type must be application/json' }, { status: 400 })
+    const contentType = request.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      return NextResponse.json(
+        { error: "Content-Type must be application/json" },
+        { status: 400 },
+      );
     }
 
     // Parse JSON with better error handling
-    let body
+    let body;
     try {
-      const text = await request.text()
+      const text = await request.text();
       if (!text) {
-        return NextResponse.json({ error: 'Request body is empty' }, { status: 400 })
+        return NextResponse.json(
+          { error: "Request body is empty" },
+          { status: 400 },
+        );
       }
-      body = JSON.parse(text)
+      body = JSON.parse(text);
     } catch (parseError) {
-      console.error('JSON parse error:', parseError)
-      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
+      console.error("JSON parse error:", parseError);
+      return NextResponse.json(
+        { error: "Invalid JSON in request body" },
+        { status: 400 },
+      );
     }
 
-    const { message, sessionId, apiKey, backendConfig } = body
+    const { message, sessionId, apiKey, backendConfig } = body;
 
     if (!message || !sessionId) {
-      return NextResponse.json({ error: 'Message and sessionId are required' }, { status: 400 })
+      return NextResponse.json(
+        { error: "Message and sessionId are required" },
+        { status: 400 },
+      );
     }
 
     if (!apiKey) {
-      return NextResponse.json({ error: 'API key is required' }, { status: 400 })
+      return NextResponse.json(
+        { error: "API key is required" },
+        { status: 400 },
+      );
     }
 
     // Create a unique stream ID for this request
-    const streamId = uuidv4()
+    const streamId = uuidv4();
 
     // Create backend configuration
-    let fsConfig: any
+    let fsConfig: any;
 
-    if (backendConfig && backendConfig.type === 'remote') {
-      if (!backendConfig.host || !backendConfig.username || !backendConfig.workspace) {
-        return NextResponse.json({ 
-          error: 'Remote backend requires host, username, and workspace parameters' 
-        }, { status: 400 })
+    if (backendConfig && backendConfig.type === "remote") {
+      if (
+        !backendConfig.host ||
+        !backendConfig.username ||
+        !backendConfig.workspace
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Remote backend requires host, username, and workspace parameters",
+          },
+          { status: 400 },
+        );
       }
 
       fsConfig = {
-        type: 'remote',
+        type: "remote",
         host: backendConfig.host,
         workspace: backendConfig.workspace,
         auth: {
-          type: 'password',
+          type: "password",
           credentials: {
             username: backendConfig.username,
-            password: 'constellation'
-          }
-        }
-      }
+            password: "constellation",
+          },
+        },
+      };
     } else {
       fsConfig = {
-        type: 'local',
-        userId: sessionId
-      }
+        type: "local",
+        userId: sessionId,
+      };
     }
 
     // Initialize ConstellationFS with specified backend
-    const fs = new FileSystem({ 
+    const fs = new FileSystem({
       userId: sessionId,
-      ...fsConfig
-    })
+      ...fsConfig,
+    });
 
     // Initialize workspace with sample files if empty
-    await initializeWorkspace(fs)
+    await initializeWorkspace(fs);
 
     // Start the AI processing in the background using Codebuff SDK
-    processWithCodebuff(fs, message, sessionId, apiKey)
-    return NextResponse.json({ streamId })
+    processWithCodebuff(fs, message, sessionId, apiKey);
+    return NextResponse.json({ streamId });
   } catch (error) {
-    console.error('API Error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error("API Error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
 async function initializeWorkspace(fs: FileSystem) {
   try {
-    const result = await fs.exec('ls')
-    const files = result ? result.split('\n').filter(Boolean) : []
-    
+    const result = await fs.exec("ls");
+    const files = result ? result.split("\n").filter(Boolean) : [];
+
     // If workspace is empty, create some sample files
     if (files.length === 0) {
-      await fs.write('README.md', `# Welcome to ConstellationFS Demo
+      await fs.write(
+        "README.md",
+        `# Welcome to ConstellationFS Demo
 
 This is a sample workspace where you can interact with an AI assistant that can:
 - Create and edit files
@@ -106,87 +135,94 @@ Try asking me to:
 - "Add a package.json file"
 - "Write a Python hello world script"
 - "List all files in the workspace"
-`)
+`,
+      );
 
-      await fs.write('hello.txt', 'Hello from ConstellationFS!')
+      await fs.write("hello.txt", "Hello from ConstellationFS!");
     }
   } catch (error) {
-    console.error('Failed to initialize workspace:', error)
+    console.error("Failed to initialize workspace:", error);
   }
 }
 
 async function processWithCodebuff(
   fs: FileSystem,
-  message: string, 
+  message: string,
   sessionId: string,
-  apiKey: string
+  apiKey: string,
 ) {
   try {
-    console.log('Workspace:', fs.workspace)
-    
+    console.log("Workspace:", fs.workspace);
+
     // Get Codebuff client - it will use the ConstellationFS workspace directly
-    const client: CodebuffClient = await getCodebuffClient(fs, apiKey)
-    
+    const client: CodebuffClient = await getCodebuffClient(fs, apiKey);
+
     // Start streaming response
-    broadcastToStream(sessionId, { type: 'message_start', role: 'assistant' })
-    
-    // Run Codebuff agent - it will use native tools directly on the FUSE mount
+    broadcastToStream(sessionId, { type: "message_start", role: "assistant" });
+
+    // Run Codebuff agent with our custom TypeScript-enforcing agent definition
     const result = await client.run({
-      agent: 'base',
+      agent: "react-typescript",
+      agentDefinitions: [reactTypescriptAgent],
       prompt: message,
-      
+
       handleEvent: (event: any) => {
-        if (event.type === 'assistant_message_delta') {
+        if (event.type === "assistant_message_delta") {
           // Stream assistant message content in chunks for real-time typing
-          const text = event.delta
-          const chunkSize = 30
-          
+          const text = event.delta;
+          const chunkSize = 30;
+
           for (let i = 0; i < text.length; i += chunkSize) {
-            const chunk = text.slice(i, i + chunkSize)
-            broadcastToStream(sessionId, { type: 'assistant_delta', text: chunk })
+            const chunk = text.slice(i, i + chunkSize);
+            broadcastToStream(sessionId, {
+              type: "assistant_delta",
+              text: chunk,
+            });
           }
-        } else if (event.type === 'tool_call') {
+        } else if (event.type === "tool_call") {
           // Send tool call as a separate message type with unique ID
-          broadcastToStream(sessionId, { 
-            type: 'tool_use',
+          broadcastToStream(sessionId, {
+            type: "tool_use",
             id: uuidv4(),
             toolName: event.toolName,
-            params: event.params || {}
-          })
-        } else if (event.type === 'tool_result') {
+            params: event.params || {},
+          });
+        } else if (event.type === "tool_result") {
           // Send tool result as a separate message type with unique ID
           broadcastToStream(sessionId, {
-            type: 'tool_result',
+            type: "tool_result",
             id: uuidv4(),
             toolName: event.toolName,
-            output: event.output 
-          })
-        } else if (event.type === 'text') {
+            output: event.output,
+          });
+        } else if (event.type === "text") {
           // Send text as complete message that gets interleaved with tools
-          broadcastToStream(sessionId, { 
-            type: 'assistant_message',
+          broadcastToStream(sessionId, {
+            type: "assistant_message",
             id: uuidv4(),
-            text: event.text 
-          })
+            text: event.text,
+          });
         }
-      }
-    })
-    
-    console.log('✅ Codebuff agent execution completed')
-    
+      },
+    });
+
+    console.log("✅ Codebuff agent execution completed");
+
     // End assistant message and signal completion
-    broadcastToStream(sessionId, { type: 'message_end', id: uuidv4(), role: 'assistant' })
-    broadcastToStream(sessionId, { type: 'done' })
-    
+    broadcastToStream(sessionId, {
+      type: "message_end",
+      id: uuidv4(),
+      role: "assistant",
+    });
+    broadcastToStream(sessionId, { type: "done" });
+
     // Close connection
-    client.closeConnection()
-    
+    client.closeConnection();
   } catch (error) {
-    console.error('Codebuff Processing Error:', error)
-    broadcastToStream(sessionId, { 
-      type: 'error', 
-      message: error instanceof Error ? error.message : 'Unknown error'
-    })
+    console.error("Codebuff Processing Error:", error);
+    broadcastToStream(sessionId, {
+      type: "error",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 }
-

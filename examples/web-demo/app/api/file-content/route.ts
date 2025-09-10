@@ -72,7 +72,9 @@ export async function GET(request: NextRequest) {
       // Clean up old cache entries if too many
       if (fsCache.size > 50) {
         const firstKey = fsCache.keys().next().value
-        fsCache.delete(firstKey)
+        if (firstKey) {
+          fsCache.delete(firstKey)
+        }
       }
     }
 
