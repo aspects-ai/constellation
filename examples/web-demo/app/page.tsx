@@ -241,7 +241,7 @@ export default function Home() {
                     <FileExplorerTab sessionId={sessionId} backendConfig={backendConfig} />
                   </Tabs.Panel>
 
-                  <Tabs.Panel value="sandbox" style={{ height: '100%' }}>
+                  <Tabs.Panel value="sandbox" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <ComponentSandbox sessionId={sessionId} backendConfig={backendConfig} />
                   </Tabs.Panel>
 
