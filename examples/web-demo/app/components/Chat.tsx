@@ -386,7 +386,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
       const requestBody = {
         message: actualMessage,
         sessionId,
-        apiKey,
         backendConfig,
         routeOverride: isCyberCommand ? "cyber-orchestrator" : undefined,
       };

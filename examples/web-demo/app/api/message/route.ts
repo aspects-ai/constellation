@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { message, sessionId, apiKey, backendConfig } = body;
+    const { message, sessionId, backendConfig } = body;
 
     if (!message || !sessionId) {
       return NextResponse.json(
@@ -58,12 +58,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "API key is required" },
-        { status: 400 },
-      );
-    }
+
 
     // Create a unique stream ID for this request
     const streamId = uuidv4();
@@ -115,7 +110,7 @@ export async function POST(request: NextRequest) {
     await initializeWorkspace(fs);
 
     // Start the AI processing in the background using Codebuff SDK
-    processWithCodebuff(fs, message, sessionId, apiKey);
+    processWithCodebuff(fs, message, sessionId);
     return NextResponse.json({ streamId });
   } catch (error) {
     console.error("API Error:", error);
@@ -162,13 +157,16 @@ async function processWithCodebuff(
   fs: FileSystem,
   message: string,
   sessionId: string,
-  apiKey: string,
   routeOverride?: string,
 ) {
   try {
     console.log("Workspace:", fs.workspace);
 
     // Get Codebuff client - it will use the ConstellationFS workspace directly
+    const apiKey = process.env.NEXT_PUBLIC_CODEBUFF_API_KEY;
+    if (!apiKey) {
+      throw new Error("NEXT_PUBLIC_CODEBUFF_API_KEY environment variable is required");
+    }
     const client: CodebuffClient = await getCodebuffClient(fs, apiKey);
 
     // Start streaming response
