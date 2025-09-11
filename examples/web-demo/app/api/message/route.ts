@@ -5,6 +5,19 @@ import { v4 as uuidv4 } from "uuid";
 import { getCodebuffClient } from "../../../lib/codebuff-init";
 import { broadcastToStream } from "../../../lib/streams";
 import reactTypescriptAgent from "../../../lib/react-typescript-agent";
+import projectOpsAgent from "../../../lib/project-ops";
+import webDemoValidatorAgent from "../../../lib/web-demo-validator";
+
+// Import cyberpunk news agents from lib folder
+import newsFetcherAgent from "../../../lib/news-fetcher";
+import cyberOrchestratorAgent from "../../../lib/cyber-orchestrator";
+import trendAnalyzerAgent from "../../../lib/trend-analyzer";
+import factGuardianAgent from "../../../lib/fact-guardian";
+import cyberStylizerAgent from "../../../lib/cyber-stylizer";
+import contentNormalizerAgent from "../../../lib/content-normalizer";
+import feedPublisherAgent from "../../../lib/feed-publisher";
+import visualEnhancerAgent from "../../../lib/visual-enhancer";
+import routerAgent from "../../../lib/router";
 
 export async function POST(request: NextRequest) {
   try {
@@ -150,6 +163,7 @@ async function processWithCodebuff(
   message: string,
   sessionId: string,
   apiKey: string,
+  routeOverride?: string,
 ) {
   try {
     console.log("Workspace:", fs.workspace);
@@ -160,10 +174,68 @@ async function processWithCodebuff(
     // Start streaming response
     broadcastToStream(sessionId, { type: "message_start", role: "assistant" });
 
-    // Run Codebuff agent with our custom TypeScript-enforcing agent definition
+    // Handle different types of routing result outputs
+    let targetAgent: string;
+    let agentDefinitions: any[];
+
+    // Check if there's a route override (e.g., from cyber mode button)
+    if (routeOverride) {
+      console.log("🎯 Using route override:", routeOverride);
+      targetAgent = routeOverride;
+    } else {
+      // Determine which agent to route to using router agent
+      const routingResult = await client.run({
+        agent: "router",
+        agentDefinitions: [routerAgent],
+        prompt: message,
+        handleEvent: () => {}, // No streaming for routing decision
+      });
+
+      if (routingResult.output.type === "error") {
+        throw new Error(routingResult.output.message);
+      }
+
+      if (
+        routingResult.output.type !== "structuredOutput" ||
+        !routingResult.output.value
+      ) {
+        throw new Error("Unexpected output type: " + routingResult.output.type);
+      }
+
+      // Extract the target agent from the structured output
+      targetAgent = routingResult.output.value.targetAgent;
+      const reasoning = routingResult.output.value.reasoning;
+
+      console.log("🎯 Router decision:", targetAgent);
+      console.log("📝 Router reasoning:", reasoning);
+    }
+
+    if (targetAgent === "cyber-orchestrator") {
+      // Cyberpunk news agents only
+      agentDefinitions = [
+        cyberOrchestratorAgent,
+        newsFetcherAgent,
+        trendAnalyzerAgent,
+        factGuardianAgent,
+        cyberStylizerAgent,
+        contentNormalizerAgent,
+        feedPublisherAgent,
+        visualEnhancerAgent,
+      ];
+    } else {
+      // React/TypeScript development agents only
+      targetAgent = "react-typescript";
+      agentDefinitions = [
+        reactTypescriptAgent,
+        projectOpsAgent,
+        webDemoValidatorAgent,
+      ];
+    }
+
+    // Run the selected agent with appropriate definitions
     const result = await client.run({
-      agent: "react-typescript",
-      agentDefinitions: [reactTypescriptAgent],
+      agent: targetAgent,
+      agentDefinitions,
       prompt: message,
 
       handleEvent: (event: any) => {

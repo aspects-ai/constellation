@@ -8,5 +8,13 @@
       "stdoutFile": "logs/web-demo.log"
     }
   ],
-  "fileChangeHooks": []
+  "fileChangeHooks": [
+    {
+      "name": "typecheck-web-demo",
+      "command": "npx tsc --noEmit",
+      "cwd": "examples/web-demo",
+      "filePattern": "examples/web-demo/**/*.{ts,tsx}",
+      "enabled": true
+    }
+  ]
 }

@@ -17,10 +17,15 @@ const definition: AgentDefinition = {
     "code_search",
     "str_replace",
     "write_file",
+    "spawn_agents",
     "end_turn",
   ],
 
-  spawnableAgents: [],
+  spawnableAgents: [
+    'react-typescript',
+    'codebuff/reviewer@0.0.5',
+    'codebuff/file-picker@0.0.2'
+  ],
 
   inputSchema: {
     prompt: {

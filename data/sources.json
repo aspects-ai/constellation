@@ -1,0 +1,94 @@
+{
+  "sources": [
+    {
+      "id": "techcrunch",
+      "name": "TechCrunch",
+      "url": "https://techcrunch.com/feed/",
+      "type": "rss",
+      "enabled": true,
+      "category": "tech",
+      "authority": 0.9,
+      "fetchInterval": 3600,
+      "lastFetch": null,
+      "successRate": 1.0
+    },
+    {
+      "id": "hackernews",
+      "name": "Hacker News",
+      "url": "https://news.ycombinator.com/rss",
+      "type": "rss",
+      "enabled": true,
+      "category": "tech",
+      "authority": 0.8,
+      "fetchInterval": 1800,
+      "lastFetch": null,
+      "successRate": 1.0
+    },
+    {
+      "id": "arstechnica",
+      "name": "Ars Technica",
+      "url": "https://feeds.arstechnica.com/arstechnica/index",
+      "type": "rss",
+      "enabled": true,
+      "category": "tech",
+      "authority": 0.85,
+      "fetchInterval": 3600,
+      "lastFetch": null,
+      "successRate": 1.0
+    },
+    {
+      "id": "theverge",
+      "name": "The Verge",
+      "url": "https://www.theverge.com/rss/index.xml",
+      "type": "rss",
+      "enabled": true,
+      "category": "tech",
+      "authority": 0.85,
+      "fetchInterval": 3600,
+      "lastFetch": null,
+      "successRate": 1.0
+    },
+    {
+      "id": "wired",
+      "name": "Wired",
+      "url": "https://www.wired.com/feed/rss",
+      "type": "rss",
+      "enabled": true,
+      "category": "tech",
+      "authority": 0.9,
+      "fetchInterval": 3600,
+      "lastFetch": null,
+      "successRate": 1.0
+    },
+    {
+      "id": "bbc-tech",
+      "name": "BBC Technology",
+      "url": "http://feeds.bbci.co.uk/news/technology/rss.xml",
+      "type": "rss",
+      "enabled": false,
+      "category": "tech",
+      "authority": 0.9,
+      "fetchInterval": 3600,
+      "lastFetch": null,
+      "successRate": 1.0
+    },
+    {
+      "id": "reuters-tech",
+      "name": "Reuters Technology",
+      "url": "https://www.reutersagency.com/feed/?best-topics=tech&post_type=best",
+      "type": "rss",
+      "enabled": false,
+      "category": "tech",
+      "authority": 0.95,
+      "fetchInterval": 3600,
+      "lastFetch": null,
+      "successRate": 1.0
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "lastUpdated": "2024-01-01T00:00:00Z",
+    "totalSources": 7,
+    "activeSources": 5
+  }
+}

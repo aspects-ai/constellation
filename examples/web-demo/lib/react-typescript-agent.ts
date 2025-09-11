@@ -28,6 +28,8 @@ const agent: AgentDefinition = {
     "codebuff/file-picker@0.0.2",
     "codebuff/reviewer@0.0.5",
     "codebuff/thinker@0.0.2",
+    "project-ops",
+    "web-demo-validator",
   ],
 
   // Instructions for the agent
