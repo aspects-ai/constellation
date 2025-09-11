@@ -10,7 +10,7 @@ import {
   Text,
   Textarea,
 } from "@mantine/core";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
 interface Message {
@@ -35,34 +35,228 @@ interface ChatProps {
   backendConfig: BackendConfig;
 }
 
+// Separate component for expandable tool output
+const ToolOutput = ({ output }: { output: any }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!output) return null;
+
+  const outputStr =
+    typeof output === "string" ? output : JSON.stringify(output, null, 2);
+  
+  // Always show the expand button if there's output
+  return (
+    <Box mt="xs" style={{ fontSize: "0.85em", position: "relative" }}>
+      {isExpanded ? (
+        <pre
+          style={{
+            margin: 0,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            maxHeight: "400px",
+            overflowX: "auto",
+            overflowY: "auto",
+            maxWidth: "100%",
+            backgroundColor: "var(--mantine-color-dark-7)",
+            padding: "8px",
+            borderRadius: "4px",
+          }}
+        >
+          {outputStr}
+        </pre>
+      ) : (
+        <Box
+          style={{
+            color: "var(--mantine-color-dimmed)",
+            fontSize: "0.9em",
+            fontStyle: "italic",
+          }}
+        >
+          Output available
+        </Box>
+      )}
+      <Box
+        style={{
+          marginTop: "8px",
+        }}
+      >
+        <Text
+          size="xs"
+          c="blue.4"
+          style={{
+            cursor: "pointer",
+            userSelect: "none",
+            opacity: 0.9,
+            transition: "opacity 0.2s",
+            "&:hover": {
+              opacity: 1,
+            },
+          }}
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          {isExpanded ? "⬆ Hide output" : "⬇ Show output"}
+        </Text>
+      </Box>
+    </Box>
+  );
+};
+
+ToolOutput.displayName = 'ToolOutput';
+
+// Message component
+const MessageComponent = ({ message }: { message: Message }) => {
+  const renderToolParams = useCallback((params: any) => {
+    if (!params || Object.keys(params).length === 0) return null;
+
+    return (
+      <Box mt="xs" style={{ fontSize: "0.85em", opacity: 0.8 }}>
+        {Object.entries(params).map(([key, value]) => (
+          <div key={key}>
+            <Text span fw={600}>
+              {key}:
+            </Text>{" "}
+            {JSON.stringify(value, null, 2)}
+          </div>
+        ))}
+      </Box>
+    );
+  }, []);
+
+  // Tool messages
+  if (message.role === "tool_use" || message.role === "tool_result") {
+    return (
+      <Box
+        p="md"
+        style={{
+          backgroundColor: "var(--mantine-color-dark-6)",
+          borderLeft:
+            message.role === "tool_use"
+              ? "4px solid var(--mantine-color-blue-5)"
+              : "4px solid var(--mantine-color-green-5)",
+          borderRadius: "12px",
+          fontFamily: "monospace",
+          fontSize: "0.9em",
+          opacity: 0.95,
+          border: "1px solid var(--mantine-color-dark-4)",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+        }}
+      >
+        <Text
+          size="xs"
+          fw={600}
+          c={message.role === "tool_use" ? "blue.4" : "green.4"}
+        >
+          {message.role === "tool_use" ? "🔧 Tool Use" : "✓ Tool Result"}: {message.toolName}
+        </Text>
+        {message.role === "tool_use" && renderToolParams(message.params)}
+        {message.role === "tool_result" && <ToolOutput output={message.output} />}
+      </Box>
+    );
+  }
+
+  // Regular messages
+  return (
+    <Paper
+      p="lg"
+      radius="xl"
+      shadow="md"
+      style={{
+        backgroundColor:
+          message.role === "user"
+            ? "var(--mantine-color-blue-6)"
+            : "var(--mantine-color-gray-8)",
+        alignSelf: message.role === "user" ? "flex-end" : "flex-start",
+        maxWidth: "85%",
+        minWidth: 0,
+        overflowWrap: "break-word",
+        wordBreak: "break-word",
+        border:
+          message.role === "user"
+            ? "1px solid rgba(34, 139, 230, 0.3)"
+            : "1px solid rgba(75, 85, 99, 0.3)",
+      }}
+    >
+      {message.role === "assistant" ? (
+        <Box
+          style={{
+            overflowWrap: "break-word",
+            wordBreak: "break-word",
+            minWidth: 0,
+            "& code": {
+              backgroundColor: "var(--mantine-color-dark-7)",
+              padding: "2px 4px",
+              borderRadius: "4px",
+              fontSize: "0.9em",
+              overflowWrap: "break-word",
+              wordBreak: "break-all",
+            },
+            "& pre": {
+              backgroundColor: "var(--mantine-color-dark-7)",
+              padding: "16px",
+              borderRadius: "8px",
+              overflowX: "auto",
+              maxWidth: "100%",
+            },
+            "& pre code": {
+              backgroundColor: "transparent",
+              padding: 0,
+              overflowWrap: "normal",
+              wordBreak: "normal",
+            },
+          }}
+        >
+          <ReactMarkdown>{message.content}</ReactMarkdown>
+        </Box>
+      ) : (
+        <Text
+          size="sm"
+          style={{
+            overflowWrap: "break-word",
+            wordBreak: "break-word",
+          }}
+        >
+          {message.content}
+        </Text>
+      )}
+    </Paper>
+  );
+};
+
+MessageComponent.displayName = 'MessageComponent';
+
 export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [currentResponse, setCurrentResponse] = useState("");
+  const [streamError, setStreamError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageEndProcessed = useRef(false);
-
-
-  const scrollToBottom = () => {
+  // Immediate scroll without debouncing
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  }, []);
 
-  // Simple ID-based duplicate prevention
-  const addMessageWithDuplicateCheck = (newMessage: Message) => {
+  // Optimized message addition with deduplication
+  const addMessageWithDuplicateCheck = useCallback((newMessage: Message) => {
+    // Don't add empty messages
+    if (!newMessage.content?.trim() && newMessage.role !== "tool_use" && newMessage.role !== "tool_result") {
+      return;
+    }
+    
     setMessages((prev) => {
-      // Simple ID check - much cleaner!
       const isDuplicate = prev.some((msg) => msg.id === newMessage.id);
       if (isDuplicate) return prev;
       return [...prev, newMessage];
     });
-  };
+  }, []);
 
+  // Only scroll when new messages are added
   useEffect(() => {
     scrollToBottom();
-  }, [messages, currentResponse]);
+  }, [messages.length]);
 
-  const sendMessage = async () => {
+  const sendMessage = useCallback(async () => {
     if (!input.trim() || isLoading || !apiKey) return;
 
     const userMessage: Message = {
@@ -77,7 +271,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
     setCurrentResponse("");
 
     try {
-      // Prepare request body
       const requestBody = {
         message: userMessage.content,
         sessionId,
@@ -85,7 +278,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         backendConfig,
       };
 
-      // Send message to API with user's API key
       const response = await fetch("/api/message", {
         method: "POST",
         headers: {
@@ -102,7 +294,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         throw new Error(errorData.error || "Failed to send message");
       }
 
-      // Start listening to the stream
       const eventSource = new EventSource(`/api/stream?sessionId=${sessionId}`);
 
       eventSource.onmessage = (event) => {
@@ -112,10 +303,8 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           setCurrentResponse("");
           messageEndProcessed.current = false;
         } else if (data.type === "assistant_delta") {
-          // Accumulate chunks for streaming messages
           setCurrentResponse((prev) => prev + data.text);
         } else if (data.type === "assistant_message") {
-          // Complete text message - add immediately and interleaved
           const assistantMessage: Message = {
             id: data.id,
             role: "assistant",
@@ -124,16 +313,14 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           addMessageWithDuplicateCheck(assistantMessage);
         } else if (data.type === "tool_use") {
           const toolUseMessage: Message = {
-            id: data.id, // Use ID from backend
+            id: data.id,
             role: "tool_use",
             content: `Using ${data.toolName} tool`,
             toolName: data.toolName,
             params: data.params,
           };
-          // Always show tool_use messages immediately
           addMessageWithDuplicateCheck(toolUseMessage);
         } else if (data.type === "tool_result") {
-          // Check if this tool result should be displayed
           const asyncTools = ['write_file', 'update_subgoal', 'add_subgoal', 'str_replace'];
           const hasEmptyOutput = !data.output || 
             (typeof data.output === 'object' && Object.keys(data.output).length === 0) ||
@@ -141,10 +328,9 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           
           const shouldShowResult = !(asyncTools.includes(data.toolName || '') && hasEmptyOutput);
           
-          // Only show tool result if it has meaningful content
           if (shouldShowResult) {
             const toolResultMessage: Message = {
-              id: data.id + '_result', // Use different ID to avoid conflicts
+              id: data.id + '_result',
               role: "tool_result",
               content: `Tool result from ${data.toolName}`,
               toolName: data.toolName,
@@ -153,16 +339,13 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
             addMessageWithDuplicateCheck(toolResultMessage);
           }
           
-          // Trigger filesystem update when file-related tools are used
           const fileTools = ['write_file', 'str_replace', 'edit_file', 'create_file'];
           if (fileTools.includes(data.toolName || '')) {
-            console.log(`[Chat] File tool ${data.toolName} completed, dispatching filesystem-update event`);
             setTimeout(() => {
               window.dispatchEvent(new CustomEvent("filesystem-update"));
             }, 100);
           }
         } else if (data.type === "message_end") {
-          // Finalize any remaining streaming content
           if (messageEndProcessed.current) return;
           messageEndProcessed.current = true;
 
@@ -179,15 +362,22 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           });
         } else if (data.type === "done") {
           setIsLoading(false);
+          setStreamError(null);
           eventSource.close();
-
-          // Trigger filesystem refresh
-          console.log("[Chat] Dispatching filesystem-update event");
           window.dispatchEvent(new CustomEvent("filesystem-update"));
         } else if (data.type === "error") {
           console.error("Stream error:", data.message);
+          setStreamError(data.message);
           setIsLoading(false);
           eventSource.close();
+          
+          // Add error message to chat
+          const errorMessage: Message = {
+            id: `error-${Date.now()}`,
+            role: "assistant",
+            content: `⚠️ **Error:** ${data.message}\n\nPlease check your API key or account status.`,
+          };
+          addMessageWithDuplicateCheck(errorMessage);
         }
       };
 
@@ -200,59 +390,19 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
       console.error("Failed to send message:", error);
       setIsLoading(false);
     }
-  };
+  }, [input, isLoading, apiKey, sessionId, backendConfig, addMessageWithDuplicateCheck]);
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
-  };
+  }, [sendMessage]);
 
-  const renderToolParams = (params: any) => {
-    if (!params || Object.keys(params).length === 0) return null;
-
-    return (
-      <Box mt="xs" style={{ fontSize: "0.85em", opacity: 0.8 }}>
-        {Object.entries(params).map(([key, value]) => (
-          <div key={key}>
-            <Text span fw={600}>
-              {key}:
-            </Text>{" "}
-            {JSON.stringify(value, null, 2)}
-          </div>
-        ))}
-      </Box>
-    );
-  };
-
-  const renderToolOutput = (output: any) => {
-    if (!output) return null;
-
-    const outputStr =
-      typeof output === "string" ? output : JSON.stringify(output, null, 2);
-    const lines = outputStr.split("\n").slice(0, 10); // Show first 10 lines
-    const truncated = outputStr.split("\n").length > 10;
-
-    return (
-      <Box mt="xs" style={{ fontSize: "0.85em" }}>
-        <pre
-          style={{
-            margin: 0,
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            maxHeight: "200px",
-            overflowX: "auto",
-            overflowY: "auto",
-            maxWidth: "100%",
-          }}
-        >
-          {lines.join("\n")}
-          {truncated && "\n...truncated"}
-        </pre>
-      </Box>
-    );
-  };
+  // Filter out empty messages
+  const filteredMessages = messages.filter(msg => 
+    msg.content?.trim() || msg.role === "tool_use" || msg.role === "tool_result"
+  );
 
   return (
     <Box h="100%" style={{ display: "flex", flexDirection: "column" }}>
@@ -266,134 +416,9 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         }}
       >
         <Stack gap="md">
-
-          
-          {messages.map((message) => {
-            // Tool messages get system-style rendering
-            if (message.role === "tool_use" || message.role === "tool_result") {
-              
-              return (
-                <Box
-                  key={message.id}
-                  p="md"
-                  style={{
-                    backgroundColor: "var(--mantine-color-dark-6)",
-                    borderLeft:
-                      message.role === "tool_use"
-                        ? "4px solid var(--mantine-color-blue-5)"
-                        : "4px solid var(--mantine-color-green-5)",
-                    borderRadius: "12px",
-                    fontFamily: "monospace",
-                    fontSize: "0.9em",
-                    opacity: 0.95,
-                    border: "1px solid var(--mantine-color-dark-4)",
-                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-                    transition: "all 0.2s ease",
-                    "&:hover": {
-                      opacity: 1,
-                      transform: "translateX(4px)",
-                    },
-                  }}
-                >
-                  <Text
-                    size="xs"
-                    fw={600}
-                    c={message.role === "tool_use" ? "blue.4" : "green.4"}
-                  >
-                    {message.role === "tool_use"
-                      ? "🔧 Tool Use"
-                      : "✓ Tool Result"}
-                    : {message.toolName}
-                  </Text>
-                  {message.role === "tool_use" &&
-                    renderToolParams(message.params)}
-                  {message.role === "tool_result" &&
-                    renderToolOutput(message.output)}
-                </Box>
-              );
-            }
-
-            // Regular user/assistant messages
-            return (
-              <Paper
-                key={message.id}
-                p="lg"
-                radius="xl"
-                shadow="md"
-                style={{
-                  backgroundColor:
-                    message.role === "user"
-                      ? "var(--mantine-color-blue-6)"
-                      : "var(--mantine-color-gray-8)",
-                  alignSelf:
-                    message.role === "user" ? "flex-end" : "flex-start",
-                  maxWidth: "85%",
-                  minWidth: 0,
-                  overflowWrap: "break-word",
-                  wordBreak: "break-word",
-                  border:
-                    message.role === "user"
-                      ? "1px solid rgba(34, 139, 230, 0.3)"
-                      : "1px solid rgba(75, 85, 99, 0.3)",
-                  transition: "all 0.2s ease",
-                  animation:
-                    message.role === "user"
-                      ? "slideInRight 0.3s ease"
-                      : "slideInLeft 0.3s ease",
-                  "&:hover": {
-                    transform: "translateY(-1px)",
-                    boxShadow:
-                      message.role === "user"
-                        ? "0 8px 25px rgba(34, 139, 230, 0.15)"
-                        : "0 8px 25px rgba(0, 0, 0, 0.2)",
-                  },
-                }}
-              >
-                {message.role === "assistant" ? (
-                  <Box
-                    style={{
-                      overflowWrap: "break-word",
-                      wordBreak: "break-word",
-                      minWidth: 0,
-                      "& code": {
-                        backgroundColor: "var(--mantine-color-dark-7)",
-                        padding: "2px 4px",
-                        borderRadius: "4px",
-                        fontSize: "0.9em",
-                        overflowWrap: "break-word",
-                        wordBreak: "break-all",
-                      },
-                      "& pre": {
-                        backgroundColor: "var(--mantine-color-dark-7)",
-                        padding: "16px",
-                        borderRadius: "8px",
-                        overflowX: "auto",
-                        maxWidth: "100%",
-                      },
-                      "& pre code": {
-                        backgroundColor: "transparent",
-                        padding: 0,
-                        overflowWrap: "normal",
-                        wordBreak: "normal",
-                      },
-                    }}
-                  >
-                    <ReactMarkdown>{message.content}</ReactMarkdown>
-                  </Box>
-                ) : (
-                  <Text
-                    size="sm"
-                    style={{
-                      overflowWrap: "break-word",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {message.content}
-                  </Text>
-                )}
-              </Paper>
-            );
-          })}
+          {filteredMessages.map((message) => (
+            <MessageComponent key={message.id} message={message} />
+          ))}
 
           {isLoading && currentResponse && (
             <Paper
@@ -408,7 +433,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
                 overflowWrap: "break-word",
                 wordBreak: "break-word",
                 border: "1px solid rgba(75, 85, 99, 0.3)",
-                animation: "fadeIn 0.3s ease",
               }}
             >
               <Group gap="xs" align="flex-start">
@@ -480,8 +504,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
             },
           }}
         />
-
-        {/* Helper text */}
+        
         {apiKey && (
           <Text
             size="xs"
