@@ -11,12 +11,8 @@ import webDemoValidatorAgent from "../../../lib/web-demo-validator";
 // Import cyberpunk news agents from lib folder
 import newsFetcherAgent from "../../../lib/news-fetcher";
 import cyberOrchestratorAgent from "../../../lib/cyber-orchestrator";
-import trendAnalyzerAgent from "../../../lib/trend-analyzer";
-import factGuardianAgent from "../../../lib/fact-guardian";
 import cyberStylizerAgent from "../../../lib/cyber-stylizer";
-import contentNormalizerAgent from "../../../lib/content-normalizer";
-import feedPublisherAgent from "../../../lib/feed-publisher";
-import visualEnhancerAgent from "../../../lib/visual-enhancer";
+
 import routerAgent from "../../../lib/router";
 
 export async function POST(request: NextRequest) {
@@ -49,7 +45,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { message, sessionId, backendConfig } = body;
+    const { message, sessionId, backendConfig, previousRunState } = body;
 
     if (!message || !sessionId) {
       return NextResponse.json(
@@ -57,8 +53,6 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-
-
 
     // Create a unique stream ID for this request
     const streamId = uuidv4();
@@ -110,7 +104,7 @@ export async function POST(request: NextRequest) {
     await initializeWorkspace(fs);
 
     // Start the AI processing in the background using Codebuff SDK
-    processWithCodebuff(fs, message, sessionId);
+    processWithCodebuff(fs, message, sessionId, undefined, previousRunState);
     return NextResponse.json({ streamId });
   } catch (error) {
     console.error("API Error:", error);
@@ -158,6 +152,7 @@ async function processWithCodebuff(
   message: string,
   sessionId: string,
   routeOverride?: string,
+  previousRunState?: any,
 ) {
   try {
     console.log("Workspace:", fs.workspace);
@@ -165,7 +160,9 @@ async function processWithCodebuff(
     // Get Codebuff client - it will use the ConstellationFS workspace directly
     const apiKey = process.env.NEXT_PUBLIC_CODEBUFF_API_KEY;
     if (!apiKey) {
-      throw new Error("NEXT_PUBLIC_CODEBUFF_API_KEY environment variable is required");
+      throw new Error(
+        "NEXT_PUBLIC_CODEBUFF_API_KEY environment variable is required",
+      );
     }
     const client: CodebuffClient = await getCodebuffClient(fs, apiKey);
 
@@ -213,12 +210,7 @@ async function processWithCodebuff(
       agentDefinitions = [
         cyberOrchestratorAgent,
         newsFetcherAgent,
-        trendAnalyzerAgent,
-        factGuardianAgent,
         cyberStylizerAgent,
-        contentNormalizerAgent,
-        feedPublisherAgent,
-        visualEnhancerAgent,
       ];
     } else {
       // React/TypeScript development agents only
@@ -235,7 +227,7 @@ async function processWithCodebuff(
       agent: targetAgent,
       agentDefinitions,
       prompt: message,
-
+      ...(previousRunState && { runState: previousRunState }),
       handleEvent: (event: any) => {
         if (event.type === "assistant_message_delta") {
           // Stream assistant message content in chunks for real-time typing
@@ -277,6 +269,12 @@ async function processWithCodebuff(
     });
 
     console.log("✅ Codebuff agent execution completed");
+
+    // Send the run state back to client for next message
+    broadcastToStream(sessionId, {
+      type: "run_state_update",
+      runState: result,
+    });
 
     // End assistant message and signal completion
     broadcastToStream(sessionId, {
