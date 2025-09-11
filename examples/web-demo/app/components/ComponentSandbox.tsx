@@ -10,7 +10,7 @@ import {
 } from "@codesandbox/sandpack-react";
 import { Box, Button, Group, Loader, Text } from "@mantine/core";
 import { IconReload } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 interface BackendConfig {
   type: "local" | "remote";
@@ -22,6 +22,8 @@ interface BackendConfig {
 interface ComponentSandboxProps {
   sessionId: string;
   backendConfig: BackendConfig;
+  onFileCountChange?: (count: number) => void;
+  forceRestart?: boolean;
 }
 
 interface WorkspaceFile {
@@ -32,6 +34,8 @@ interface WorkspaceFile {
 export default function ComponentSandbox({
   sessionId,
   backendConfig,
+  onFileCountChange,
+  forceRestart,
 }: ComponentSandboxProps) {
   const [files, setFiles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -143,6 +147,7 @@ export default function ComponentSandbox({
 
       setFiles(sandpackFiles);
       setPackageJsonDeps(deps);
+      onFileCountChange?.(Object.keys(sandpackFiles).length);
       // Force Sandpack to completely re-instantiate with new files
       setSandpackKey((prev) => {
         const newKey = prev + 1;
@@ -188,21 +193,180 @@ export default function ComponentSandbox({
     };
   }, [sessionId, backendConfig]);
 
+  // Handle force restart from parent - must be before conditional returns
+  useEffect(() => {
+    if (forceRestart) {
+      const doRestart = async () => {
+        console.log("[ComponentSandbox] Force restart initiated");
+        setFiles({});
+        setPackageJsonDeps({});
+        setError(null);
+        setSandpackKey((prev) => prev + 100);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await loadWorkspaceFiles(true);
+      };
+      doRestart();
+    }
+  }, [forceRestart]);
+
   if (loading) {
     return (
       <Box
-        p="xl"
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           height: "100%",
+          background:
+            "radial-gradient(circle at 50% 50%, rgba(34, 139, 230, 0.03) 0%, transparent 50%)",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        <Group>
-          <Loader size="lg" />
-          <Text>Loading workspace files...</Text>
-        </Group>
+        <style>{`
+          @keyframes glitch {
+            0%, 100% {
+              text-shadow:
+                0.02em 0 0 rgba(255, 0, 0, 0.75),
+                -0.02em -0 0 rgba(0, 255, 255, 0.75);
+            }
+            25% {
+              text-shadow:
+                0.05em 0 0 rgba(255, 0, 0, 0.75),
+                -0.05em -0 0 rgba(0, 255, 255, 0.75);
+            }
+            50% {
+              text-shadow:
+                -0.025em 0.025em 0 rgba(255, 0, 0, 0.75),
+                0.025em -0.025em 0 rgba(0, 255, 255, 0.75);
+            }
+            75% {
+              text-shadow:
+                -0.05em 0 0 rgba(255, 0, 0, 0.75),
+                0.05em -0 0 rgba(0, 255, 255, 0.75);
+            }
+          }
+
+          @keyframes cyber-pulse {
+            0%, 100% {
+              opacity: 0.5;
+              transform: scale(0.8);
+            }
+            50% {
+              opacity: 1;
+              transform: scale(1);
+            }
+          }
+
+          @keyframes data-stream {
+            0% { transform: translateY(100%); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100%); opacity: 0; }
+          }
+
+          .cyber-loader {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+          }
+
+          .cyber-spinner {
+            width: 60px;
+            height: 60px;
+            position: relative;
+            animation: cyber-pulse 2s ease-in-out infinite;
+          }
+
+          .cyber-spinner::before,
+          .cyber-spinner::after {
+            content: '';
+            position: absolute;
+            border: 2px solid transparent;
+            border-top-color: #228BE6;
+            border-right-color: #A855F7;
+            border-radius: 50%;
+            inset: 0;
+          }
+
+          .cyber-spinner::before {
+            animation: spin 1s linear infinite;
+          }
+
+          .cyber-spinner::after {
+            animation: spin 1.5s linear infinite reverse;
+            inset: 6px;
+            border-bottom-color: #F783AC;
+            border-left-color: #228BE6;
+          }
+
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+
+          .data-rain {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            opacity: 0.1;
+          }
+
+          .data-stream {
+            position: absolute;
+            font-family: monospace;
+            font-size: 10px;
+            color: #228BE6;
+            animation: data-stream 3s linear infinite;
+          }
+        `}</style>
+
+        <div className="data-rain">
+          {[...Array(10)].map((_, i) => (
+            <div
+              key={i}
+              className="data-stream"
+              style={{
+                left: `${i * 10}%`,
+                animationDelay: `${i * 0.3}s`,
+                fontSize: `${8 + Math.random() * 4}px`,
+              }}
+            >
+              {Array(20)
+                .fill(0)
+                .map(() => (Math.random() > 0.5 ? "1" : "0"))
+                .join("")}
+            </div>
+          ))}
+        </div>
+
+        <div className="cyber-loader">
+          <div className="cyber-spinner" />
+          <Text
+            size="md"
+            fw={500}
+            style={{
+              fontFamily: "monospace",
+              letterSpacing: "0.1em",
+              animation: "glitch 2s infinite",
+              color: "var(--mantine-color-blue-4)",
+            }}
+          >
+            INITIALIZING WORKSPACE
+          </Text>
+          <Text
+            size="xs"
+            style={{
+              fontFamily: "monospace",
+              color: "var(--mantine-color-dimmed)",
+              opacity: 0.8,
+            }}
+          >
+            [LOADING FILES...]
+          </Text>
+        </div>
       </Box>
     );
   }
@@ -225,78 +389,108 @@ export default function ComponentSandbox({
 
   if (Object.keys(files).length === 0) {
     return (
-      <Box p="xl" style={{ height: "100%" }}>
-        <Text mb="md">No files found in workspace</Text>
-        <Button
-          onClick={() => loadWorkspaceFiles(true)}
-          leftSection={<IconReload size={16} />}
+      <Box
+        style={{
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background:
+            "radial-gradient(circle at 50% 50%, rgba(34, 139, 230, 0.03) 0%, transparent 50%)",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* Animated background grid */}
+        <style>{`
+          @keyframes pulseGrid {
+            0%, 100% { opacity: 0.05; }
+            50% { opacity: 0.15; }
+          }
+          @keyframes scanline {
+            0% { transform: translateY(-2px); }
+            100% { transform: translateY(calc(100vh + 2px)); }
+          }
+          @keyframes flicker {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+          }
+          .cyber-grid {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image:
+              linear-gradient(0deg, transparent 24%, rgba(34, 139, 230, 0.05) 25%, rgba(34, 139, 230, 0.05) 26%, transparent 27%, transparent 74%, rgba(168, 85, 247, 0.05) 75%, rgba(168, 85, 247, 0.05) 76%, transparent 77%, transparent),
+              linear-gradient(90deg, transparent 24%, rgba(34, 139, 230, 0.05) 25%, rgba(34, 139, 230, 0.05) 26%, transparent 27%, transparent 74%, rgba(168, 85, 247, 0.05) 75%, rgba(168, 85, 247, 0.05) 76%, transparent 77%, transparent);
+            background-size: 50px 50px;
+            animation: pulseGrid 20s ease-in-out infinite;
+          }
+          .scanline {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(34, 139, 230, 0.8), transparent);
+            animation: scanline 30s linear infinite;
+            top: 0;
+          }
+          .scanline:nth-child(3) {
+            animation-delay: 10s;
+            opacity: 0.6;
+          }
+          .scanline:nth-child(4) {
+            animation-delay: 20s;
+            opacity: 0.4;
+          }
+        `}</style>
+        <div className="cyber-grid" />
+        <div className="scanline" />
+        <div className="scanline" />
+        <div className="scanline" />
+
+        <Box
+          style={{
+            textAlign: "center",
+            maxWidth: "500px",
+            position: "relative",
+            zIndex: 1,
+          }}
         >
-          Force Restart
-        </Button>
+          <Text
+            size="xl"
+            fw={300}
+            mb="sm"
+            style={{
+              backgroundImage:
+                "linear-gradient(135deg, #228BE6 0%, #A855F7 100%)",
+              backgroundClip: "text",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              animation: "flicker 10s ease-in-out infinite",
+            }}
+          >
+            The Grid Awaits
+          </Text>
+          <Text size="sm" c="dimmed" mb="lg" style={{ lineHeight: 1.6 }}>
+            Neural pathways ready. Data streams initialized.
+          </Text>
+          <Text
+            size="sm"
+            fw={500}
+            style={{
+              color: "var(--mantine-color-blue-4)",
+              animation: "flicker 8s ease-in-out infinite",
+            }}
+          >
+            → Ask the AI to craft your first component
+          </Text>
+        </Box>
       </Box>
     );
   }
 
   return (
-    <Box
-      style={{
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        flex: 1,
-      }}
-    >
-      <Box
-        p="md"
-        style={{
-          borderBottom: "1px solid var(--mantine-color-dark-4)",
-          flexShrink: 0,
-        }}
-      >
-        <Group justify="space-between">
-          <Text size="sm" c="dimmed">
-            React TypeScript Sandbox - {Object.keys(files).length} files loaded
-          </Text>
-          <Button
-            size="xs"
-            variant="filled"
-            color="red"
-            onClick={async () => {
-              // Completely reset the sandbox by unmounting it first
-              console.log("[ComponentSandbox] Force restart initiated");
-
-              // Clear everything and force complete unmount
-              setFiles({});
-              setPackageJsonDeps({});
-              setError(null);
-
-              // Increment key with a larger jump to ensure React sees it as different
-              setSandpackKey((prev) => {
-                const newKey = prev + 100;
-                console.log(
-                  "[ComponentSandbox] Force restart: jumping key from",
-                  prev,
-                  "to",
-                  newKey,
-                );
-                return newKey;
-              });
-
-              // Wait for React to process the unmount
-              await new Promise((resolve) => setTimeout(resolve, 500));
-
-              // Now reload the files
-              await loadWorkspaceFiles(true);
-            }}
-            leftSection={<IconReload size={14} />}
-            loading={isRefreshing}
-          >
-            Force Restart
-          </Button>
-        </Group>
-      </Box>
-      <Box style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-        <style>{`
+    <Box style={{ height: "100%", overflow: "hidden" }}>
+      <style>{`
           /* Sandpack container constraints */
           .sp-wrapper {
             height: 100%;
@@ -308,15 +502,15 @@ export default function ComponentSandbox({
             display: flex;
           }
         `}</style>
-        <SandpackProvider
-          key={`sandbox-${sandpackKey}-${Object.keys(files).length}`} // Include file count in key for extra safety
-          template="react-ts"
-          files={{
-            ...files,
-            // Ensure we have all required files for Sandpack react-ts template
-            ...(!files["/index.tsx"] && !files["/index.jsx"]
-              ? {
-                  "/index.tsx": `import React from 'react';
+      <SandpackProvider
+        key={`sandbox-${sandpackKey}-${Object.keys(files).length}`} // Include file count in key for extra safety
+        template="react-ts"
+        files={{
+          ...files,
+          // Ensure we have all required files for Sandpack react-ts template
+          ...(!files["/index.tsx"] && !files["/index.jsx"]
+            ? {
+                "/index.tsx": `import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './styles.css';
 import App from './App';
@@ -329,11 +523,11 @@ root.render(
     <App />
   </React.StrictMode>
 );`,
-                }
-              : {}),
-            ...(!files["/App.tsx"] && !files["/App.jsx"]
-              ? {
-                  "/App.tsx": `export default function App() {
+              }
+            : {}),
+          ...(!files["/App.tsx"] && !files["/App.jsx"]
+            ? {
+                "/App.tsx": `export default function App() {
   return (
     <div className="App">
       <h1>ConstellationFS Workspace</h1>
@@ -341,11 +535,11 @@ root.render(
     </div>
   );
 }`,
-                }
-              : {}),
-            ...(!files["/styles.css"]
-              ? {
-                  "/styles.css": `body {
+              }
+            : {}),
+          ...(!files["/styles.css"]
+            ? {
+                "/styles.css": `body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
@@ -358,11 +552,11 @@ root.render(
 .App {
   text-align: center;
 }`,
-                }
-              : {}),
-            ...(!files["/public/index.html"]
-              ? {
-                  "/public/index.html": `<!DOCTYPE html>
+              }
+            : {}),
+          ...(!files["/public/index.html"]
+            ? {
+                "/public/index.html": `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -373,54 +567,50 @@ root.render(
   <div id="root"></div>
 </body>
 </html>`,
-                }
+              }
+            : {}),
+        }}
+        customSetup={{
+          dependencies: {
+            ...packageJsonDeps,
+            // Ensure React dependencies are included
+            ...(!packageJsonDeps["react"] ? { react: "^18.0.0" } : {}),
+            ...(!packageJsonDeps["react-dom"]
+              ? { "react-dom": "^18.0.0" }
               : {}),
-          }}
-          customSetup={{
-            dependencies: {
-              ...packageJsonDeps,
-              // Ensure React dependencies are included
-              ...(!packageJsonDeps["react"] ? { react: "^18.0.0" } : {}),
-              ...(!packageJsonDeps["react-dom"]
-                ? { "react-dom": "^18.0.0" }
-                : {}),
-              ...(!packageJsonDeps["@types/react"]
-                ? { "@types/react": "^18.0.0" }
-                : {}),
-              ...(!packageJsonDeps["@types/react-dom"]
-                ? { "@types/react-dom": "^18.0.0" }
-                : {}),
-            },
-          }}
-          options={{
-            autorun: true,
-            recompileMode: "delayed",
-            recompileDelay: 300,
-            initMode: "lazy",
-            activeFile: files["/App.tsx"]
-              ? "/App.tsx"
-              : files["/App.jsx"]
-                ? "/App.jsx"
-                : "/index.tsx",
-          }}
-          theme="dark"
-        >
-          <SandpackLayout style={{ height: "100%" }}>
-            <SandpackStack style={{ height: "100%" }}>
-              <SandpackFileExplorer style={{ height: "30%" }} />
-              <SandpackCodeEditor
-                showTabs
-                closableTabs
-                style={{ height: "70%" }}
-              />
-            </SandpackStack>
-            <SandpackPreview
-              showNavigator
-              style={{ height: "100%", minWidth: "75%" }}
+            ...(!packageJsonDeps["@types/react"]
+              ? { "@types/react": "^18.0.0" }
+              : {}),
+            ...(!packageJsonDeps["@types/react-dom"]
+              ? { "@types/react-dom": "^18.0.0" }
+              : {}),
+          },
+        }}
+        options={{
+          autorun: true,
+          recompileMode: "delayed",
+          recompileDelay: 300,
+          initMode: "lazy",
+          activeFile: files["/App.tsx"]
+            ? "/App.tsx"
+            : files["/App.jsx"]
+              ? "/App.jsx"
+              : "/index.tsx",
+        }}
+        theme="dark"
+      >
+        <SandpackLayout style={{ height: "100%" }}>
+          <SandpackStack style={{ height: "100%" }}>
+            <SandpackFileExplorer style={{ height: "30%" }} />
+            <SandpackCodeEditor
+              showTabs
+              closableTabs
+              style={{ height: "70%" }}
             />
-          </SandpackLayout>
-        </SandpackProvider>
-      </Box>
+          </SandpackStack>
+          <SandpackPreview style={{ height: "100%", minWidth: "75%" }} />
+        </SandpackLayout>
+      </SandpackProvider>
     </Box>
   );
 }

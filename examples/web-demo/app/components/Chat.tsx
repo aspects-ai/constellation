@@ -38,12 +38,12 @@ interface ChatProps {
 // Separate component for expandable tool output
 const ToolOutput = ({ output }: { output: any }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   if (!output) return null;
 
   const outputStr =
     typeof output === "string" ? output : JSON.stringify(output, null, 2);
-  
+
   // Always show the expand button if there's output
   return (
     <Box mt="xs" style={{ fontSize: "0.85em", position: "relative" }}>
@@ -57,9 +57,13 @@ const ToolOutput = ({ output }: { output: any }) => {
             overflowX: "auto",
             overflowY: "auto",
             maxWidth: "100%",
-            backgroundColor: "var(--mantine-color-dark-7)",
-            padding: "8px",
-            borderRadius: "4px",
+            backgroundColor: "rgba(10, 15, 30, 0.8)",
+            padding: "12px",
+            borderRadius: "6px",
+            border: "1px solid rgba(34, 139, 230, 0.15)",
+            fontFamily: "'SF Mono', Monaco, 'Cascadia Code', monospace",
+            fontSize: "12px",
+            color: "rgba(148, 163, 184, 0.9)",
           }}
         >
           {outputStr}
@@ -67,12 +71,13 @@ const ToolOutput = ({ output }: { output: any }) => {
       ) : (
         <Box
           style={{
-            color: "var(--mantine-color-dimmed)",
+            color: "rgba(148, 163, 184, 0.6)",
             fontSize: "0.9em",
-            fontStyle: "italic",
+            fontFamily: "monospace",
+            letterSpacing: "0.05em",
           }}
         >
-          Output available
+          [OUTPUT CACHED]
         </Box>
       )}
       <Box
@@ -82,26 +87,35 @@ const ToolOutput = ({ output }: { output: any }) => {
       >
         <Text
           size="xs"
-          c="blue.4"
           style={{
             cursor: "pointer",
             userSelect: "none",
-            opacity: 0.9,
-            transition: "opacity 0.2s",
-            "&:hover": {
-              opacity: 1,
-            },
+            opacity: 0.8,
+            transition: "all 0.2s",
+            color: "#60A5FA",
+            fontFamily: "monospace",
+            letterSpacing: "0.05em",
+            fontSize: "11px",
+            display: "inline-block",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = "1";
+            e.currentTarget.style.color = "#93C5FD";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = "0.8";
+            e.currentTarget.style.color = "#60A5FA";
           }}
           onClick={() => setIsExpanded(!isExpanded)}
         >
-          {isExpanded ? "⬆ Hide output" : "⬇ Show output"}
+          {isExpanded ? "[↑ COLLAPSE]" : "[↓ EXPAND]"}
         </Text>
       </Box>
     </Box>
   );
 };
 
-ToolOutput.displayName = 'ToolOutput';
+ToolOutput.displayName = "ToolOutput";
 
 // Message component
 const MessageComponent = ({ message }: { message: Message }) => {
@@ -109,13 +123,15 @@ const MessageComponent = ({ message }: { message: Message }) => {
     if (!params || Object.keys(params).length === 0) return null;
 
     return (
-      <Box mt="xs" style={{ fontSize: "0.85em", opacity: 0.8 }}>
+      <Box mt="xs" style={{ fontSize: "0.85em", opacity: 0.9 }}>
         {Object.entries(params).map(([key, value]) => (
-          <div key={key}>
-            <Text span fw={600}>
+          <div key={key} style={{ marginBottom: "4px" }}>
+            <Text span fw={500} style={{ color: "#A78BFA" }}>
               {key}:
             </Text>{" "}
-            {JSON.stringify(value, null, 2)}
+            <span style={{ color: "var(--mantine-color-gray-4)" }}>
+              {JSON.stringify(value, null, 2)}
+            </span>
           </div>
         ))}
       </Box>
@@ -126,103 +142,133 @@ const MessageComponent = ({ message }: { message: Message }) => {
   if (message.role === "tool_use" || message.role === "tool_result") {
     return (
       <Box
+        className="tool-message"
         p="md"
         style={{
-          backgroundColor: "var(--mantine-color-dark-6)",
+          backgroundColor: "rgba(15, 23, 42, 0.8)",
           borderLeft:
             message.role === "tool_use"
-              ? "4px solid var(--mantine-color-blue-5)"
-              : "4px solid var(--mantine-color-green-5)",
-          borderRadius: "12px",
-          fontFamily: "monospace",
+              ? "3px solid #228BE6"
+              : "3px solid #10B981",
+          borderRadius: "8px",
           fontSize: "0.9em",
-          opacity: 0.95,
-          border: "1px solid var(--mantine-color-dark-4)",
-          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          border: "1px solid rgba(34, 139, 230, 0.2)",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+          position: "relative",
         }}
       >
         <Text
           size="xs"
           fw={600}
-          c={message.role === "tool_use" ? "blue.4" : "green.4"}
+          style={{
+            color: message.role === "tool_use" ? "#60A5FA" : "#34D399",
+            letterSpacing: "0.05em",
+            textTransform: "uppercase",
+          }}
         >
-          {message.role === "tool_use" ? "🔧 Tool Use" : "✓ Tool Result"}: {message.toolName}
+          {message.role === "tool_use" ? "[EXEC]" : "[RESULT]"}{" "}
+          {message.toolName}
         </Text>
         {message.role === "tool_use" && renderToolParams(message.params)}
-        {message.role === "tool_result" && <ToolOutput output={message.output} />}
+        {message.role === "tool_result" && (
+          <ToolOutput output={message.output} />
+        )}
       </Box>
     );
   }
 
   // Regular messages
   return (
-    <Paper
+    <Box
+      className={message.role === "user" ? "user-message" : "assistant-message"}
       p="lg"
-      radius="xl"
-      shadow="md"
       style={{
-        backgroundColor:
+        background:
           message.role === "user"
-            ? "var(--mantine-color-blue-6)"
-            : "var(--mantine-color-gray-8)",
+            ? "linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%)"
+            : "linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%)",
         alignSelf: message.role === "user" ? "flex-end" : "flex-start",
         maxWidth: "85%",
         minWidth: 0,
         overflowWrap: "break-word",
         wordBreak: "break-word",
-        border:
+        borderLeft:
+          message.role === "user" ? "3px solid #A855F7" : "3px solid #228BE6",
+        borderRadius: "0 8px 8px 0",
+        position: "relative",
+        boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
+        clipPath:
           message.role === "user"
-            ? "1px solid rgba(34, 139, 230, 0.3)"
-            : "1px solid rgba(75, 85, 99, 0.3)",
+            ? "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)"
+            : "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)",
       }}
     >
-      {message.role === "assistant" ? (
-        <Box
-          style={{
+      <Box
+        style={{
+          overflowWrap: "break-word",
+          wordBreak: "break-word",
+          minWidth: 0,
+          color: message.role === "user" ? "#E2E8F0" : "#CBD5E1",
+          fontFamily: "system-ui, -apple-system, sans-serif",
+          fontSize: "14px",
+          lineHeight: "1.6",
+          letterSpacing: "0.02em",
+          "& code": {
+            backgroundColor: "rgba(10, 15, 30, 0.6)",
+            padding: "2px 6px",
+            borderRadius: "3px",
+            fontSize: "0.9em",
+            fontFamily: "'SF Mono', Monaco, 'Cascadia Code', monospace",
+            color: message.role === "user" ? "#F472B6" : "#60A5FA",
+            border: "1px solid rgba(34, 139, 230, 0.2)",
             overflowWrap: "break-word",
-            wordBreak: "break-word",
-            minWidth: 0,
-            "& code": {
-              backgroundColor: "var(--mantine-color-dark-7)",
-              padding: "2px 4px",
-              borderRadius: "4px",
-              fontSize: "0.9em",
-              overflowWrap: "break-word",
-              wordBreak: "break-all",
-            },
-            "& pre": {
-              backgroundColor: "var(--mantine-color-dark-7)",
-              padding: "16px",
-              borderRadius: "8px",
-              overflowX: "auto",
-              maxWidth: "100%",
-            },
-            "& pre code": {
-              backgroundColor: "transparent",
-              padding: 0,
-              overflowWrap: "normal",
-              wordBreak: "normal",
-            },
-          }}
-        >
+            wordBreak: "break-all",
+          },
+          "& pre": {
+            backgroundColor: "rgba(10, 15, 30, 0.8)",
+            padding: "16px",
+            borderRadius: "6px",
+            overflowX: "auto",
+            maxWidth: "100%",
+            border: "1px solid rgba(34, 139, 230, 0.15)",
+            boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.4)",
+            margin: "12px 0",
+          },
+          "& pre code": {
+            backgroundColor: "transparent",
+            padding: 0,
+            border: "none",
+            overflowWrap: "normal",
+            wordBreak: "normal",
+            color: "#94A3B8",
+          },
+          "& p": {
+            margin: "0 0 8px 0",
+          },
+          "& p:last-child": {
+            margin: 0,
+          },
+        }}
+      >
+        {message.role === "assistant" ? (
           <ReactMarkdown>{message.content}</ReactMarkdown>
-        </Box>
-      ) : (
-        <Text
-          size="sm"
-          style={{
-            overflowWrap: "break-word",
-            wordBreak: "break-word",
-          }}
-        >
-          {message.content}
-        </Text>
-      )}
-    </Paper>
+        ) : (
+          <Text
+            style={{
+              color: "inherit",
+              fontSize: "inherit",
+              lineHeight: "inherit",
+            }}
+          >
+            {message.content}
+          </Text>
+        )}
+      </Box>
+    </Box>
   );
 };
 
-MessageComponent.displayName = 'MessageComponent';
+MessageComponent.displayName = "MessageComponent";
 
 export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -240,10 +286,14 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   // Optimized message addition with deduplication
   const addMessageWithDuplicateCheck = useCallback((newMessage: Message) => {
     // Don't add empty messages
-    if (!newMessage.content?.trim() && newMessage.role !== "tool_use" && newMessage.role !== "tool_result") {
+    if (
+      !newMessage.content?.trim() &&
+      newMessage.role !== "tool_use" &&
+      newMessage.role !== "tool_result"
+    ) {
       return;
     }
-    
+
     setMessages((prev) => {
       const isDuplicate = prev.some((msg) => msg.id === newMessage.id);
       if (isDuplicate) return prev;
@@ -321,16 +371,25 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           };
           addMessageWithDuplicateCheck(toolUseMessage);
         } else if (data.type === "tool_result") {
-          const asyncTools = ['write_file', 'update_subgoal', 'add_subgoal', 'str_replace'];
-          const hasEmptyOutput = !data.output || 
-            (typeof data.output === 'object' && Object.keys(data.output).length === 0) ||
-            (typeof data.output === 'string' && data.output.trim() === '');
-          
-          const shouldShowResult = !(asyncTools.includes(data.toolName || '') && hasEmptyOutput);
-          
+          const asyncTools = [
+            "write_file",
+            "update_subgoal",
+            "add_subgoal",
+            "str_replace",
+          ];
+          const hasEmptyOutput =
+            !data.output ||
+            (typeof data.output === "object" &&
+              Object.keys(data.output).length === 0) ||
+            (typeof data.output === "string" && data.output.trim() === "");
+
+          const shouldShowResult = !(
+            asyncTools.includes(data.toolName || "") && hasEmptyOutput
+          );
+
           if (shouldShowResult) {
             const toolResultMessage: Message = {
-              id: data.id + '_result',
+              id: data.id + "_result",
               role: "tool_result",
               content: `Tool result from ${data.toolName}`,
               toolName: data.toolName,
@@ -338,9 +397,14 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
             };
             addMessageWithDuplicateCheck(toolResultMessage);
           }
-          
-          const fileTools = ['write_file', 'str_replace', 'edit_file', 'create_file'];
-          if (fileTools.includes(data.toolName || '')) {
+
+          const fileTools = [
+            "write_file",
+            "str_replace",
+            "edit_file",
+            "create_file",
+          ];
+          if (fileTools.includes(data.toolName || "")) {
             setTimeout(() => {
               window.dispatchEvent(new CustomEvent("filesystem-update"));
             }, 100);
@@ -370,7 +434,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           setStreamError(data.message);
           setIsLoading(false);
           eventSource.close();
-          
+
           // Add error message to chat
           const errorMessage: Message = {
             id: `error-${Date.now()}`,
@@ -390,22 +454,200 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
       console.error("Failed to send message:", error);
       setIsLoading(false);
     }
-  }, [input, isLoading, apiKey, sessionId, backendConfig, addMessageWithDuplicateCheck]);
+  }, [
+    input,
+    isLoading,
+    apiKey,
+    sessionId,
+    backendConfig,
+    addMessageWithDuplicateCheck,
+  ]);
 
-  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  }, [sendMessage]);
+  const handleKeyPress = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    },
+    [sendMessage],
+  );
 
   // Filter out empty messages
-  const filteredMessages = messages.filter(msg => 
-    msg.content?.trim() || msg.role === "tool_use" || msg.role === "tool_result"
+  const filteredMessages = messages.filter(
+    (msg) =>
+      msg.content?.trim() ||
+      msg.role === "tool_use" ||
+      msg.role === "tool_result",
   );
 
   return (
     <Box h="100%" style={{ display: "flex", flexDirection: "column" }}>
+      <style>{`
+        @keyframes subtle-glow {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 0.8; }
+        }
+
+        @keyframes pulse-border {
+          0%, 100% {
+            border-color: rgba(34, 139, 230, 0.2);
+            box-shadow: 0 0 10px rgba(34, 139, 230, 0.1);
+          }
+          50% {
+            border-color: rgba(168, 85, 247, 0.3);
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.15);
+          }
+        }
+
+        .cyber-message {
+          position: relative;
+        }
+
+        .cyber-message::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(34, 139, 230, 0.3), transparent);
+          animation: subtle-glow 3s ease-in-out infinite;
+        }
+
+        .tool-message {
+          font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .tool-message::after {
+          content: '';
+          position: absolute;
+          top: -2px;
+          left: -2px;
+          right: -2px;
+          bottom: -2px;
+          background: linear-gradient(45deg, rgba(34, 139, 230, 0.1), rgba(168, 85, 247, 0.1));
+          opacity: 0;
+          transition: opacity 0.3s;
+          border-radius: 12px;
+          z-index: -1;
+        }
+
+        .tool-message:hover::after {
+          opacity: 1;
+        }
+
+        .typing-indicator {
+          display: inline-flex;
+          gap: 4px;
+          padding: 4px;
+        }
+
+        .typing-indicator span {
+          width: 8px;
+          height: 8px;
+          background: linear-gradient(135deg, #228BE6, #A855F7);
+          border-radius: 50%;
+          animation: typing-pulse 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+
+        @keyframes typing-pulse {
+          0%, 60%, 100% {
+            transform: scale(0.8);
+            opacity: 0.5;
+          }
+          30% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+
+        .user-message::before {
+          content: '[USER.TX]';
+          position: absolute;
+          top: -18px;
+          right: 0;
+          font-size: 10px;
+          font-family: 'SF Mono', Monaco, monospace;
+          color: #A855F7;
+          letter-spacing: 0.05em;
+          opacity: 0.7;
+        }
+
+        .assistant-message::before {
+          content: '[CYBERBUFFY.RX]';
+          position: absolute;
+          top: -18px;
+          left: 0;
+          font-size: 10px;
+          font-family: 'SF Mono', Monaco, monospace;
+          color: #228BE6;
+          letter-spacing: 0.05em;
+          opacity: 0.7;
+        }
+
+        .user-message::after,
+        .assistant-message::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: linear-gradient(90deg,
+            transparent,
+            currentColor 20%,
+            currentColor 80%,
+            transparent);
+          opacity: 0.3;
+        }
+
+        .user-message:hover,
+        .assistant-message:hover {
+          transform: translateX(2px);
+          transition: transform 0.2s ease;
+        }
+
+        .user-message {
+          margin-top: 20px;
+          border-right: 1px solid rgba(168, 85, 247, 0.2);
+        }
+
+        .assistant-message {
+          margin-top: 20px;
+          border-right: 1px solid rgba(34, 139, 230, 0.2);
+        }
+
+        @keyframes pulse-glow {
+          0%, 100% {
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 20px rgba(34, 139, 230, 0.1);
+          }
+          50% {
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), 0 0 30px rgba(34, 139, 230, 0.2);
+          }
+        }
+
+        .typing-message::before {
+          content: '[CYBERBUFFY.STREAMING]';
+          animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+          0%, 50% { opacity: 0.7; }
+          51%, 100% { opacity: 0.3; }
+        }
+      `}</style>
+
       <ScrollArea
         flex={1}
         p="lg"
@@ -421,18 +663,26 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           ))}
 
           {isLoading && currentResponse && (
-            <Paper
+            <Box
+              className="assistant-message typing-message"
               p="lg"
-              radius="xl"
-              shadow="md"
               style={{
-                backgroundColor: "var(--mantine-color-gray-8)",
+                background:
+                  "linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%)",
                 alignSelf: "flex-start",
                 maxWidth: "85%",
                 minWidth: 0,
                 overflowWrap: "break-word",
                 wordBreak: "break-word",
-                border: "1px solid rgba(75, 85, 99, 0.3)",
+                borderLeft: "3px solid #228BE6",
+                borderRadius: "0 8px 8px 0",
+                position: "relative",
+                boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
+                clipPath:
+                  "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)",
+                marginTop: "20px",
+                borderRight: "1px solid rgba(34, 139, 230, 0.2)",
+                animation: "pulse-glow 2s ease-in-out infinite",
               }}
             >
               <Group gap="xs" align="flex-start">
@@ -442,13 +692,22 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
                     minWidth: 0,
                     overflowWrap: "break-word",
                     wordBreak: "break-word",
+                    color: "#CBD5E1",
+                    fontFamily: "system-ui, -apple-system, sans-serif",
+                    fontSize: "14px",
+                    lineHeight: "1.6",
+                    letterSpacing: "0.02em",
                   }}
                 >
                   <ReactMarkdown>{currentResponse}</ReactMarkdown>
                 </Box>
-                <Loader size="xs" />
+                <div className="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
               </Group>
-            </Paper>
+            </Box>
           )}
           <div ref={messagesEndRef} />
         </Stack>
@@ -478,42 +737,51 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           maxRows={8}
           styles={{
             input: {
-              backgroundColor: "var(--mantine-color-dark-7)",
-              border: "2px solid var(--mantine-color-dark-4)",
+              backgroundColor: "rgba(15, 23, 42, 0.95)",
+              border: "2px solid rgba(34, 139, 230, 0.3)",
               borderRadius: "12px",
               padding: "16px 20px",
               fontSize: "16px",
               lineHeight: "1.5",
               resize: "none",
               transition: "all 0.2s ease",
+              fontFamily: "system-ui, -apple-system, sans-serif",
               "&:focus": {
-                borderColor: "var(--mantine-color-blue-5)",
+                borderColor: "rgba(34, 139, 230, 0.6)",
                 boxShadow:
-                  "0 0 0 3px rgba(34, 139, 230, 0.1), 0 4px 20px rgba(0, 0, 0, 0.15)",
+                  "0 0 0 3px rgba(34, 139, 230, 0.1), 0 0 20px rgba(34, 139, 230, 0.15), 0 4px 20px rgba(0, 0, 0, 0.15)",
                 transform: "translateY(-1px)",
+                backgroundColor: "rgba(15, 23, 42, 1)",
               },
               "&:hover:not(:disabled)": {
-                borderColor: "var(--mantine-color-dark-3)",
+                borderColor: "rgba(34, 139, 230, 0.4)",
                 transform: "translateY(-1px)",
-                boxShadow: "0 2px 12px rgba(0, 0, 0, 0.1)",
+                boxShadow: "0 2px 12px rgba(34, 139, 230, 0.1)",
               },
               "&::placeholder": {
-                color: "var(--mantine-color-dark-2)",
+                color: "rgba(148, 163, 184, 0.6)",
                 fontSize: "15px",
+                letterSpacing: "0.02em",
               },
             },
           }}
         />
-        
+
         {apiKey && (
           <Text
             size="xs"
-            c="dimmed"
             mt="sm"
             ta="center"
-            style={{ opacity: 0.7 }}
+            style={{
+              opacity: 0.6,
+              fontFamily: "monospace",
+              letterSpacing: "0.05em",
+              color: "rgba(148, 163, 184, 0.8)",
+              textTransform: "uppercase",
+              fontSize: "11px",
+            }}
           >
-            Press Enter to send • Shift+Enter for new line
+            [ENTER] → TRANSMIT • [SHIFT+ENTER] → NEWLINE
           </Text>
         )}
       </Box>

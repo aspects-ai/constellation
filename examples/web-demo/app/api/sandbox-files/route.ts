@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     console.log('[sandbox-files] Workspace path:', fs.workspace);
 
     // Get all files from the workspace
-    const files = [];
+    const files: any[] = [];
     
     // Since we can't use cd or quotes, we'll use a simpler approach
     // First get all files and directories recursively
