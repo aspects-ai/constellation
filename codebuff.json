@@ -1,0 +1,12 @@
+{
+  "description": "Template configuration for this project. See https://www.codebuff.com/config for all options.",
+  "startupProcesses": [
+    {
+      "name": "web-demo",
+      "command": "npm run dev",
+      "cwd": "examples/web-demo",
+      "stdoutFile": "logs/web-demo.log"
+    }
+  ],
+  "fileChangeHooks": []
+}
