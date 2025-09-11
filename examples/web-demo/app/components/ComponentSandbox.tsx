@@ -6,6 +6,7 @@ import {
   SandpackFileExplorer,
   SandpackCodeEditor,
   SandpackPreview,
+  SandpackStack,
 } from "@codesandbox/sandpack-react";
 import { Box, Button, Group, Loader, Text } from "@mantine/core";
 import { IconReload } from "@tabler/icons-react";
@@ -304,6 +305,7 @@ export default function ComponentSandbox({
           .sp-layout {
             height: 100%;
             max-height: 100%;
+            display: flex;
           }
         `}</style>
         <SandpackProvider
@@ -403,16 +405,18 @@ root.render(
           }}
           theme="dark"
         >
-          <SandpackLayout>
-            <SandpackFileExplorer style={{ height: "100%" }} />
-            <SandpackCodeEditor
-              showTabs
-              closableTabs
-              style={{ height: "100%" }}
-            />
+          <SandpackLayout style={{ height: "100%" }}>
+            <SandpackStack style={{ height: "100%" }}>
+              <SandpackFileExplorer style={{ height: "30%" }} />
+              <SandpackCodeEditor
+                showTabs
+                closableTabs
+                style={{ height: "70%" }}
+              />
+            </SandpackStack>
             <SandpackPreview
               showNavigator
-              style={{ height: "100%", minWidth: "70%" }}
+              style={{ height: "100%", minWidth: "75%" }}
             />
           </SandpackLayout>
         </SandpackProvider>
