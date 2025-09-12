@@ -377,17 +377,10 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
     setCurrentResponse("");
 
     try {
-      // Check if message starts with /cyber prefix
-      const isCyberCommand = userMessage.content.startsWith("/cyber ");
-      const actualMessage = isCyberCommand 
-        ? userMessage.content.substring(7) // Remove "/cyber " prefix
-        : userMessage.content;
-
       const requestBody = {
-        message: actualMessage,
+        message: userMessage.content,
         sessionId,
         backendConfig,
-        routeOverride: isCyberCommand ? "cyber-orchestrator" : undefined,
       };
 
       const response = await fetch("/api/message", {
