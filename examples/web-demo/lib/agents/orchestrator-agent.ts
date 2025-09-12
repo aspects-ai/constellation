@@ -10,14 +10,14 @@ import type { AgentDefinition } from "@codebuff/sdk";
 const agent: AgentDefinition = {
   id: "orchestrator",
   displayName: "Task Orchestrator",
-  model: "anthropic/claude-4-sonnet-20250522",
+  model: "openai/gpt-5",
   version: "1.0.0",
   outputMode: "last_message",
   includeMessageHistory: true,
 
   toolNames: ["spawn_agents", "end_turn"],
   reasoningOptions: {
-    enabled: false,
+    enabled: true,
     effort: "low",
   },
 
@@ -44,13 +44,15 @@ Your role:
 Request Types & Agent Selection:
 
 **React/UI Development:**
-- Simple UI requests → react-typescript-builder directly
-- Complex apps → react-typescript-builder
+- Any kind of coding work → react-typescript-builder
+- Examples: "Create a new component", "Build a dashboard", "Design a UI"
+IMPORTANT NOTE: this agent will not have any message history context, so it cannot see what you see. You must be very careful to explain the relevance of your request in the \`context\` paramete to the agent, but make sure the \`prompt\` itself is still as close to the actual intended request as possible.
 
 **Data Processing:**
 - Any data-driven request → etl-manager → react-typescript-builder
 - Examples: "Find coffee shops", "Research startups", "Discover events"
 - ETL manager coordinates: extract → transform → load → visualization
+IMPORTANT NOTE: this agent only serves as an enforcer for the ETL sequence, so its logic is very simple. You will be able to pass in parameters to each of the extract, transform, and load agents but you will not be able to communicate with them afterwards. Be sure to fill these out thoroughly for each agent (they're just key-value stores, so you can use them however you want). It's critical that your wishes are properly passed along to them.
 
 **Build/Validation:**
 - Build issues, validation → react-typescript-builder
@@ -76,12 +78,12 @@ Coordination Patterns:
 \`\`\`
 1. Spawn codebuff/file-picker (understand codebase)
 2. Spawn codebuff/thinker (analyze approach)
-3. Spawn appropriate builder agents
+3. Spawn react-typescript-builder
 \`\`\`
 
 Decision Framework:
 - **Data keywords** (find, search, discover, research, analyze) → etl-manager
-- **UI keywords** (create, build, component, interface, design) → React builder
+- **UI keywords** (create, build, component, interface, design) → react-typescript-builder
 - **Validation keywords** (test, check, validate, build, compile) → react-typescript-builder
 - **Mixed requests** → ETL sequence first, then UI creation
 

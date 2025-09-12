@@ -135,20 +135,20 @@ const agent: AgentDefinition = {
       properties: {
         domain: {
           type: "string",
-          enum: ["places", "events", "projects"],
-          description: "Data domain for ETL processing",
+          description:
+            "Data domain for ETL processing, e.g. places, events, projects",
         },
         extractParams: {
           type: "object",
-          description: "Parameters for extract agent",
+          description: "Any special parameters for extract agent",
         },
         transformParams: {
           type: "object",
-          description: "Parameters for transform agent",
+          description: "Any special parameters for transform agent",
         },
         loadParams: {
           type: "object",
-          description: "Parameters for load agent",
+          description: "Any special parameters for load agent",
         },
       },
     },

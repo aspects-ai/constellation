@@ -11,7 +11,7 @@ const agent: AgentDefinition = {
   id: "react-typescript-builder",
   displayName: "React TypeScript Builder",
   model: "openrouter/sonoma-sky-alpha",
-  includeMessageHistory: true,
+  includeMessageHistory: false,
 
   // Tools this agent can use - limited for sandpack environment
   toolNames: [
@@ -249,6 +249,16 @@ Remember: EVERY component should embody cyberpunk aesthetics by default. The san
       type: "string",
       description:
         "The React/TypeScript component or functionality to create for sandpack",
+    },
+    params: {
+      type: "object",
+      properties: {
+        context: {
+          type: "string",
+          description:
+            "More information about the prompt request itself, nuance to follow and keep in mind while working",
+        },
+      },
     },
   },
 
