@@ -57,6 +57,25 @@ export async function GET(request: NextRequest) {
     // Since we can't use cd or quotes, we'll use a simpler approach
     // First get all files and directories recursively
     async function getAllFiles() {
+      // Helper function to process a single path
+      async function processPath(filePath: string) {
+        try {
+          const statResult = await fs.exec(`stat -c '%F' "${filePath}" 2>/dev/null || stat -f '%HT' "${filePath}"`);
+          const fileType = statResult.trim().toLowerCase();
+
+          if (fileType.includes('regular file')) {
+            const content = await fs.read(filePath);
+            const normalizedPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
+            files.push({ path: normalizedPath, content });
+            console.log('[sandbox-files] Added file:', normalizedPath);
+          } else {
+            console.debug(`[sandbox-files] Skipping ${filePath}: not a regular file (${fileType})`);
+          }
+        } catch (err) {
+          console.debug(`[sandbox-files] Skipping ${filePath}:`, err);
+        }
+      }
+
       try {
         // Try using ls -R to get recursive listing
         let lsResult = '';
@@ -110,17 +129,7 @@ export async function GET(request: NextRequest) {
               
               // Build the full path
               const fullPath = currentDir ? `${currentDir}/${line}` : line;
-              
-              // Try to read the file
-              try {
-                const content = await fs.read(fullPath);
-                const normalizedPath = fullPath.startsWith('/') ? fullPath : `/${fullPath}`;
-                files.push({ path: normalizedPath, content });
-                console.log('[sandbox-files] Added file:', normalizedPath);
-              } catch (err) {
-                // It might be a directory or unreadable, skip it
-                console.debug(`[sandbox-files] Skipping ${fullPath}:`, err);
-              }
+              await processPath(fullPath);
             }
           }
         } else {
@@ -132,14 +141,7 @@ export async function GET(request: NextRequest) {
               continue;
             }
             
-            try {
-              const content = await fs.read(fileName);
-              const normalizedPath = fileName.startsWith('/') ? fileName : `/${fileName}`;
-              files.push({ path: normalizedPath, content });
-              console.log('[sandbox-files] Added file:', normalizedPath);
-            } catch (err) {
-              console.debug(`[sandbox-files] Skipping ${fileName}:`, err);
-            }
+            await processPath(fileName);
           }
         }
       } catch (err) {

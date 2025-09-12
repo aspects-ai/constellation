@@ -74,7 +74,7 @@ const ESCAPE_PATTERNS = [
   /export\s+PWD=/,
   
   // Absolute paths (except when checking for URLs)
-  /(?<!https?:)\/[^\s]+/,  // Negative lookbehind to exclude URLs
+  /(?<!https?:)(^|\s)\/[^\s]+/,  // Match absolute paths at word boundaries, not inside quotes
   
   // Shell expansion
   /~\//,         // Home directory
@@ -137,7 +137,7 @@ export function isCommandSafe(command: string): { safe: boolean; reason?: string
     if (/\bcd\b/.test(command)) {
       return { safe: false, reason: 'Directory change commands are not allowed' }
     }
-    if (/(?<!https?:)\/[^\s]+/.test(command)) {
+    if (/(?<!https?:)(^|\s)\/[^\s]+/.test(command)) {
       return { safe: false, reason: 'Command contains absolute paths' }
     }
     if (/~\//.test(command) || /\$HOME/.test(command)) {
@@ -172,7 +172,7 @@ export function parseCommand(command: string): ParsedCommand {
   return {
     command: baseCommand,
     args,
-    hasAbsolutePath: /(?<!https?:)\/[^\s]+/.test(command),
+    hasAbsolutePath: /(?<!https?:)(^|\s)\/[^\s]+/.test(command),
     hasEscapePattern: isEscapingWorkspace(command),
   }
 }

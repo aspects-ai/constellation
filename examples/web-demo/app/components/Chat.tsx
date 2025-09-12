@@ -49,7 +49,7 @@ const ToolOutput = ({ output }: { output: any }) => {
   // Always show the expand button if there's output
   return (
     <Box mt="xs" style={{ fontSize: "0.85em", position: "relative" }}>
-      {isExpanded ? (
+      {isExpanded && (
         <pre
           style={{
             margin: 0,
@@ -70,17 +70,6 @@ const ToolOutput = ({ output }: { output: any }) => {
         >
           {outputStr}
         </pre>
-      ) : (
-        <Box
-          style={{
-            color: "rgba(148, 163, 184, 0.6)",
-            fontSize: "0.9em",
-            fontFamily: "monospace",
-            letterSpacing: "0.05em",
-          }}
-        >
-          [OUTPUT CACHED]
-        </Box>
       )}
       <Box
         style={{
@@ -186,7 +175,6 @@ const MessageComponent = ({ message }: { message: Message }) => {
           border: "1px solid rgba(34, 139, 230, 0.2)",
           boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
           position: "relative",
-
         }}
       >
         <Text
@@ -202,7 +190,7 @@ const MessageComponent = ({ message }: { message: Message }) => {
           {message.toolName}
         </Text>
         {message.role === "tool_use" && renderToolParams(message.params)}
-        {message.role === "tool_result" && (
+        {message.role === "tool_result" && message.output && (
           <ToolOutput output={message.output} />
         )}
       </Box>
@@ -238,16 +226,16 @@ const MessageComponent = ({ message }: { message: Message }) => {
       }}
     >
       <Box
-      style={{
-        overflowWrap: "break-word",
-        wordBreak: "break-word",
-        minWidth: 0,
+        style={{
+          overflowWrap: "break-word",
+          wordBreak: "break-word",
+          minWidth: 0,
 
-        color: message.role === "user" ? "#E2E8F0" : "#CBD5E1",
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        fontSize: "14px",
-        lineHeight: "1.6",
-        letterSpacing: "0.02em",
+          color: message.role === "user" ? "#E2E8F0" : "#CBD5E1",
+          fontFamily: "system-ui, -apple-system, sans-serif",
+          fontSize: "14px",
+          lineHeight: "1.6",
+          letterSpacing: "0.02em",
           "& code": {
             backgroundColor: "rgba(10, 15, 30, 0.6)",
             padding: "2px 6px",
@@ -294,6 +282,7 @@ const MessageComponent = ({ message }: { message: Message }) => {
               color: "inherit",
               fontSize: "inherit",
               lineHeight: "inherit",
+              whiteSpace: "pre-wrap",
             }}
           >
             {message.content}
@@ -319,6 +308,8 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   const messageEndProcessed = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef(0);
+  const maxRetries = 3;
   // Immediate scroll without debouncing
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -403,20 +394,33 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
-      }
-
-      // Clear any retry timeout
+      }      // Clear any retry timeout
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
       }
+      
+      // Reset retry count
+      retryCountRef.current = 0;
+      
+      // Add retry logic for EventSource connection
+      const createEventSource = () => {
+        try {
+          const eventSource = new EventSource(`/api/stream?sessionId=${sessionId}`);
+          eventSourceRef.current = eventSource;
+          return eventSource;
+        } catch (error) {
+          console.error('[Chat] Failed to create EventSource:', error);
+          throw error;
+        }
+      };
 
-      const eventSource = new EventSource(`/api/stream?sessionId=${sessionId}`);
-      eventSourceRef.current = eventSource;
+      const eventSource = createEventSource();
 
       eventSource.onopen = () => {
         console.log("[Chat] EventSource connected");
         setStreamError(null);
+        retryCountRef.current = 0; // Reset retry count on successful connection
       };
 
       eventSource.onmessage = (event) => {
@@ -536,11 +540,19 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
       };
 
       eventSource.onerror = (error) => {
-        console.error("[Chat] EventSource error:", {
+        // Get more detailed error information
+        const errorDetails = {
           readyState: eventSource.readyState,
           url: eventSource.url,
-          error: error,
-        });
+          type: error.type || 'unknown',
+          target: error.target ? {
+            readyState: (error.target as EventSource).readyState,
+            url: (error.target as EventSource).url
+          } : null,
+          timestamp: new Date().toISOString()
+        };
+        
+        console.error("[Chat] EventSource error:", errorDetails);
 
         // Handle different ready states
         if (eventSource.readyState === EventSource.CONNECTING) {
@@ -548,24 +560,52 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           return; // Let it try to reconnect
         }
 
-        if (eventSource.readyState === EventSource.CLOSED) {
-          console.log("[Chat] EventSource connection closed");
-          setStreamError(
-            "Connection lost. Please try sending your message again.",
-          );
-        }
-
-        setIsLoading(false);
+        // Close the current connection
         eventSource.close();
         eventSourceRef.current = null;
 
-        // Add user-friendly error message
-        const errorMessage: Message = {
-          id: `connection-error-${Date.now()}`,
-          role: "assistant",
-          content: `🔌 **Connection Error:** The stream connection was lost. Please try sending your message again.`,
-        };
-        addMessageWithDuplicateCheck(errorMessage);
+        // Attempt retry if under max retries
+        if (retryCountRef.current < maxRetries) {
+          retryCountRef.current++;
+          console.log(`[Chat] Retrying connection (${retryCountRef.current}/${maxRetries})...`);
+          
+          setStreamError(`Connection interrupted. Retrying... (${retryCountRef.current}/${maxRetries})`);
+          
+          // Retry after a short delay
+          retryTimeoutRef.current = setTimeout(() => {
+            try {
+              const newEventSource = createEventSource();
+              // Re-attach all the event handlers
+              newEventSource.onopen = eventSource.onopen;
+              newEventSource.onmessage = eventSource.onmessage;
+              newEventSource.onerror = eventSource.onerror;
+            } catch (retryError) {
+              console.error('[Chat] Retry failed:', retryError);
+              handleFinalError();
+            }
+          }, 1000 * retryCountRef.current); // Exponential backoff
+        } else {
+          handleFinalError();
+        }
+        
+        function handleFinalError() {
+          setIsLoading(false);
+          
+          if (eventSource.readyState === EventSource.CLOSED) {
+            setStreamError("Connection lost. Please try sending your message again.");
+          } else {
+            const errorMsg = `Stream error (state: ${eventSource.readyState}). Please try again.`;
+            setStreamError(errorMsg);
+          }
+
+          // Add user-friendly error message
+          const errorMessage: Message = {
+            id: `connection-error-${Date.now()}`,
+            role: "assistant",
+            content: `🔌 **Connection Error:** The stream connection was lost after ${maxRetries} retries. Please try sending your message again.`,
+          };
+          addMessageWithDuplicateCheck(errorMessage);
+        }
       };
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -1062,7 +1102,14 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         <div className="cyber-floating-orbs" />
         <div className="cyber-floating-orbs" />
         <div className="cyber-floating-orbs" />
-        <Box style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: "100%" }}>
+        <Box
+          style={{
+            position: "relative",
+            zIndex: 1,
+            width: "100%",
+            maxWidth: "100%",
+          }}
+        >
           <Stack gap="md" style={{ width: "100%", maxWidth: "100%" }}>
             {filteredMessages.map((message) => (
               <MessageComponent key={message.id} message={message} />
@@ -1147,11 +1194,11 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyPress}
-          placeholder={
-            apiKey
-              ? "Ask me to find coffee shops, events, or help with coding"
-              : "Please enter your API key to start chatting"
-          }
+            placeholder={
+              apiKey
+                ? "Ask me to find coffee shops, events, news, or help with coding"
+                : "Please enter your API key to start chatting"
+            }
             disabled={isLoading || !apiKey}
             autosize
             minRows={1}
@@ -1187,8 +1234,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
               },
             }}
           />
-
-
         </Group>
 
         {apiKey && (

@@ -10,7 +10,7 @@ import {
 } from "@codesandbox/sandpack-react";
 import { Box, Button, Group, Loader, Text } from "@mantine/core";
 import { IconReload } from "@tabler/icons-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from "react";
 
 interface BackendConfig {
   type: "local" | "remote";
@@ -24,6 +24,67 @@ interface ComponentSandboxProps {
   backendConfig: BackendConfig;
   onFileCountChange?: (count: number) => void;
   forceRestart?: boolean;
+}
+
+// Custom Error Boundary for Sandpack
+interface SandpackErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class SandpackErrorBoundary extends Component<
+  { children: ReactNode },
+  SandpackErrorBoundaryState
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): SandpackErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Sandpack Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Box
+          p="xl"
+          style={{
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+          }}
+        >
+          <div>
+            <Text c="red" size="lg" fw={500} mb="md">
+              Sandbox Error
+            </Text>
+            <Text c="dimmed" size="sm" mb="lg">
+              The sandbox encountered an error and couldn't load.
+            </Text>
+            <Button
+              onClick={() => {
+                this.setState({ hasError: false, error: undefined });
+                window.location.reload();
+              }}
+              leftSection={<IconReload size={16} />}
+            >
+              Restart Sandbox
+            </Button>
+          </div>
+        </Box>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 interface WorkspaceFile {
@@ -505,6 +566,19 @@ export default function ComponentSandbox({
       <SandpackProvider
         key={`sandbox-${sandpackKey}-${Object.keys(files).length}`} // Include file count in key for extra safety
         template="react-ts"
+        options={{
+          autorun: true,
+          recompileMode: "delayed",
+          recompileDelay: 300,
+          initMode: "lazy",
+          activeFile: files["/App.tsx"]
+            ? "/App.tsx"
+            : files["/App.jsx"]
+              ? "/App.jsx"
+              : "/index.tsx",
+          externalResources: [],
+          bundlerURL: undefined, // Use default bundler to avoid CORS issues
+        }}
         files={{
           ...files,
           // Ensure we have all required files for Sandpack react-ts template
@@ -572,34 +646,29 @@ root.render(
         }}
         customSetup={{
           dependencies: {
-            ...packageJsonDeps,
-            // Ensure React dependencies are included
-            ...(!packageJsonDeps["react"] ? { react: "^18.0.0" } : {}),
-            ...(!packageJsonDeps["react-dom"]
-              ? { "react-dom": "^18.0.0" }
-              : {}),
-            ...(!packageJsonDeps["@types/react"]
-              ? { "@types/react": "^18.0.0" }
-              : {}),
-            ...(!packageJsonDeps["@types/react-dom"]
-              ? { "@types/react-dom": "^18.0.0" }
-              : {}),
+            // Filter out problematic dependencies that can cause resolution issues
+            ...Object.fromEntries(
+              Object.entries(packageJsonDeps).filter(([key, value]) => {
+                // Remove null/undefined values
+                if (!value || value === 'null' || value === 'undefined') return false;
+                // Remove local file dependencies that can't be resolved
+                if (typeof value === 'string' && (value.startsWith('file:') || value.startsWith('link:'))) return false;
+                // Remove ConstellationFS and other problematic packages
+                if (key === 'constellationfs' || key === 'ssh2') return false;
+                return true;
+              })
+            ),
+            // Ensure React dependencies are included with specific versions
+            react: "^18.2.0",
+            "react-dom": "^18.2.0",
+            "@types/react": "^18.2.0",
+            "@types/react-dom": "^18.2.0",
           },
-        }}
-        options={{
-          autorun: true,
-          recompileMode: "delayed",
-          recompileDelay: 300,
-          initMode: "lazy",
-          activeFile: files["/App.tsx"]
-            ? "/App.tsx"
-            : files["/App.jsx"]
-              ? "/App.jsx"
-              : "/index.tsx",
         }}
         theme="dark"
       >
-        <SandpackLayout style={{ height: "100%" }}>
+        <SandpackErrorBoundary>
+          <SandpackLayout style={{ height: "100%" }}>
           <SandpackStack style={{ height: "100%" }}>
             <SandpackFileExplorer style={{ height: "30%" }} />
             <SandpackCodeEditor
@@ -610,6 +679,7 @@ root.render(
           </SandpackStack>
           <SandpackPreview style={{ height: "100%", minWidth: "75%" }} />
         </SandpackLayout>
+        </SandpackErrorBoundary>
       </SandpackProvider>
     </Box>
   );

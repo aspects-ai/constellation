@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@codebuff/sdk": "^0.1.26",
-    "@codesandbox/sandpack-react": "^2.20.0",
+    "@codesandbox/sandpack-react": "^2.19.9",
     "@emotion/react": "^11.14.0",
     "@mantine/code-highlight": "^8.2.7",
     "@mantine/core": "^8.2.7",
