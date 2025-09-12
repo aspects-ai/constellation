@@ -1,6 +1,6 @@
-import React from 'react';
-import CyberpunkSFMap from './components/CyberpunkSFMap';
-import './styles/global.css';
+import React from "react";
+import CyberpunkSFMap from "./components/CyberpunkSFMap";
+import "./styles/global.css";
 
 const App: React.FC = () => {
   return (

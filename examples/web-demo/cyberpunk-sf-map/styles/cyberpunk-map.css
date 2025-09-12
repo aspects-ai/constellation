@@ -29,14 +29,20 @@
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(90deg, transparent, #60A5FA, transparent);
+  background: linear-gradient(90deg, transparent, #60a5fa, transparent);
   animation: scanLine 3s linear infinite;
   opacity: 0.8;
 }
 
 @keyframes scanLine {
-  0% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(100vh); opacity: 0; }
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
+  }
 }
 
 /* Grid overlay */
@@ -46,7 +52,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: 
+  background-image:
     linear-gradient(rgba(139, 92, 246, 0.1) 1px, transparent 1px),
     linear-gradient(90deg, rgba(139, 92, 246, 0.1) 1px, transparent 1px);
   background-size: 50px 50px;
@@ -55,8 +61,13 @@
 }
 
 @keyframes gridPulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.1; }
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.1;
+  }
 }
 
 /* District Info Panel */
@@ -88,17 +99,17 @@
 
 .district-name {
   display: block;
-  font-family: 'Orbitron', monospace;
+  font-family: "Orbitron", monospace;
   font-size: 18px;
   font-weight: 700;
-  color: #8B5CF6;
+  color: #8b5cf6;
   text-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
   margin-bottom: 5px;
 }
 
 .original-name {
   font-size: 12px;
-  color: #60A5FA;
+  color: #60a5fa;
   opacity: 0.7;
   font-weight: 300;
 }
@@ -172,46 +183,59 @@
 .radar-sweep {
   width: 200px;
   height: 200px;
-  border: 2px solid #60A5FA;
+  border: 2px solid #60a5fa;
   border-radius: 50%;
   position: relative;
   animation: radarSpin 2s linear infinite;
 }
 
 .radar-sweep::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;
   width: 50%;
   height: 2px;
-  background: linear-gradient(90deg, #60A5FA, transparent);
+  background: linear-gradient(90deg, #60a5fa, transparent);
   transform-origin: left center;
   animation: radarSweep 2s linear infinite;
 }
 
 @keyframes radarSpin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes radarSweep {
-  0% { transform: translate(-50%, -50%) rotate(0deg); }
-  100% { transform: translate(-50%, -50%) rotate(360deg); }
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
 }
 
 .scan-text {
   margin-top: 30px;
-  font-family: 'Orbitron', monospace;
+  font-family: "Orbitron", monospace;
   font-size: 16px;
-  color: #60A5FA;
+  color: #60a5fa;
   text-shadow: 0 0 10px rgba(96, 165, 250, 0.8);
   animation: scanTextPulse 1s ease-in-out infinite;
 }
 
 @keyframes scanTextPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 /* Custom Markers */
@@ -232,12 +256,12 @@
 .marker-core {
   width: 8px;
   height: 8px;
-  background: var(--glow-color, #8B5CF6);
+  background: var(--glow-color, #8b5cf6);
   border-radius: 50%;
-  box-shadow: 
-    0 0 10px var(--glow-color, #8B5CF6),
-    0 0 20px var(--glow-color, #8B5CF6),
-    0 0 30px var(--glow-color, #8B5CF6);
+  box-shadow:
+    0 0 10px var(--glow-color, #8b5cf6),
+    0 0 20px var(--glow-color, #8b5cf6),
+    0 0 30px var(--glow-color, #8b5cf6);
   animation: markerPulse 2s ease-in-out infinite;
 }
 
@@ -245,19 +269,32 @@
   position: absolute;
   width: 20px;
   height: 20px;
-  border: 2px solid var(--glow-color, #8B5CF6);
+  border: 2px solid var(--glow-color, #8b5cf6);
   border-radius: 50%;
   animation: markerRipple 2s ease-out infinite;
 }
 
 @keyframes markerPulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.2); opacity: 0.8; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
 }
 
 @keyframes markerRipple {
-  0% { transform: scale(0.5); opacity: 1; }
-  100% { transform: scale(2); opacity: 0; }
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
 }
 
 /* Custom Popup Styling */
@@ -279,17 +316,17 @@
 }
 
 .popup-title {
-  font-family: 'Orbitron', monospace;
+  font-family: "Orbitron", monospace;
   font-size: 16px;
   font-weight: 700;
-  color: #8B5CF6;
+  color: #8b5cf6;
   text-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
   margin-bottom: 5px;
 }
 
 .popup-subtitle {
   font-size: 12px;
-  color: #60A5FA;
+  color: #60a5fa;
   opacity: 0.8;
   margin-bottom: 8px;
 }
@@ -303,11 +340,8 @@
 
 /* Map Tile Customization */
 .leaflet-tile {
-  filter: 
-    hue-rotate(240deg) 
-    saturate(1.5) 
-    brightness(0.3) 
-    contrast(1.2);
+  filter: invert(1) hue-rotate(180deg) saturate(1.5) brightness(0.9)
+    contrast(1.3);
 }
 
 /* Remove default Leaflet controls */
@@ -326,7 +360,7 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(45deg, #8B5CF6, #60A5FA);
+  background: linear-gradient(45deg, #8b5cf6, #60a5fa);
   border-radius: 4px;
 }
 

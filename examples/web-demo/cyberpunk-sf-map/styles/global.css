@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap");
 
 * {
   margin: 0;
@@ -7,7 +7,7 @@
 }
 
 body {
-  font-family: 'Rajdhani', sans-serif;
+  font-family: "Rajdhani", sans-serif;
   background: linear-gradient(135deg, #0a0a0a 0%, #1a0a2e 50%, #16213e 100%);
   color: #e0e6ff;
   overflow-x: hidden;
@@ -18,10 +18,22 @@ body {
   width: 100vw;
   height: 100vh;
   position: relative;
-  background: 
-    radial-gradient(circle at 20% 80%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 40% 40%, rgba(139, 69, 19, 0.1) 0%, transparent 50%);
+  background:
+    radial-gradient(
+      circle at 20% 80%,
+      rgba(139, 92, 246, 0.15) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 80% 20%,
+      rgba(59, 130, 246, 0.15) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 40% 40%,
+      rgba(139, 69, 19, 0.1) 0%,
+      transparent 50%
+    );
 }
 
 .app-header {
@@ -38,10 +50,10 @@ body {
 }
 
 .cyberpunk-title {
-  font-family: 'Orbitron', monospace;
+  font-family: "Orbitron", monospace;
   font-size: 24px;
   font-weight: 900;
-  color: #8B5CF6;
+  color: #8b5cf6;
   text-shadow: 0 0 10px rgba(139, 92, 246, 0.8);
   margin-bottom: 5px;
   letter-spacing: 2px;
@@ -49,7 +61,7 @@ body {
 
 .subtitle {
   font-size: 14px;
-  color: #60A5FA;
+  color: #60a5fa;
   opacity: 0.8;
   font-weight: 300;
   letter-spacing: 1px;
@@ -57,12 +69,24 @@ body {
 
 /* Cyberpunk glitch effect */
 @keyframes glitch {
-  0% { transform: translate(0); }
-  20% { transform: translate(-2px, 2px); }
-  40% { transform: translate(-2px, -2px); }
-  60% { transform: translate(2px, 2px); }
-  80% { transform: translate(2px, -2px); }
-  100% { transform: translate(0); }
+  0% {
+    transform: translate(0);
+  }
+  20% {
+    transform: translate(-2px, 2px);
+  }
+  40% {
+    transform: translate(-2px, -2px);
+  }
+  60% {
+    transform: translate(2px, 2px);
+  }
+  80% {
+    transform: translate(2px, -2px);
+  }
+  100% {
+    transform: translate(0);
+  }
 }
 
 .cyberpunk-title:hover {
