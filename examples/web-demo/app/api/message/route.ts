@@ -273,9 +273,9 @@ async function processWithCodebuff(
     const client: CodebuffClient = await getCodebuffClient(fs, apiKey);
     console.log("[CODEBUFF] ✅ Client created successfully");
 
-    // Define initial agent context
-    let currentAgentName = "Task Orchestrator";
-    let currentAgentId = "orchestrator";
+    // Define agent context
+    const baseAgentName = "Task Orchestrator";
+    const baseAgentId = "orchestrator";
 
     // Start streaming response
     console.log("[CODEBUFF] 🌊 Starting stream for session:", sessionId);
@@ -283,8 +283,8 @@ async function processWithCodebuff(
     broadcastToStream(sessionId, {
       type: "message_start",
       role: "assistant",
-      agentName: currentAgentName,
-      agentId: currentAgentId,
+      agentName: baseAgentName,
+      agentId: baseAgentId,
     });
 
     // Use orchestrator as master coordinator
@@ -316,20 +316,7 @@ async function processWithCodebuff(
       "[CODEBUFF] 🔄 Previous run state present:",
       !!previousRunState,
     );
-    if (previousRunState) {
-      console.log(
-        "[CODEBUFF] 📊 Passing runState to SDK - type:",
-        typeof previousRunState,
-      );
-      console.log(
-        "[CODEBUFF] 📊 Passing runState to SDK - keys:",
-        Object.keys(previousRunState),
-      );
-      console.log(
-        "[CODEBUFF] 📊 Passing runState to SDK - sample content:",
-        JSON.stringify(previousRunState),
-      );
-    }
+
     const result = await client.run({
       agent: targetAgent,
       agentDefinitions,
@@ -338,29 +325,19 @@ async function processWithCodebuff(
       handleEvent: (event: any) => {
         console.log("[CODEBUFF] 📡 Event received:", event.type);
 
-        // Track when a new agent is spawned
-        if (event.type === "tool_call" && event.toolName === "spawn_agents") {
-          try {
-            const spawnedAgentType = event.params?.agents?.[0]?.agent_type;
-            if (spawnedAgentType) {
-              const agentDef = agentDefinitions.find(
-                (a) => a.id === spawnedAgentType,
-              );
-              if (agentDef) {
-                currentAgentName = agentDef.displayName;
-                currentAgentId = agentDef.id;
-                console.log(
-                  `[CODEBUFF] 🎯 Agent switched to: ${currentAgentName} (${currentAgentId})`,
-                );
-              }
-            }
-          } catch (e) {
-            console.error(
-              "[CODEBUFF] ⚠️ Could not determine spawned agent:",
-              e,
-            );
-          }
+        // Forward subagent lifecycle events directly
+        if (
+          event.type === "subagent_start" ||
+          event.type === "subagent_finish"
+        ) {
+          console.log(`[CODEBUFF] Forwarding ${event.type} event`, event);
+          broadcastToStream(sessionId, {
+            type: event.type,
+            agentName: event.displayName,
+            agentId: event.agentId,
+          });
         }
+
         if (event.type === "assistant_message_delta") {
           // Stream assistant message content in chunks for real-time typing
           const text = event.delta;
@@ -371,8 +348,6 @@ async function processWithCodebuff(
             broadcastToStream(sessionId, {
               type: "assistant_delta",
               text: chunk,
-              agentName: currentAgentName,
-              agentId: currentAgentId,
             });
           }
         } else if (event.type === "tool_call") {
@@ -403,8 +378,6 @@ async function processWithCodebuff(
             type: "assistant_message",
             id: uuidv4(),
             text: event.text,
-            agentName: currentAgentName,
-            agentId: currentAgentId,
           });
         }
       },

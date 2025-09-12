@@ -570,6 +570,16 @@ export default function ComponentSandbox({
             max-height: 100%;
             display: flex;
           }
+          
+          /* Hide SandpackPreview refresh and open sandbox buttons */
+          .sp-preview-actions,
+          .sp-button[title="Refresh Sandbox"],
+          .sp-button[title="Open Sandbox"],
+          .sp-button[title="Open in CodeSandbox"],
+          .sp-preview .sp-button-group,
+          .sp-preview-container .sp-button-group {
+            display: none !important;
+          }
         `}</style>
       <SandpackProvider
         key={`sandbox-${sandpackKey}-${Object.keys(files).length}`} // Include file count in key for extra safety

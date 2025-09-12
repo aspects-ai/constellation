@@ -156,6 +156,210 @@ const CyberLoadingIndicator = ({
 
 CyberLoadingIndicator.displayName = "CyberLoadingIndicator";
 
+// Agent Banner Component
+const AgentBanner = ({
+  agentName,
+  agentId,
+}: {
+  agentName: string;
+  agentId: string;
+}) => {
+  // Color coding for different agents
+  const getAgentColor = (agentId: string) => {
+    const colors: Record<
+      string,
+      { primary: string; secondary: string; accent: string }
+    > = {
+      orchestrator: {
+        primary: "#228BE6",
+        secondary: "#1C7ED6",
+        accent: "#74C0FC",
+      },
+      "react-typescript-builder": {
+        primary: "#A855F7",
+        secondary: "#9333EA",
+        accent: "#C084FC",
+      },
+      "etl-manager": {
+        primary: "#10B981",
+        secondary: "#059669",
+        accent: "#6EE7B7",
+      },
+      "extract-agent": {
+        primary: "#F59E0B",
+        secondary: "#D97706",
+        accent: "#FCD34D",
+      },
+      "transform-agent": {
+        primary: "#EF4444",
+        secondary: "#DC2626",
+        accent: "#FCA5A5",
+      },
+      "load-agent": {
+        primary: "#8B5CF6",
+        secondary: "#7C3AED",
+        accent: "#C4B5FD",
+      },
+      "file-picker": {
+        primary: "#06B6D4",
+        secondary: "#0891B2",
+        accent: "#67E8F9",
+      },
+      thinker: { primary: "#F97316", secondary: "#EA580C", accent: "#FDBA74" },
+    };
+    return (
+      colors[agentId] || {
+        primary: "#6B7280",
+        secondary: "#4B5563",
+        accent: "#9CA3AF",
+      }
+    );
+  };
+
+  const colors = getAgentColor(agentId);
+  const displayName = agentName.replace(/\s+/g, "_").toUpperCase();
+
+  return (
+    <Box
+      style={{
+        background: `linear-gradient(135deg, ${colors.primary}15 0%, ${colors.secondary}08 100%)`,
+        border: `1px solid ${colors.primary}40`,
+        borderRadius: "8px",
+        padding: "8px 16px",
+        margin: "8px 0",
+        position: "relative",
+        overflow: "hidden",
+        backdropFilter: "blur(10px)",
+      }}
+    >
+      <style>{`
+        @keyframes agent-pulse {
+          0%, 100% { opacity: 0.7; }
+          50% { opacity: 1; }
+        }
+        @keyframes agent-scan {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(300%); }
+        }
+      `}</style>
+
+      {/* Animated scan line */}
+      <Box
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "2px",
+          background: `linear-gradient(90deg, transparent, ${colors.accent}, transparent)`,
+          animation: "agent-scan 2s ease-in-out infinite",
+        }}
+      />
+
+      <Group gap="xs" align="center">
+        <Box
+          style={{
+            width: "8px",
+            height: "8px",
+            borderRadius: "50%",
+            background: `radial-gradient(circle, ${colors.primary}, ${colors.secondary})`,
+            animation: "agent-pulse 2s ease-in-out infinite",
+            boxShadow: `0 0 10px ${colors.primary}60`,
+          }}
+        />
+        <Text
+          size="xs"
+          fw={600}
+          style={{
+            color: colors.accent,
+            fontFamily: "'SF Mono', Monaco, monospace",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+          }}
+        >
+          🤖 {displayName} ACTIVE
+        </Text>
+      </Group>
+    </Box>
+  );
+};
+
+AgentBanner.displayName = "AgentBanner";
+
+// Helper functions for agent display and colors
+const getAgentDisplayName = (agentName?: string) => {
+  if (!agentName) return "CYBERBUFFY.RX";
+
+  // Map agent names to shorter display names
+  const agentDisplayMap: Record<string, string> = {
+    "Task Orchestrator": "ORCHESTRATOR.RX",
+    "React TypeScript Builder": "BUILDER.RX",
+    "ETL Manager": "ETL.RX",
+    "Extract Agent": "EXTRACT.RX",
+    "Transform Agent": "TRANSFORM.RX",
+    "Load Agent": "LOAD.RX",
+    "File Picker": "PICKER.RX",
+    Thinker: "THINKER.RX",
+  };
+
+  return (
+    agentDisplayMap[agentName] ||
+    `${agentName.toUpperCase().replace(/\s+/g, "_")}.RX`
+  );
+};
+
+const getAgentColors = (agentName?: string) => {
+  const colors: Record<string, { border: string; bg: string; text: string }> = {
+    "Task Orchestrator": {
+      border: "#228BE6",
+      bg: "rgba(34, 139, 230, 0.08)",
+      text: "#74C0FC",
+    },
+    "React TypeScript Builder": {
+      border: "#A855F7",
+      bg: "rgba(168, 85, 247, 0.08)",
+      text: "#C084FC",
+    },
+    "ETL Manager": {
+      border: "#10B981",
+      bg: "rgba(16, 185, 129, 0.08)",
+      text: "#6EE7B7",
+    },
+    "Extract Agent": {
+      border: "#F59E0B",
+      bg: "rgba(245, 158, 11, 0.08)",
+      text: "#FCD34D",
+    },
+    "Transform Agent": {
+      border: "#EF4444",
+      bg: "rgba(239, 68, 68, 0.08)",
+      text: "#FCA5A5",
+    },
+    "Load Agent": {
+      border: "#8B5CF6",
+      bg: "rgba(139, 92, 246, 0.08)",
+      text: "#C4B5FD",
+    },
+    "File Picker": {
+      border: "#06B6D4",
+      bg: "rgba(6, 182, 212, 0.08)",
+      text: "#67E8F9",
+    },
+    Thinker: {
+      border: "#F97316",
+      bg: "rgba(249, 115, 22, 0.08)",
+      text: "#FDBA74",
+    },
+  };
+  return (
+    colors[agentName || ""] || {
+      border: "#228BE6",
+      bg: "rgba(34, 139, 230, 0.08)",
+      text: "#228BE6",
+    }
+  );
+};
+
 // Message component
 const MessageComponent = ({ message }: { message: Message }) => {
   const renderToolParams = useCallback((params: any) => {
@@ -217,26 +421,8 @@ const MessageComponent = ({ message }: { message: Message }) => {
   }
 
   // Regular messages
-  const getAgentDisplayName = (agentName?: string) => {
-    if (!agentName) return "CYBERBUFFY.RX";
-
-    // Map agent names to shorter display names
-    const agentDisplayMap: Record<string, string> = {
-      "Task Orchestrator": "ORCHESTRATOR.RX",
-      "React TypeScript Builder": "BUILDER.RX",
-      "ETL Manager": "ETL.RX",
-      "Extract Agent": "EXTRACT.RX",
-      "Transform Agent": "TRANSFORM.RX",
-      "Load Agent": "LOAD.RX",
-      "File Picker": "PICKER.RX",
-      Thinker: "THINKER.RX",
-    };
-
-    return (
-      agentDisplayMap[agentName] ||
-      `${agentName.toUpperCase().replace(/\s+/g, "_")}.RX`
-    );
-  };
+  const agentColors =
+    message.role === "assistant" ? getAgentColors(message.agentName) : null;
 
   return (
     <Box
@@ -246,7 +432,9 @@ const MessageComponent = ({ message }: { message: Message }) => {
         background:
           message.role === "user"
             ? "linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%)"
-            : "linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%)",
+            : agentColors
+              ? `linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, ${agentColors.bg} 50%, rgba(15, 23, 42, 0.9) 100%)`
+              : "linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%)",
         alignSelf: message.role === "user" ? "flex-end" : "flex-start",
         maxWidth: "85%",
         minWidth: 0,
@@ -255,7 +443,11 @@ const MessageComponent = ({ message }: { message: Message }) => {
         wordBreak: "break-word",
         overflowX: "hidden",
         borderLeft:
-          message.role === "user" ? "3px solid #A855F7" : "3px solid #228BE6",
+          message.role === "user"
+            ? "3px solid #A855F7"
+            : agentColors
+              ? `3px solid ${agentColors.border}`
+              : "3px solid #228BE6",
         borderRadius: "0 8px 8px 0",
         position: "relative",
         boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
@@ -270,22 +462,6 @@ const MessageComponent = ({ message }: { message: Message }) => {
           : undefined
       }
     >
-      {message.role === "assistant" && (
-        <Box
-          style={{
-            position: "absolute",
-            top: "-18px",
-            left: "0",
-            fontSize: "10px",
-            fontFamily: "'SF Mono', Monaco, monospace",
-            color: "#228BE6",
-            letterSpacing: "0.05em",
-            opacity: 0.7,
-          }}
-        >
-          [{getAgentDisplayName(message.agentName)}]
-        </Box>
-      )}
       <Box
         style={{
           overflowWrap: "break-word",
@@ -364,8 +540,17 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   const [streamError, setStreamError] = useState<string | null>(null);
   const [loadingStage, setLoadingStage] =
     useState<string>("NEURAL LINK ACTIVE");
-  const [currentAgent, setCurrentAgent] = useState<string>("Task Orchestrator");
+
   const [runState, setRunState] = useState<any>(null);
+  const [activeAgent, setActiveAgent] = useState<{
+    name: string;
+    id: string;
+  } | null>({ name: "Task Orchestrator", id: "orchestrator" });
+
+  const activeAgentRef = useRef(activeAgent);
+  useEffect(() => {
+    activeAgentRef.current = activeAgent;
+  }, [activeAgent]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageEndProcessed = useRef(false);
@@ -544,22 +729,15 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           setCurrentResponse("");
           messageEndProcessed.current = false;
           setLoadingStage("PROCESSING QUERY");
-          if (data.agentName) {
-            setCurrentAgent(data.agentName);
-          }
         } else if (data.type === "assistant_delta") {
           setCurrentResponse((prev) => prev + data.text);
-          // Update current agent if provided
-          if (data.agentName) {
-            setCurrentAgent(data.agentName);
-          }
         } else if (data.type === "assistant_message") {
           const assistantMessage: Message = {
             id: data.id,
             role: "assistant",
             content: data.text,
-            agentName: data.agentName || currentAgent,
-            agentId: data.agentId,
+            agentName: activeAgentRef.current?.name || "Task Orchestrator",
+            agentId: activeAgentRef.current?.id || "orchestrator",
           };
           addMessageWithDuplicateCheck(assistantMessage);
         } else if (data.type === "tool_use") {
@@ -633,12 +811,17 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
                 id: data.id || Date.now().toString(),
                 role: "assistant",
                 content: currentContent,
-                agentName: currentAgent,
+                agentName: activeAgentRef.current?.name || "Task Orchestrator",
               };
               addMessageWithDuplicateCheck(newMessage);
             }
             return "";
-          });
+          });        } else if (data.type === "subagent_start") {
+          console.log("[Chat] 🚀 Subagent started:", data.agentName);
+          setActiveAgent({ name: data.agentName, id: data.agentId });
+        } else if (data.type === "agent_end" || data.type === "subagent_finish") {
+          console.log("[Chat] ⏹️ Agent ended:", data.agentName);
+          setActiveAgent({ name: "Task Orchestrator", id: "orchestrator" });
         } else if (data.type === "run_state_update") {
           console.log("[Chat] Received runState update:", !!data.runState);
           if (data.runState) {
@@ -779,6 +962,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
     apiKey,
     sessionId,
     backendConfig,
+    activeAgent,
 
     addMessageWithDuplicateCheck,
   ]);
@@ -814,7 +998,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         >
           <CyberLoadingIndicator
             message={loadingStage}
-            agentName={currentAgent}
+            agentName={activeAgent?.name || "Task Orchestrator"}
           />
         </Box>
       )}
@@ -831,6 +1015,19 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           <Text size="sm" style={{ color: "#F87171" }}>
             ⚠️ Connection Error: {streamError}
           </Text>
+        </Box>
+      )}
+
+      {/* Active Agent Banner */}
+      {activeAgent && activeAgent.id !== "orchestrator" && (
+        <Box
+          p="sm"
+          style={{
+            borderBottom: "1px solid rgba(34, 139, 230, 0.1)",
+            background: "rgba(15, 23, 42, 0.8)",
+          }}
+        >
+          <AgentBanner agentName={activeAgent.name} agentId={activeAgent.id} />
         </Box>
       )}
 
@@ -1151,17 +1348,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           opacity: 0.7;
         }
 
-        .assistant-message::before {
-          position: absolute;
-          top: -18px;
-          left: 0;
-          font-size: 10px;
-          font-family: 'SF Mono', Monaco, monospace;
-          color: #228BE6;
-          letter-spacing: 0.05em;
-          opacity: 0.7;
-        }
-
         .user-message::after,
         .assistant-message::after {
           content: '';
@@ -1264,75 +1450,94 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         >
           <Stack gap="md" style={{ width: "100%", maxWidth: "100%" }}>
             {filteredMessages.map((message) => (
-              <MessageComponent key={message.id} message={message} />
+              <Box key={message.id}>
+                {message.role === "assistant" && (
+                  <Text
+                    size="xs"
+                    style={{
+                      fontFamily: "'SF Mono', Monaco, monospace",
+                      color:
+                        getAgentColors(message.agentName)?.text || "#228BE6",
+                      letterSpacing: "0.05em",
+                      opacity: 0.7,
+                      marginBottom: "4px",
+                      marginLeft: "0px",
+                    }}
+                  >
+                    [{getAgentDisplayName(message.agentName)}]
+                  </Text>
+                )}
+                <MessageComponent message={message} />
+              </Box>
             ))}
 
             {/* Show streaming response with enhanced typing indicator */}
             {isLoading && currentResponse && (
-              <Box
-                className="assistant-message typing-message"
-                p="lg"
-                data-agent-name={currentAgent}
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%)",
-                  alignSelf: "flex-start",
-                  maxWidth: "85%",
-                  minWidth: 0,
-                  width: "fit-content",
-                  overflowWrap: "break-word",
-                  wordBreak: "break-word",
-                  overflowX: "hidden",
-                  borderLeft: "3px solid #228BE6",
-                  borderRadius: "0 8px 8px 0",
-                  position: "relative",
-                  boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
-                  clipPath:
-                    "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)",
-                  marginTop: "20px",
-                  borderRight: "1px solid rgba(34, 139, 230, 0.2)",
-                  animation: "pulse-glow 2s ease-in-out infinite",
-                }}
-              >
-                <Box
+              <Box>
+                <Text
+                  size="xs"
                   style={{
-                    position: "absolute",
-                    top: "-18px",
-                    left: "0",
-                    fontSize: "10px",
                     fontFamily: "'SF Mono', Monaco, monospace",
-                    color: "#228BE6",
+                    color: getAgentColors(activeAgent?.name)?.text || "#228BE6",
                     letterSpacing: "0.05em",
                     opacity: 0.7,
+                    marginBottom: "4px",
+                    marginLeft: "0px",
                   }}
                 >
-                  [{currentAgent}]
+                  [{getAgentDisplayName(activeAgent?.name)}]
+                </Text>
+                <Box
+                  className="assistant-message typing-message"
+                  p="lg"
+                  data-agent-name={activeAgent?.name}
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%)",
+                    alignSelf: "flex-start",
+                    maxWidth: "85%",
+                    minWidth: 0,
+                    width: "fit-content",
+                    overflowWrap: "break-word",
+                    wordBreak: "break-word",
+                    overflowX: "hidden",
+                    borderLeft: "3px solid #228BE6",
+                    borderRadius: "0 8px 8px 0",
+                    position: "relative",
+                    boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
+                    clipPath:
+                      "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)",
+                    marginTop: "20px",
+                    borderRight: "1px solid rgba(34, 139, 230, 0.2)",
+                    animation: "pulse-glow 2s ease-in-out infinite",
+                  }}
+                >
+                  <Group gap="xs" align="flex-start">
+                    <Box
+                      flex={1}
+                      style={{
+                        minWidth: 0,
+                        maxWidth: "100%",
+                        width: "100%",
+                        overflowWrap: "break-word",
+                        wordBreak: "break-word",
+                        overflowX: "hidden",
+                        color: "#CBD5E1",
+                        fontFamily: "system-ui, -apple-system, sans-serif",
+                        fontSize: "14px",
+                        lineHeight: "1.6",
+                        letterSpacing: "0.02em",
+                      }}
+                    >
+                      <ReactMarkdown>{currentResponse}</ReactMarkdown>
+                    </Box>
+                    <div className="typing-indicator">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                  </Group>
                 </Box>
-                <Group gap="xs" align="flex-start">
-                  <Box
-                    flex={1}
-                    style={{
-                      minWidth: 0,
-                      maxWidth: "100%",
-                      width: "100%",
-                      overflowWrap: "break-word",
-                      wordBreak: "break-word",
-                      overflowX: "hidden",
-                      color: "#CBD5E1",
-                      fontFamily: "system-ui, -apple-system, sans-serif",
-                      fontSize: "14px",
-                      lineHeight: "1.6",
-                      letterSpacing: "0.02em",
-                    }}
-                  >
-                    <ReactMarkdown>{currentResponse}</ReactMarkdown>
-                  </Box>
-                  <div className="typing-indicator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                </Group>
               </Box>
             )}
             <div ref={messagesEndRef} />
