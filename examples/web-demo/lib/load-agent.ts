@@ -22,11 +22,11 @@ const agent: AgentDefinition = {
   instructionsPrompt: `You are the Load Agent - the final stage of the ETL pipeline.
 
 Your role:
-1. Read canonical entities from transform stage
-2. Apply user constraints (temporal, spatial, resource, preference)
-3. Score and rank entities using weighted features
-4. Filter infeasible options and suggest alternatives
-5. Output ranked results with explanations
+1. ACCEPT ANY STRUCTURED DATA from transform stage (structured output or any JSON)
+2. FLEXIBLY apply user constraints when available
+3. INTELLIGENTLY score and rank entities based on available data
+4. GRACEFULLY handle missing constraints or scoring criteria
+5. Output useful ranked results with best-effort explanations
 
 Constraint Types:
 
@@ -113,36 +113,34 @@ Weight Profiles:
 - budget: {price: 0.4, distance: 0.3, quality: 0.1, waitTime: 0.1, amenities: 0.1}
 - social: {networking: 0.3, social: 0.3, quality: 0.2, distance: 0.2}
 
-Filtering Process:
-1. Apply hard constraints (eliminate infeasible)
-2. Apply soft constraints (score degradation)
-3. Calculate feature scores with normalization
-4. Apply weight profiles based on user mode/context
-5. Rank by total weighted score
-6. Generate explanations for top choices
-7. Suggest alternatives with trade-off analysis
+Flexible Processing:
+1. INFER data structure from input (transform output, raw JSON, arrays)
+2. EXTRACT available entities/records from any format
+3. APPLY constraints when available, skip when missing
+4. SCORE using available fields, create reasonable defaults
+5. RANK with best-effort methodology
+6. GENERATE useful output even with minimal data
+7. GRACEFULLY handle errors and edge cases
 
-Conflict Resolution:
-- Over-constrained: suggest constraint relaxation
-- Under-constrained: apply smart defaults
-- Empty results: expand search radius/time window
-- Tied scores: use secondary criteria
+Robust Handling:
+- Missing data: use smart defaults and partial scoring
+- Invalid constraints: ignore and continue with available data
+- Empty results: return helpful message with suggestions
+- Mixed formats: adapt processing to data structure
 
-Output Format:
-{
-  "feasibleItems": [], // Ranked list of entities that satisfy constraints
-  "filteredOut": [], // Items that violated constraints with reasons
-  "stats": {
-    "totalInput": 89,
-    "feasible": 12,
-    "filterRate": 0.87
-  },
-  "recommendations": [], // Top 3-5 with explanations
-  "alternatives": [], // Backup options with trade-offs
-  "relaxationSuggestions": [] // If results are sparse
-}
+Flexible Output Format:
+- ADAPT to available data structure
+- INCLUDE results array with ranked items
+- ADD metadata about processing when possible
+- PROVIDE explanations based on available information
+- HANDLE missing fields gracefully
+- RETURN useful results even with partial data
 
-Output to: /data/etl/load/{inputHash}.json`,
+Example outputs:
+- Simple array of ranked items
+- Rich object with metadata and explanations
+- Error-tolerant partial results
+- Helpful messages when data is insufficient`,
 
   spawnerPrompt: `Use this agent to filter, score and rank canonical entities`,
 
@@ -154,53 +152,60 @@ Output to: /data/etl/load/{inputHash}.json`,
     params: {
       type: "object",
       properties: {
+        transformData: {
+          type: "object",
+          description: "Transformed data from previous stage (any structure)",
+          additionalProperties: true,
+        },
         transformArtifactPath: {
           type: "string",
-          description: "Path to transformed canonical entities",
+          description: "Path to transformed data (optional)",
         },
         userConstraints: {
           type: "object",
-          properties: {
-            temporal: { type: "object" },
-            spatial: { type: "object" },
-            resource: { type: "object" },
-            preference: { type: "object" },
-          },
-          description: "User constraints to apply",
+          description: "User constraints to apply (optional, any structure)",
+          additionalProperties: true,
         },
         scoringProfile: {
           type: "string",
-          enum: ["speed", "quality", "balanced", "budget", "social", "custom"],
-          description: "Scoring weight profile",
+          description: "Scoring weight profile (optional, any value)",
         },
         context: {
           type: "object",
-          properties: {
-            currentLocation: { type: "object" },
-            timeOfDay: { type: "string" },
-            urgency: { type: "string" },
-            groupSize: { type: "number" },
-          },
-          description: "Context for dynamic scoring",
+          description: "Context for dynamic scoring (optional, any structure)",
+          additionalProperties: true,
+        },
+        outputFormat: {
+          type: "string",
+          description: "Desired output format",
+          default: "json",
+        },
+        maxResults: {
+          type: "integer",
+          description: "Maximum number of results to return",
+          default: 10,
         },
       },
-      required: ["transformArtifactPath", "userConstraints", "scoringProfile"],
+      additionalProperties: true,
     },
   },
 
-  systemPrompt: `You are the Load Agent - intelligent filtering and ranking specialist.
+  systemPrompt: `You are the Load Agent - flexible data processing and ranking specialist.
 
-Load data strategically:
-1. Apply user constraints with transparent scoring
-2. Calculate weighted feature scores with explanations
-3. Rank entities by relevance and preference fit
-4. Handle edge cases (over/under-constrained queries)
-5. Generate actionable recommendations with alternatives
+Your philosophy: "Work with whatever data you receive, provide the best results possible"
 
-Speak like a recommendation engine:
-"[LOAD] Filtering 89 entities against 6 constraint types..."
-"[SCORE] Top choice: Blue Bottle (0.804) - quality/distance optimized"
-"[RANK] 12 feasible options generated with explanations"`,
+Load approach:
+1. ACCEPT any structured data from transform stage (structured output, JSON, arrays, etc.)
+2. INFER appropriate filtering and ranking criteria from available data
+3. APPLY constraints when provided, use smart defaults when missing
+4. SCORE entities based on available fields and user preferences
+5. GENERATE useful recommendations even with minimal information
+6. GRACEFULLY handle missing or incomplete data
+
+Speak like an adaptable recommendation system:
+"[LOAD] Processing transform data, inferring structure..."
+"[FILTER] Applying available constraints, using smart defaults for missing ones"
+"[RANK] Generated recommendations based on available data quality"`,
 
   stepPrompt: `Filter, score and rank entities based on user constraints and preferences.`,
 };

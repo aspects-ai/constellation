@@ -90,8 +90,9 @@ export default function Home() {
 
     // Keyboard shortcut handler
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd+K or Ctrl+K to toggle tabs
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      // F2 to toggle tabs
+      console.log(e.key);
+      if (e.key === "F2") {
         e.preventDefault();
         setShowTabs((prev) => !prev);
       }
@@ -685,12 +686,7 @@ export default function Home() {
                         color: "rgba(148, 163, 184, 0.6)",
                       }}
                     >
-                      [
-                      {typeof window !== "undefined" &&
-                      navigator.platform.includes("Mac")
-                        ? "⌘"
-                        : "CTRL"}
-                      +K] TABS
+                      [F2] TABS
                     </Text>
                     {sandboxFileCount > 0 && (
                       <Text

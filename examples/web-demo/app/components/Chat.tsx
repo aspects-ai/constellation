@@ -129,15 +129,15 @@ const CyberLoadingIndicator = ({
       <Box style={{ flex: 1 }}>
         <Text className="cyber-loading-text">{message}</Text>
         {agentName && (
-          <Text 
-            size="xs" 
-            style={{ 
-              color: "#A855F7", 
+          <Text
+            size="xs"
+            style={{
+              color: "#A855F7",
               fontFamily: "'SF Mono', Monaco, monospace",
               fontSize: "10px",
               opacity: 0.8,
               letterSpacing: "0.05em",
-              marginTop: "2px"
+              marginTop: "2px",
             }}
           >
             AGENT: {agentName.toUpperCase()}
@@ -219,7 +219,7 @@ const MessageComponent = ({ message }: { message: Message }) => {
   // Regular messages
   const getAgentDisplayName = (agentName?: string) => {
     if (!agentName) return "CYBERBUFFY.RX";
-    
+
     // Map agent names to shorter display names
     const agentDisplayMap: Record<string, string> = {
       "Task Orchestrator": "ORCHESTRATOR.RX",
@@ -229,10 +229,13 @@ const MessageComponent = ({ message }: { message: Message }) => {
       "Transform Agent": "TRANSFORM.RX",
       "Load Agent": "LOAD.RX",
       "File Picker": "PICKER.RX",
-      "Thinker": "THINKER.RX",
+      Thinker: "THINKER.RX",
     };
-    
-    return agentDisplayMap[agentName] || `${agentName.toUpperCase().replace(/\s+/g, '_')}.RX`;
+
+    return (
+      agentDisplayMap[agentName] ||
+      `${agentName.toUpperCase().replace(/\s+/g, "_")}.RX`
+    );
   };
 
   return (
@@ -261,7 +264,11 @@ const MessageComponent = ({ message }: { message: Message }) => {
             ? "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)"
             : "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)",
       }}
-      data-agent-name={message.role === "assistant" ? getAgentDisplayName(message.agentName) : undefined}
+      data-agent-name={
+        message.role === "assistant"
+          ? getAgentDisplayName(message.agentName)
+          : undefined
+      }
     >
       {message.role === "assistant" && (
         <Box
@@ -797,7 +804,10 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
             background: "rgba(15, 23, 42, 0.8)",
           }}
         >
-          <CyberLoadingIndicator message={loadingStage} agentName={currentAgent} />
+          <CyberLoadingIndicator
+            message={loadingStage}
+            agentName={currentAgent}
+          />
         </Box>
       )}
 
@@ -1254,7 +1264,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
               <Box
                 className="assistant-message typing-message"
                 p="lg"
-                data-agent-name={getAgentDisplayName(currentAgent)}
+                data-agent-name={currentAgent}
                 style={{
                   background:
                     "linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%)",

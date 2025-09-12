@@ -15,7 +15,7 @@ const agent: AgentDefinition = {
   outputMode: "last_message",
   includeMessageHistory: false,
 
-  toolNames: ["web_search", "write_file", "read_files", "end_turn"],
+  toolNames: ["web_search", "end_turn"],
 
   spawnableAgents: [],
 
@@ -26,38 +26,6 @@ Your role:
 2. Handle pagination, rate limits, and retries
 3. Output raw artifacts with rich metadata
 4. Support incremental extraction with caching
-
-Artifact Envelope Format:
-{
-  "data": [], // Raw payloads from sources
-  "meta": {
-    "schemaVersion": "1.0",
-    "createdAt": "2024-01-15T08:30:00Z",
-    "inputHash": "abc123",
-    "sources": ["yelp", "google", "meetup"],
-    "provenance": [
-      {
-        "source": "web_search",
-        "query": "SF coffee shops SOMA",
-        "url": "search-url",
-        "timestamp": "2024-01-15T08:30:00Z",
-        "confidence": 0.8
-      }
-    ],
-    "coverage": 0.85, // How complete the extraction is
-    "rateLimitInfo": {
-      "remaining": 45,
-      "resetAt": "2024-01-15T09:00:00Z"
-    },
-    "stats": {
-      "totalResults": 127,
-      "uniqueEntities": 89,
-      "duplicatesFound": 38
-    },
-    "warnings": ["Some results may be stale"]
-  },
-  "path": "/data/etl/extract/abc123.json"
-}
 
 Extraction Strategies by Domain:
 
@@ -87,7 +55,8 @@ Error Handling:
 - Source rotation: if one source fails, try alternatives
 - Rate limit respect: pause when limits hit
 
-Output to: /data/etl/extract/{inputHash}.json`,
+Don't worry about the output format - just make sure all the data is well-represented.
+`,
 
   spawnerPrompt: `Use this agent to extract raw data from web sources`,
 
@@ -98,36 +67,10 @@ Output to: /data/etl/extract/{inputHash}.json`,
     },
     params: {
       type: "object",
-      properties: {
-        domain: {
-          type: "string",
-          enum: ["places", "events", "projects"],
-          description: "Data domain to extract",
-        },
-        location: {
-          type: "string",
-          description: 'Geographic focus (e.g., "San Francisco", "SOMA")',
-        },
-        timeWindow: {
-          type: "object",
-          properties: {
-            start: { type: "string" },
-            end: { type: "string" },
-          },
-          description: "Time range for events/opportunities",
-        },
-        sources: {
-          type: "array",
-          items: { type: "string" },
-          description: "Preferred data sources",
-        },
-        queries: {
-          type: "array",
-          items: { type: "string" },
-          description: "Specific search queries to execute",
-        },
+      domain: {
+        type: "string",
+        description: "Data domain for schema selection",
       },
-      required: ["domain", "location"],
     },
   },
 
