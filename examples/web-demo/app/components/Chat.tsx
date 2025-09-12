@@ -22,6 +22,8 @@ interface Message {
   toolName?: string;
   params?: any;
   output?: any;
+  agentName?: string;
+  agentId?: string;
 }
 
 interface BackendConfig {
@@ -111,8 +113,10 @@ ToolOutput.displayName = "ToolOutput";
 // Cyberpunk Loading Indicator Component
 const CyberLoadingIndicator = ({
   message = "PROCESSING",
+  agentName,
 }: {
   message?: string;
+  agentName?: string;
 }) => {
   return (
     <Box className="cyber-loading-container">
@@ -124,6 +128,21 @@ const CyberLoadingIndicator = ({
 
       <Box style={{ flex: 1 }}>
         <Text className="cyber-loading-text">{message}</Text>
+        {agentName && (
+          <Text 
+            size="xs" 
+            style={{ 
+              color: "#A855F7", 
+              fontFamily: "'SF Mono', Monaco, monospace",
+              fontSize: "10px",
+              opacity: 0.8,
+              letterSpacing: "0.05em",
+              marginTop: "2px"
+            }}
+          >
+            AGENT: {agentName.toUpperCase()}
+          </Text>
+        )}
         <Box mt="xs" className="cyber-loading-dots">
           <div className="cyber-loading-dot" />
           <div className="cyber-loading-dot" />
@@ -198,6 +217,24 @@ const MessageComponent = ({ message }: { message: Message }) => {
   }
 
   // Regular messages
+  const getAgentDisplayName = (agentName?: string) => {
+    if (!agentName) return "CYBERBUFFY.RX";
+    
+    // Map agent names to shorter display names
+    const agentDisplayMap: Record<string, string> = {
+      "Task Orchestrator": "ORCHESTRATOR.RX",
+      "React TypeScript Builder": "BUILDER.RX",
+      "ETL Manager": "ETL.RX",
+      "Extract Agent": "EXTRACT.RX",
+      "Transform Agent": "TRANSFORM.RX",
+      "Load Agent": "LOAD.RX",
+      "File Picker": "PICKER.RX",
+      "Thinker": "THINKER.RX",
+    };
+    
+    return agentDisplayMap[agentName] || `${agentName.toUpperCase().replace(/\s+/g, '_')}.RX`;
+  };
+
   return (
     <Box
       className={message.role === "user" ? "user-message" : "assistant-message"}
@@ -224,7 +261,24 @@ const MessageComponent = ({ message }: { message: Message }) => {
             ? "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)"
             : "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)",
       }}
+      data-agent-name={message.role === "assistant" ? getAgentDisplayName(message.agentName) : undefined}
     >
+      {message.role === "assistant" && (
+        <Box
+          style={{
+            position: "absolute",
+            top: "-18px",
+            left: "0",
+            fontSize: "10px",
+            fontFamily: "'SF Mono', Monaco, monospace",
+            color: "#228BE6",
+            letterSpacing: "0.05em",
+            opacity: 0.7,
+          }}
+        >
+          [{getAgentDisplayName(message.agentName)}]
+        </Box>
+      )}
       <Box
         style={{
           overflowWrap: "break-word",
@@ -303,6 +357,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   const [streamError, setStreamError] = useState<string | null>(null);
   const [loadingStage, setLoadingStage] =
     useState<string>("NEURAL LINK ACTIVE");
+  const [currentAgent, setCurrentAgent] = useState<string>("Task Orchestrator");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageEndProcessed = useRef(false);
@@ -480,13 +535,22 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           setCurrentResponse("");
           messageEndProcessed.current = false;
           setLoadingStage("PROCESSING QUERY");
+          if (data.agentName) {
+            setCurrentAgent(data.agentName);
+          }
         } else if (data.type === "assistant_delta") {
           setCurrentResponse((prev) => prev + data.text);
+          // Update current agent if provided
+          if (data.agentName) {
+            setCurrentAgent(data.agentName);
+          }
         } else if (data.type === "assistant_message") {
           const assistantMessage: Message = {
             id: data.id,
             role: "assistant",
             content: data.text,
+            agentName: data.agentName || currentAgent,
+            agentId: data.agentId,
           };
           addMessageWithDuplicateCheck(assistantMessage);
         } else if (data.type === "tool_use") {
@@ -560,6 +624,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
                 id: data.id || Date.now().toString(),
                 role: "assistant",
                 content: currentContent,
+                agentName: currentAgent,
               };
               addMessageWithDuplicateCheck(newMessage);
             }
@@ -732,7 +797,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
             background: "rgba(15, 23, 42, 0.8)",
           }}
         >
-          <CyberLoadingIndicator message={loadingStage} />
+          <CyberLoadingIndicator message={loadingStage} agentName={currentAgent} />
         </Box>
       )}
 
@@ -1069,7 +1134,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         }
 
         .assistant-message::before {
-          content: '[CYBERBUFFY.RX]';
           position: absolute;
           top: -18px;
           left: 0;
@@ -1122,7 +1186,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         }
 
         .typing-message::before {
-          content: '[CYBERBUFFY.STREAMING]';
           animation: blink 1s infinite;
         }
 
@@ -1191,6 +1254,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
               <Box
                 className="assistant-message typing-message"
                 p="lg"
+                data-agent-name={getAgentDisplayName(currentAgent)}
                 style={{
                   background:
                     "linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%)",
@@ -1212,6 +1276,20 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
                   animation: "pulse-glow 2s ease-in-out infinite",
                 }}
               >
+                <Box
+                  style={{
+                    position: "absolute",
+                    top: "-18px",
+                    left: "0",
+                    fontSize: "10px",
+                    fontFamily: "'SF Mono', Monaco, monospace",
+                    color: "#228BE6",
+                    letterSpacing: "0.05em",
+                    opacity: 0.7,
+                  }}
+                >
+                  [{getAgentDisplayName(currentAgent)}]
+                </Box>
                 <Group gap="xs" align="flex-start">
                   <Box
                     flex={1}

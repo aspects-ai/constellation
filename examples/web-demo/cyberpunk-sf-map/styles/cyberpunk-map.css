@@ -1,0 +1,335 @@
+.cyberpunk-map-container {
+  width: 100%;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+.cyberpunk-map {
+  width: 100%;
+  height: 100%;
+  background: #000 !important;
+}
+
+/* HUD Overlay Effects */
+.hud-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 500;
+}
+
+/* Scanning line effect */
+.scan-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #60A5FA, transparent);
+  animation: scanLine 3s linear infinite;
+  opacity: 0.8;
+}
+
+@keyframes scanLine {
+  0% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+/* Grid overlay */
+.grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(139, 92, 246, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139, 92, 246, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+  opacity: 0.3;
+  animation: gridPulse 4s ease-in-out infinite;
+}
+
+@keyframes gridPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.1; }
+}
+
+/* District Info Panel */
+.district-panel {
+  position: absolute;
+  top: 120px;
+  right: 20px;
+  width: 320px;
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid rgba(139, 92, 246, 0.5);
+  border-radius: 8px;
+  padding: 20px;
+  transform: translateX(100%);
+  transition: transform 0.3s ease-in-out;
+  backdrop-filter: blur(15px);
+  box-shadow: 0 0 30px rgba(139, 92, 246, 0.2);
+  pointer-events: auto;
+}
+
+.district-panel.active {
+  transform: translateX(0);
+}
+
+.panel-header {
+  margin-bottom: 15px;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+  padding-bottom: 10px;
+}
+
+.district-name {
+  display: block;
+  font-family: 'Orbitron', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: #8B5CF6;
+  text-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
+  margin-bottom: 5px;
+}
+
+.original-name {
+  font-size: 12px;
+  color: #60A5FA;
+  opacity: 0.7;
+  font-weight: 300;
+}
+
+.district-description {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #e0e6ff;
+  margin-bottom: 15px;
+  font-style: italic;
+}
+
+.status-indicators {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.status-item .label {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.status-item .value {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-shadow: 0 0 5px currentColor;
+}
+
+.status-item .value.high {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.status-item .value.medium {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.2);
+}
+
+.status-item .value.active {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.2);
+}
+
+/* Scanning Overlay */
+.scanning-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 600;
+}
+
+.radar-sweep {
+  width: 200px;
+  height: 200px;
+  border: 2px solid #60A5FA;
+  border-radius: 50%;
+  position: relative;
+  animation: radarSpin 2s linear infinite;
+}
+
+.radar-sweep::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 50%;
+  height: 2px;
+  background: linear-gradient(90deg, #60A5FA, transparent);
+  transform-origin: left center;
+  animation: radarSweep 2s linear infinite;
+}
+
+@keyframes radarSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes radarSweep {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.scan-text {
+  margin-top: 30px;
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  color: #60A5FA;
+  text-shadow: 0 0 10px rgba(96, 165, 250, 0.8);
+  animation: scanTextPulse 1s ease-in-out infinite;
+}
+
+@keyframes scanTextPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Custom Markers */
+.cyberpunk-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.marker-glow {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.marker-core {
+  width: 8px;
+  height: 8px;
+  background: var(--glow-color, #8B5CF6);
+  border-radius: 50%;
+  box-shadow: 
+    0 0 10px var(--glow-color, #8B5CF6),
+    0 0 20px var(--glow-color, #8B5CF6),
+    0 0 30px var(--glow-color, #8B5CF6);
+  animation: markerPulse 2s ease-in-out infinite;
+}
+
+.marker-pulse {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--glow-color, #8B5CF6);
+  border-radius: 50%;
+  animation: markerRipple 2s ease-out infinite;
+}
+
+@keyframes markerPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
+
+@keyframes markerRipple {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+/* Custom Popup Styling */
+.leaflet-popup-content-wrapper {
+  background: rgba(0, 0, 0, 0.9) !important;
+  border: 1px solid rgba(139, 92, 246, 0.5) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.3) !important;
+  backdrop-filter: blur(10px);
+}
+
+.leaflet-popup-tip {
+  background: rgba(0, 0, 0, 0.9) !important;
+  border: 1px solid rgba(139, 92, 246, 0.5) !important;
+}
+
+.popup-content {
+  padding: 5px;
+}
+
+.popup-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: #8B5CF6;
+  text-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
+  margin-bottom: 5px;
+}
+
+.popup-subtitle {
+  font-size: 12px;
+  color: #60A5FA;
+  opacity: 0.8;
+  margin-bottom: 8px;
+}
+
+.popup-description {
+  font-size: 13px;
+  color: #e0e6ff;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+/* Map Tile Customization */
+.leaflet-tile {
+  filter: 
+    hue-rotate(240deg) 
+    saturate(1.5) 
+    brightness(0.3) 
+    contrast(1.2);
+}
+
+/* Remove default Leaflet controls */
+.leaflet-control-zoom,
+.leaflet-control-attribution {
+  display: none !important;
+}
+
+/* Cyberpunk scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, #8B5CF6, #60A5FA);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(45deg, #a855f7, #3b82f6);
+}

@@ -1,57 +1,88 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cyberpunk SF Neural Map</title>
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      
-      body {
-        background: #000;
-        color: #60a5fa;
-        font-family: 'Courier New', monospace;
-        overflow: hidden;
-      }
-      
-      #root {
-        height: 100vh;
-        width: 100vw;
-      }
-      
-      /* Loading animation */
-      .loading {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100vh;
-        background: linear-gradient(135deg, #0a0a0a 0%, #1a0f2e 50%, #0f1419 100%);
-        color: #a855f7;
-        font-family: 'Courier New', monospace;
-        font-size: 14px;
-        text-shadow: 0 0 10px #a855f7;
-      }
-      
-      .loading::after {
-        content: '...';
-        animation: dots 1.5s infinite;
-      }
-      
-      @keyframes dots {
-        0%, 20% { content: '.'; }
-        40% { content: '..'; }
-        60%, 100% { content: '...'; }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="root">
-      <div class="loading">INITIALIZING NEURAL MAP</div>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>San Francisco 2077 - Neural Interface Map</title>
+  <meta name="description" content="Cyberpunk-style interactive map of San Francisco with dark aesthetics and neon highlights">
+  <style>
+    #root {
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    
+    /* Loading screen */
+    .loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a0a2e 50%, #16213e 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      color: #8B5CF6;
+      font-family: 'Orbitron', monospace;
+    }
+    
+    .loading-text {
+      font-size: 24px;
+      margin-bottom: 20px;
+      text-shadow: 0 0 10px rgba(139, 92, 246, 0.8);
+    }
+    
+    .loading-bar {
+      width: 300px;
+      height: 4px;
+      background: rgba(139, 92, 246, 0.2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    
+    .loading-progress {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #8B5CF6, #60A5FA);
+      animation: loadingProgress 3s ease-in-out forwards;
+    }
+    
+    @keyframes loadingProgress {
+      0% { width: 0%; }
+      100% { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <!-- Loading screen while React app loads -->
+    <div class="loading-screen" id="loading-screen">
+      <div class="loading-text">INITIALIZING NEURAL INTERFACE...</div>
+      <div class="loading-bar">
+        <div class="loading-progress"></div>
+      </div>
     </div>
-    <script type="module" src="/main.tsx"></script>
-  </body>
+  </div>
+  
+  <script>
+    // Hide loading screen once React app is ready
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+          loadingScreen.style.opacity = '0';
+          loadingScreen.style.transition = 'opacity 0.5s ease-out';
+          setTimeout(() => {
+            loadingScreen.remove();
+          }, 500);
+        }
+      }, 3000);
+    });
+  </script>
+</body>
 </html>

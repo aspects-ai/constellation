@@ -260,12 +260,21 @@ async function processWithCodebuff(
     const client: CodebuffClient = await getCodebuffClient(fs, apiKey);
     console.log("[CODEBUFF] ✅ Client created successfully");
 
+    // Define initial agent context
+    let currentAgentName = "Task Orchestrator";
+    let currentAgentId = "orchestrator";
+
     // Start streaming response
     console.log("[CODEBUFF] 🌊 Starting stream for session:", sessionId);
-    broadcastToStream(sessionId, { type: "message_start", role: "assistant" });
+    const targetAgent = "orchestrator";
+    broadcastToStream(sessionId, {
+      type: "message_start",
+      role: "assistant",
+      agentName: currentAgentName,
+      agentId: currentAgentId,
+    });
 
     // Use orchestrator as master coordinator
-    const targetAgent = "orchestrator";
     console.log("[CODEBUFF] 🎯 Target agent:", targetAgent);
     const agentDefinitions: AgentDefinition[] = [
       // orchestrator
@@ -301,6 +310,23 @@ async function processWithCodebuff(
       ...(previousRunState && { runState: previousRunState }),
       handleEvent: (event: any) => {
         console.log("[CODEBUFF] 📡 Event received:", event.type);
+
+        // Track when a new agent is spawned
+        if (event.type === "tool_call" && event.toolName === "spawn_agents") {
+          try {
+            const spawnedAgentType = event.params?.agents?.[0]?.agent_type;
+            if (spawnedAgentType) {
+              const agentDef = agentDefinitions.find(a => a.id === spawnedAgentType);
+              if (agentDef) {
+                currentAgentName = agentDef.displayName;
+                currentAgentId = agentDef.id;
+                console.log(`[CODEBUFF] 🎯 Agent switched to: ${currentAgentName} (${currentAgentId})`);
+              }
+            }
+          } catch (e) {
+            console.error("[CODEBUFF] ⚠️ Could not determine spawned agent:", e);
+          }
+        }
         if (event.type === "assistant_message_delta") {
           // Stream assistant message content in chunks for real-time typing
           const text = event.delta;
@@ -311,6 +337,8 @@ async function processWithCodebuff(
             broadcastToStream(sessionId, {
               type: "assistant_delta",
               text: chunk,
+              agentName: currentAgentName,
+              agentId: currentAgentId,
             });
           }
         } else if (event.type === "tool_call") {
@@ -341,6 +369,8 @@ async function processWithCodebuff(
             type: "assistant_message",
             id: uuidv4(),
             text: event.text,
+            agentName: currentAgentName,
+            agentId: currentAgentId,
           });
         }
       },
