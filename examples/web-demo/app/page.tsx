@@ -91,7 +91,6 @@ export default function Home() {
     // Keyboard shortcut handler
     const handleKeyDown = (e: KeyboardEvent) => {
       // F2 to toggle tabs
-      console.log(e.key);
       if (e.key === "F2") {
         e.preventDefault();
         setShowTabs((prev) => !prev);

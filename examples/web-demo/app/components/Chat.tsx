@@ -365,6 +365,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   const [loadingStage, setLoadingStage] =
     useState<string>("NEURAL LINK ACTIVE");
   const [currentAgent, setCurrentAgent] = useState<string>("Task Orchestrator");
+  const [runState, setRunState] = useState<any>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageEndProcessed = useRef(false);
@@ -479,6 +480,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         message: userMessage.content,
         sessionId,
         backendConfig,
+        ...(runState && { previousRunState: runState }),
       };
 
       const response = await fetch("/api/message", {
@@ -637,6 +639,12 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
             }
             return "";
           });
+        } else if (data.type === "run_state_update") {
+          console.log("[Chat] Received runState update:", !!data.runState);
+          if (data.runState) {
+            console.log("[Chat] Storing runState for next message");
+            setRunState(data.runState);
+          }
         } else if (data.type === "done") {
           setIsLoading(false);
           setStreamError(null);

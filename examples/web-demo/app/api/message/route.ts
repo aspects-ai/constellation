@@ -58,6 +58,19 @@ export async function POST(request: NextRequest) {
     );
     console.log("[API] 🆔 Session ID:", sessionId);
     console.log("[API] 🔧 Backend config:", backendConfig?.type || "local");
+    console.log("[API] 🔄 Previous runState present:", !!previousRunState);
+    if (previousRunState) {
+      console.log("[API] 📊 Previous runState type:", typeof previousRunState);
+      console.log(
+        "[API] 📊 Previous runState keys:",
+        Object.keys(previousRunState || {}),
+      );
+      console.log(
+        "[API] 📊 Previous runState size (JSON):",
+        JSON.stringify(previousRunState).length,
+        "chars",
+      );
+    }
 
     if (!sessionId) {
       console.log("[API] ❌ Missing sessionId");
@@ -303,11 +316,25 @@ async function processWithCodebuff(
       "[CODEBUFF] 🔄 Previous run state present:",
       !!previousRunState,
     );
+    if (previousRunState) {
+      console.log(
+        "[CODEBUFF] 📊 Passing runState to SDK - type:",
+        typeof previousRunState,
+      );
+      console.log(
+        "[CODEBUFF] 📊 Passing runState to SDK - keys:",
+        Object.keys(previousRunState),
+      );
+      console.log(
+        "[CODEBUFF] 📊 Passing runState to SDK - sample content:",
+        JSON.stringify(previousRunState),
+      );
+    }
     const result = await client.run({
       agent: targetAgent,
       agentDefinitions,
       prompt: message,
-      ...(previousRunState && { runState: previousRunState }),
+      ...(previousRunState && { previousRun: previousRunState }),
       handleEvent: (event: any) => {
         console.log("[CODEBUFF] 📡 Event received:", event.type);
 
@@ -316,15 +343,22 @@ async function processWithCodebuff(
           try {
             const spawnedAgentType = event.params?.agents?.[0]?.agent_type;
             if (spawnedAgentType) {
-              const agentDef = agentDefinitions.find(a => a.id === spawnedAgentType);
+              const agentDef = agentDefinitions.find(
+                (a) => a.id === spawnedAgentType,
+              );
               if (agentDef) {
                 currentAgentName = agentDef.displayName;
                 currentAgentId = agentDef.id;
-                console.log(`[CODEBUFF] 🎯 Agent switched to: ${currentAgentName} (${currentAgentId})`);
+                console.log(
+                  `[CODEBUFF] 🎯 Agent switched to: ${currentAgentName} (${currentAgentId})`,
+                );
               }
             }
           } catch (e) {
-            console.error("[CODEBUFF] ⚠️ Could not determine spawned agent:", e);
+            console.error(
+              "[CODEBUFF] ⚠️ Could not determine spawned agent:",
+              e,
+            );
           }
         }
         if (event.type === "assistant_message_delta") {
