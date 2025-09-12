@@ -1306,7 +1306,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
                     opacity: 0.7,
                   }}
                 >
-                  [{getAgentDisplayName(currentAgent)}]
+                  [{currentAgent}]
                 </Box>
                 <Group gap="xs" align="flex-start">
                   <Box
