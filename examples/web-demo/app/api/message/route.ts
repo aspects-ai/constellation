@@ -6,14 +6,14 @@ import { readFile, readdir, stat } from "fs/promises";
 import { join } from "path";
 import { getCodebuffClient } from "../../../lib/codebuff-init";
 import { broadcastToStream } from "../../../lib/streams";
-import orchestratorAgent from "../../../lib/orchestrator-agent";
-import reactTypescriptBuilder from "../../../lib/react-typescript-builder";
+import orchestratorAgent from "../../../lib/agents/orchestrator-agent";
+import reactTypescriptBuilder from "../../../lib/agents/react-typescript-builder";
 
 // Import ETL pipeline manager
-import etlManager from "../../../lib/etl-manager";
-import extractAgent from "@/lib/extract-agent";
-import loadAgent from "@/lib/load-agent";
-import transformAgent from "@/lib/transform-agent";
+import etlManager from "../../../lib/agents/etl-manager";
+import extractAgent from "@/lib/agents/extract-agent";
+import loadAgent from "@/lib/agents/load-agent";
+import transformAgent from "@/lib/agents/transform-agent";
 
 export async function POST(request: NextRequest) {
   console.log("[API] 🚀 POST request received");
