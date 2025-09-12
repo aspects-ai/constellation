@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cyberpunk SF Neural Map</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        background: #000;
+        color: #60a5fa;
+        font-family: 'Courier New', monospace;
+        overflow: hidden;
+      }
+      
+      #root {
+        height: 100vh;
+        width: 100vw;
+      }
+      
+      /* Loading animation */
+      .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a0f2e 50%, #0f1419 100%);
+        color: #a855f7;
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+        text-shadow: 0 0 10px #a855f7;
+      }
+      
+      .loading::after {
+        content: '...';
+        animation: dots 1.5s infinite;
+      }
+      
+      @keyframes dots {
+        0%, 20% { content: '.'; }
+        40% { content: '..'; }
+        60%, 100% { content: '...'; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="loading">INITIALIZING NEURAL MAP</div>
+    </div>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

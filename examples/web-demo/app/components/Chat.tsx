@@ -310,6 +310,8 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
   const maxRetries = 3;
+  const hasInitialized = useRef(false);
+
   // Immediate scroll without debouncing
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -337,6 +339,49 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages.length]);
+
+  // Initialize workspace on component mount
+  useEffect(() => {
+    const initializeWorkspace = async () => {
+      if (hasInitialized.current || !sessionId || !backendConfig) return;
+
+      hasInitialized.current = true;
+      console.log("[Chat] Initializing workspace on app load...");
+
+      try {
+        const requestBody = {
+          message: "", // Empty message for initialization only
+          sessionId,
+          backendConfig,
+        };
+
+        const response = await fetch("/api/message", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        if (response.ok) {
+          console.log("[Chat] ✅ Workspace initialized successfully");
+          // Dispatch filesystem update to refresh file explorer
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent("filesystem-update"));
+          }, 500);
+        } else {
+          console.warn(
+            "[Chat] ⚠️ Workspace initialization failed:",
+            response.status,
+          );
+        }
+      } catch (error) {
+        console.error("[Chat] ❌ Failed to initialize workspace:", error);
+      }
+    };
+
+    initializeWorkspace();
+  }, [sessionId, backendConfig]);
 
   // Cleanup EventSource on unmount
   useEffect(() => {
@@ -394,23 +439,25 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
-      }      // Clear any retry timeout
+      } // Clear any retry timeout
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
       }
-      
+
       // Reset retry count
       retryCountRef.current = 0;
-      
+
       // Add retry logic for EventSource connection
       const createEventSource = () => {
         try {
-          const eventSource = new EventSource(`/api/stream?sessionId=${sessionId}`);
+          const eventSource = new EventSource(
+            `/api/stream?sessionId=${sessionId}`,
+          );
           eventSourceRef.current = eventSource;
           return eventSource;
         } catch (error) {
-          console.error('[Chat] Failed to create EventSource:', error);
+          console.error("[Chat] Failed to create EventSource:", error);
           throw error;
         }
       };
@@ -421,9 +468,9 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         console.log("[Chat] EventSource connected successfully");
         setStreamError(null);
         retryCountRef.current = 0; // Reset retry count on successful connection
-        
+
         // Send a test ping to verify the connection is working
-        console.log('[Chat] Connection established, waiting for messages...');
+        console.log("[Chat] Connection established, waiting for messages...");
       };
 
       eventSource.onmessage = (event) => {
@@ -547,16 +594,18 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         const errorDetails = {
           readyState: eventSource.readyState,
           url: eventSource.url,
-          type: error.type || 'unknown',
-          message: error.message || 'No message',
-          target: error.target ? {
-            readyState: (error.target as EventSource).readyState,
-            url: (error.target as EventSource).url
-          } : null,
+          type: error.type || "unknown",
+          message: (error as any).message || "No message",
+          target: error.target
+            ? {
+                readyState: (error.target as EventSource).readyState,
+                url: (error.target as EventSource).url,
+              }
+            : null,
           timestamp: new Date().toISOString(),
-          retryCount: retryCountRef.current
+          retryCount: retryCountRef.current,
         };
-        
+
         console.error("[Chat] EventSource error:", errorDetails);
         console.error("[Chat] Raw error object:", error);
 
@@ -574,14 +623,21 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         // Attempt retry if under max retries
         if (retryCountRef.current < maxRetries) {
           retryCountRef.current++;
-          console.log(`[Chat] Retrying connection (${retryCountRef.current}/${maxRetries})...`);
-          
-          setStreamError(`Connection interrupted. Retrying... (${retryCountRef.current}/${maxRetries})`);
-          
+          console.log(
+            `[Chat] Retrying connection (${retryCountRef.current}/${maxRetries})...`,
+          );
+
+          setStreamError(
+            `Connection interrupted. Retrying... (${retryCountRef.current}/${maxRetries})`,
+          );
+
           // Retry after a short delay with exponential backoff
-          const retryDelay = Math.min(1000 * Math.pow(2, retryCountRef.current - 1), 10000); // Cap at 10 seconds
+          const retryDelay = Math.min(
+            1000 * Math.pow(2, retryCountRef.current - 1),
+            10000,
+          ); // Cap at 10 seconds
           console.log(`[Chat] Retrying in ${retryDelay}ms...`);
-          
+
           retryTimeoutRef.current = setTimeout(() => {
             try {
               const newEventSource = createEventSource();
@@ -589,21 +645,25 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
               newEventSource.onopen = eventSource.onopen;
               newEventSource.onmessage = eventSource.onmessage;
               newEventSource.onerror = eventSource.onerror;
-              console.log('[Chat] Retry attempt successful, new EventSource created');
+              console.log(
+                "[Chat] Retry attempt successful, new EventSource created",
+              );
             } catch (retryError) {
-              console.error('[Chat] Retry failed:', retryError);
+              console.error("[Chat] Retry failed:", retryError);
               handleFinalError();
             }
           }, retryDelay);
         } else {
           handleFinalError();
         }
-        
+
         function handleFinalError() {
           setIsLoading(false);
-          
+
           if (eventSource.readyState === EventSource.CLOSED) {
-            setStreamError("Connection lost. Please try sending your message again.");
+            setStreamError(
+              "Connection lost. Please try sending your message again.",
+            );
           } else {
             const errorMsg = `Stream error (state: ${eventSource.readyState}). Please try again.`;
             setStreamError(errorMsg);
@@ -1207,7 +1267,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
             onKeyDown={handleKeyPress}
             placeholder={
               apiKey
-                ? "Ask me to find coffee shops, events, news, or help with coding"
+                ? "Let's start"
                 : "Please enter your API key to start chatting"
             }
             disabled={isLoading || !apiKey}

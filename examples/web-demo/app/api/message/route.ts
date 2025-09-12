@@ -2,11 +2,12 @@ import { AgentDefinition, CodebuffClient } from "@codebuff/sdk";
 import { FileSystem } from "constellationfs";
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
+import { readFile, readdir, stat } from "fs/promises";
+import { join } from "path";
 import { getCodebuffClient } from "../../../lib/codebuff-init";
 import { broadcastToStream } from "../../../lib/streams";
 import orchestratorAgent from "../../../lib/orchestrator-agent";
 import reactTypescriptBuilder from "../../../lib/react-typescript-builder";
-
 
 // Import ETL pipeline manager
 import etlManager from "../../../lib/etl-manager";
@@ -55,17 +56,18 @@ export async function POST(request: NextRequest) {
     console.log("[API] 🆔 Session ID:", sessionId);
     console.log("[API] 🔧 Backend config:", backendConfig?.type || "local");
 
-    if (!message || !sessionId) {
-      console.log(
-        "[API] ❌ Missing required fields - message:",
-        !!message,
-        "sessionId:",
-        !!sessionId,
-      );
+    if (!sessionId) {
+      console.log("[API] ❌ Missing sessionId");
       return NextResponse.json(
-        { error: "Message and sessionId are required" },
+        { error: "SessionId is required" },
         { status: 400 },
       );
+    }
+
+    // Check if this is an initialization request (empty message)
+    const isInitializationOnly = !message || message.trim() === "";
+    if (isInitializationOnly) {
+      console.log("[API] 🔧 Initialization request detected");
     }
 
     // Create a unique stream ID for this request
@@ -122,6 +124,12 @@ export async function POST(request: NextRequest) {
     await initializeWorkspace(fs);
     console.log("[API] ✅ Workspace initialized");
 
+    // If this is just initialization, return early without starting AI processing
+    if (isInitializationOnly) {
+      console.log("[API] ✅ Initialization complete - skipping AI processing");
+      return NextResponse.json({ success: true, initialized: true });
+    }
+
     // Start the AI processing in the background using Codebuff SDK
     console.log("[API] 🤖 Starting Codebuff processing...");
     processWithCodebuff(fs, message, sessionId, previousRunState);
@@ -148,31 +156,73 @@ async function initializeWorkspace(fs: FileSystem) {
       files.slice(0, 5),
     );
 
-    // If workspace is empty, create some sample files
+    // If workspace is empty, create cyberpunk SF map app
     if (files.length === 0) {
       console.log(
-        "[WORKSPACE] 📝 Creating sample files for empty workspace...",
-      );
-      await fs.write(
-        "README.md",
-        `# Welcome to ConstellationFS Demo
-
-This is a sample workspace where you can interact with an AI assistant that can:
-- Create and edit files
-- Run shell commands
-- Build projects
-- Help with development tasks
-
-Try asking me to:
-- "Create a simple Node.js application"
-- "Add a package.json file"
-- "Write a Python hello world script"
-- "List all files in the workspace"
-`,
+        "[WORKSPACE] 🌃 Creating cyberpunk SF map app for empty workspace...",
       );
 
-      await fs.write("hello.txt", "Hello from ConstellationFS!");
-      console.log("[WORKSPACE] ✅ Sample files created");
+      try {
+        // Get the path to the cyberpunk-sf-map files from project root
+        const projectRoot = process.cwd();
+        const cyberpunkPath = join(projectRoot, "cyberpunk-sf-map");
+        console.log("[WORKSPACE] 📂 Reading from:", cyberpunkPath);
+
+        // Recursively copy all files and directories from cyberpunk-sf-map
+        const copyRecursively = async (
+          sourcePath: string,
+          destPath: string = "",
+        ) => {
+          const items = await readdir(sourcePath);
+
+          for (const itemName of items) {
+            // Skip hidden files/directories
+            if (itemName.startsWith(".")) continue;
+
+            const sourceItemPath = join(sourcePath, itemName);
+            const destItemPath = destPath ? join(destPath, itemName) : itemName;
+            const itemStat = await stat(sourceItemPath);
+
+            if (itemStat.isFile()) {
+              try {
+                const content = await readFile(sourceItemPath, "utf-8");
+                await fs.write(destItemPath, content);
+                console.log(`[WORKSPACE] ✅ Copied file: ${destItemPath}`);
+              } catch (fileError) {
+                console.warn(
+                  `[WORKSPACE] ⚠️ Failed to copy file ${destItemPath}:`,
+                  fileError,
+                );
+              }
+            } else if (itemStat.isDirectory()) {
+              console.log(`[WORKSPACE] 📁 Creating directory: ${destItemPath}`);
+              // Create the directory in the filesystem
+              await fs.exec(`mkdir -p "${destItemPath}"`);
+              // Recursively copy the directory contents
+              await copyRecursively(sourceItemPath, destItemPath);
+            }
+          }
+        };
+
+        console.log(
+          "[WORKSPACE] 🔄 Starting recursive copy from:",
+          cyberpunkPath,
+        );
+        await copyRecursively(cyberpunkPath);
+
+        console.log(
+          "[WORKSPACE] ✅ Cyberpunk SF map files copied successfully",
+        );
+      } catch (copyError) {
+        console.error(
+          "[WORKSPACE] ⚠️ Failed to copy cyberpunk files, creating basic files:",
+          copyError,
+        );
+        await fs.write(
+          "README.md",
+          "# Cyberpunk SF Map\n\nA React app with cyberpunk-themed San Francisco map.",
+        );
+      }
     } else {
       console.log("[WORKSPACE] ✅ Workspace already contains files");
     }
@@ -220,7 +270,6 @@ async function processWithCodebuff(
 
       // builder
       reactTypescriptBuilder,
-
 
       // etl
       etlManager,
