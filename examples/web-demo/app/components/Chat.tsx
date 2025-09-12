@@ -1149,7 +1149,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
             onKeyDown={handleKeyPress}
           placeholder={
             apiKey
-              ? "Type /cyber [message] for news agent, or just type normally"
+              ? "Ask me to find coffee shops, events, or help with coding"
               : "Please enter your API key to start chatting"
           }
             disabled={isLoading || !apiKey}

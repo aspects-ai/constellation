@@ -8,12 +8,16 @@ import reactTypescriptAgent from "../../../lib/react-typescript-agent";
 import projectOpsAgent from "../../../lib/project-ops";
 import webDemoValidatorAgent from "../../../lib/web-demo-validator";
 
-// Import cyberpunk news agents from lib folder
+// Import composable data processing agents
+import dataExtractorAgent from "../../../lib/data-extractor";
+import constraintSolverAgent from "../../../lib/constraint-solver";
+import dataScorerAgent from "../../../lib/data-scorer";
+import overlapCheckerAgent from "../../../lib/overlap-checker";
+
+// Import cyberpunk news agents (legacy)
 import newsFetcherAgent from "../../../lib/news-fetcher";
 import cyberOrchestratorAgent from "../../../lib/cyber-orchestrator";
 import cyberStylizerAgent from "../../../lib/cyber-stylizer";
-
-import routerAgent from "../../../lib/router";
 
 export async function POST(request: NextRequest) {
   try {
@@ -104,7 +108,7 @@ export async function POST(request: NextRequest) {
     await initializeWorkspace(fs);
 
     // Start the AI processing in the background using Codebuff SDK
-    processWithCodebuff(fs, message, sessionId, undefined, previousRunState);
+    processWithCodebuff(fs, message, sessionId, previousRunState);
     return NextResponse.json({ streamId });
   } catch (error) {
     console.error("API Error:", error);
@@ -151,7 +155,6 @@ async function processWithCodebuff(
   fs: FileSystem,
   message: string,
   sessionId: string,
-  routeOverride?: string,
   previousRunState?: any,
 ) {
   try {
@@ -169,58 +172,41 @@ async function processWithCodebuff(
     // Start streaming response
     broadcastToStream(sessionId, { type: "message_start", role: "assistant" });
 
-    // Handle different types of routing result outputs
-    let targetAgent: string;
+    // Use single base agent with composable data processing capabilities
+    let targetAgent: string = "react-typescript";
     let agentDefinitions: any[];
 
-    // Check if there's a route override (e.g., from cyber mode button)
-    if (routeOverride) {
-      console.log("🎯 Using route override:", routeOverride);
-      targetAgent = routeOverride;
-    } else {
-      // Determine which agent to route to using router agent
-      const routingResult = await client.run({
-        agent: "router",
-        agentDefinitions: [routerAgent],
-        prompt: message,
-        handleEvent: () => {}, // No streaming for routing decision
-      });
-
-      if (routingResult.output.type === "error") {
-        throw new Error(routingResult.output.message);
-      }
-
-      if (
-        routingResult.output.type !== "structuredOutput" ||
-        !routingResult.output.value
-      ) {
-        throw new Error("Unexpected output type: " + routingResult.output.type);
-      }
-
-      // Extract the target agent from the structured output
-      targetAgent = routingResult.output.value.targetAgent;
-      const reasoning = routingResult.output.value.reasoning;
-
-      console.log("🎯 Router decision:", targetAgent);
-      console.log("📝 Router reasoning:", reasoning);
-    }
-
-    if (targetAgent === "cyber-orchestrator") {
-      // Cyberpunk news agents only
+    // Check for cyberpunk news requests (legacy support)
+    const isCyberCommand = message.toLowerCase().includes("cyber") || 
+                           message.toLowerCase().includes("news") ||
+                           message.startsWith("/cyber ");
+    
+    if (isCyberCommand) {
+      console.log("🎯 Using cyber-orchestrator for news request");
+      targetAgent = "cyber-orchestrator";
       agentDefinitions = [
         cyberOrchestratorAgent,
         newsFetcherAgent,
         cyberStylizerAgent,
       ];
+      // Remove /cyber prefix if present
+      if (message.startsWith("/cyber ")) {
+        message = message.substring(7);
+      }
     } else {
-      // React/TypeScript development agents only
-      targetAgent = "react-typescript";
+      // Default to react-typescript with composable data agents
       agentDefinitions = [
         reactTypescriptAgent,
         projectOpsAgent,
         webDemoValidatorAgent,
+        dataExtractorAgent,
+        constraintSolverAgent,
+        dataScorerAgent,
+        overlapCheckerAgent,
       ];
     }
+
+    console.log("🎯 Using agent:", targetAgent);
 
     // Run the selected agent with appropriate definitions
     const result = await client.run({
