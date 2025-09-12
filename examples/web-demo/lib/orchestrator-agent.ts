@@ -15,7 +15,11 @@ const agent: AgentDefinition = {
   outputMode: "last_message",
   includeMessageHistory: true,
 
-  toolNames: ["spawn_agents", "think_deeply", "end_turn"],
+  toolNames: ["spawn_agents", "end_turn"],
+  reasoningOptions: {
+    enabled: false,
+    effort: "low",
+  },
 
   spawnableAgents: [
     // Builder agents

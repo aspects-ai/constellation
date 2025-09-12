@@ -18,7 +18,7 @@ const agent: AgentDefinition = {
 
   outputMode: "structured_output",
   stepPrompt: "",
-  includeMessageHistory: false,
+  includeMessageHistory: true,
 
   spawnableAgents: ["extract-agent", "transform-agent", "load-agent"],
 

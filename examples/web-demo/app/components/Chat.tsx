@@ -418,9 +418,12 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
       const eventSource = createEventSource();
 
       eventSource.onopen = () => {
-        console.log("[Chat] EventSource connected");
+        console.log("[Chat] EventSource connected successfully");
         setStreamError(null);
         retryCountRef.current = 0; // Reset retry count on successful connection
+        
+        // Send a test ping to verify the connection is working
+        console.log('[Chat] Connection established, waiting for messages...');
       };
 
       eventSource.onmessage = (event) => {
@@ -545,19 +548,23 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           readyState: eventSource.readyState,
           url: eventSource.url,
           type: error.type || 'unknown',
+          message: error.message || 'No message',
           target: error.target ? {
             readyState: (error.target as EventSource).readyState,
             url: (error.target as EventSource).url
           } : null,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          retryCount: retryCountRef.current
         };
         
         console.error("[Chat] EventSource error:", errorDetails);
+        console.error("[Chat] Raw error object:", error);
 
         // Handle different ready states
         if (eventSource.readyState === EventSource.CONNECTING) {
           console.log("[Chat] EventSource is reconnecting...");
-          return; // Let it try to reconnect
+          // Don't retry immediately when it's already trying to connect
+          return;
         }
 
         // Close the current connection
@@ -571,7 +578,10 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           
           setStreamError(`Connection interrupted. Retrying... (${retryCountRef.current}/${maxRetries})`);
           
-          // Retry after a short delay
+          // Retry after a short delay with exponential backoff
+          const retryDelay = Math.min(1000 * Math.pow(2, retryCountRef.current - 1), 10000); // Cap at 10 seconds
+          console.log(`[Chat] Retrying in ${retryDelay}ms...`);
+          
           retryTimeoutRef.current = setTimeout(() => {
             try {
               const newEventSource = createEventSource();
@@ -579,11 +589,12 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
               newEventSource.onopen = eventSource.onopen;
               newEventSource.onmessage = eventSource.onmessage;
               newEventSource.onerror = eventSource.onerror;
+              console.log('[Chat] Retry attempt successful, new EventSource created');
             } catch (retryError) {
               console.error('[Chat] Retry failed:', retryError);
               handleFinalError();
             }
-          }, 1000 * retryCountRef.current); // Exponential backoff
+          }, retryDelay);
         } else {
           handleFinalError();
         }

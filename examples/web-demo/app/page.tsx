@@ -789,13 +789,13 @@ export default function Home() {
                   position: "absolute",
                 }}
               >
-                ✨ SECURE • SANDBOXED • FILESYSTEM • INNOVATION ✨ TYPESCRIPT •
+                ✨ SECURE • SANDBOXED • FILESYSTEM • CHARLES ✨ THE • SARDINE 🐟
+                • EATER • EXCELLENCE ✨ FUSE • SSH • DOCKER • CONSTELLATION ✨
+                SECURE • SANDBOXED • FILESYSTEM • INNOVATION ✨ TYPESCRIPT •
                 PYTHON • MULTI-BACKEND • EXCELLENCE ✨ FUSE • SSH • DOCKER •
-                CONSTELLATION ✨ SECURE • SANDBOXED • FILESYSTEM • INNOVATION ✨
+                CONSTELLATION ✨ SECURE • SANDBOXED • FILESYSTEM • FIRE 🔥
                 TYPESCRIPT • PYTHON • MULTI-BACKEND • EXCELLENCE ✨ FUSE • SSH •
-                DOCKER • CONSTELLATION ✨ SECURE • SANDBOXED • FILESYSTEM •
-                INNOVATION ✨ TYPESCRIPT • PYTHON • MULTI-BACKEND • EXCELLENCE
-                ✨ FUSE • SSH • DOCKER • CONSTELLATION ✨
+                DOCKER • CONSTELLATION ✨
               </Text>
             </Box>
           </Box>
