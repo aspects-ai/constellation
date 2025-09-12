@@ -21,6 +21,7 @@ const agent: AgentDefinition = {
     "think_deeply",
     "code_search",
     "spawn_agents",
+    "run_terminal_command",
     "end_turn",
   ],
 
@@ -34,7 +35,7 @@ IMPORTANT SANDPACK ENVIRONMENT NOTES:
 - The sandpack runtime handles all file system operations and dependency management
 - DO NOT attempt to install packages or manage dependencies
 - DO NOT create package.json or tsconfig.json files - sandpack handles these
-- DO NOT use run_terminal_command - sandpack doesn't support terminal access
+- Use run_terminal_command ONLY for TypeScript type checking before ending turn
 - Focus solely on creating TypeScript React components and application logic
 
 COMPONENT CREATION RULES:
@@ -125,7 +126,14 @@ The sandpack environment automatically provides:
 - Common UI libraries and their types
 - Build and bundling capabilities
 
-Focus on writing clean, type-safe React components without worrying about the build setup.`,
+Focus on writing clean, type-safe React components without worrying about the build setup.
+
+**IMPORTANT: ALWAYS RUN TYPECHECK BEFORE ENDING TURN**
+Before calling end_turn, you MUST run a lightweight TypeScript type check from the web-demo directory using:
+\`npx tsc --noEmit\`
+
+You should invoke it with the run_terminal_command tool, setting the 'cwd' parameter to 'examples/web-demo'.
+This performs fast type checking without building files, ensuring your TypeScript code is error-free before completion.`,
 
   instructionsPrompt: `You are an expert in modern React with TypeScript working in a sandpack environment, specializing in CYBERPUNK-THEMED UI design.
 
