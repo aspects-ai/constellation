@@ -10,7 +10,13 @@ import {
 } from "@codesandbox/sandpack-react";
 import { Box, Button, Group, Loader, Text } from "@mantine/core";
 import { IconReload } from "@tabler/icons-react";
-import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from "react";
+import React, {
+  useEffect,
+  useState,
+  Component,
+  ErrorInfo,
+  ReactNode,
+} from "react";
 
 interface BackendConfig {
   type: "local" | "remote";
@@ -24,6 +30,7 @@ interface ComponentSandboxProps {
   backendConfig: BackendConfig;
   onFileCountChange?: (count: number) => void;
   forceRestart?: boolean;
+  showTabs?: boolean;
 }
 
 // Custom Error Boundary for Sandpack
@@ -46,7 +53,7 @@ class SandpackErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Sandpack Error:', error, errorInfo);
+    console.error("Sandpack Error:", error, errorInfo);
   }
 
   render() {
@@ -97,6 +104,7 @@ export default function ComponentSandbox({
   backendConfig,
   onFileCountChange,
   forceRestart,
+  showTabs = false,
 }: ComponentSandboxProps) {
   const [files, setFiles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -650,13 +658,18 @@ root.render(
             ...Object.fromEntries(
               Object.entries(packageJsonDeps).filter(([key, value]) => {
                 // Remove null/undefined values
-                if (!value || value === 'null' || value === 'undefined') return false;
+                if (!value || value === "null" || value === "undefined")
+                  return false;
                 // Remove local file dependencies that can't be resolved
-                if (typeof value === 'string' && (value.startsWith('file:') || value.startsWith('link:'))) return false;
+                if (
+                  typeof value === "string" &&
+                  (value.startsWith("file:") || value.startsWith("link:"))
+                )
+                  return false;
                 // Remove ConstellationFS and other problematic packages
-                if (key === 'constellationfs' || key === 'ssh2') return false;
+                if (key === "constellationfs" || key === "ssh2") return false;
                 return true;
-              })
+              }),
             ),
             // Ensure React dependencies are included with specific versions
             react: "^18.2.0",
@@ -669,16 +682,18 @@ root.render(
       >
         <SandpackErrorBoundary>
           <SandpackLayout style={{ height: "100%" }}>
-          <SandpackStack style={{ height: "100%" }}>
-            <SandpackFileExplorer style={{ height: "30%" }} />
-            <SandpackCodeEditor
-              showTabs
-              closableTabs
-              style={{ height: "70%" }}
-            />
-          </SandpackStack>
-          <SandpackPreview style={{ height: "100%", minWidth: "75%" }} />
-        </SandpackLayout>
+            {showTabs && (
+              <SandpackStack style={{ height: "100%" }}>
+                <SandpackFileExplorer style={{ height: "30%" }} />
+                <SandpackCodeEditor
+                  showTabs
+                  closableTabs
+                  style={{ height: "70%" }}
+                />
+              </SandpackStack>
+            )}
+            <SandpackPreview style={{ height: "100%", minWidth: "75%" }} />
+          </SandpackLayout>
         </SandpackErrorBoundary>
       </SandpackProvider>
     </Box>

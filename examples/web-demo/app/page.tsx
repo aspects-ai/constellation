@@ -543,6 +543,7 @@ export default function Home() {
                       backendConfig={backendConfig}
                       onFileCountChange={setSandboxFileCount}
                       forceRestart={sandboxForceRestart}
+                      showTabs={showTabs}
                     />
                   </Tabs.Panel>
 
