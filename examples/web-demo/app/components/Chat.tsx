@@ -308,6 +308,64 @@ const getAgentDisplayName = (agentName?: string) => {
   );
 };
 
+// Group messages by agent
+interface MessageGroup {
+  agentName?: string;
+  agentId?: string;
+  role: "user" | "assistant";
+  messages: Message[];
+}
+
+const groupMessagesByAgent = (messages: Message[]): MessageGroup[] => {
+  const groups: MessageGroup[] = [];
+  let currentGroup: MessageGroup | null = null;
+
+  for (const message of messages) {
+    // Skip tool messages for grouping purposes - they'll be handled within agent groups
+    if (message.role === "tool_use" || message.role === "tool_result") {
+      if (currentGroup && currentGroup.role === "assistant") {
+        currentGroup.messages.push(message);
+      }
+      continue;
+    }
+
+    const messageAgentKey =
+      message.role === "user"
+        ? "user"
+        : message.agentName || "Task Orchestrator";
+    const currentAgentKey =
+      currentGroup?.role === "user"
+        ? "user"
+        : currentGroup?.agentName || "Task Orchestrator";
+
+    // Start new group if agent changes or if switching between user/assistant
+    if (
+      !currentGroup ||
+      currentAgentKey !== messageAgentKey ||
+      currentGroup.role !== message.role
+    ) {
+      if (currentGroup) {
+        groups.push(currentGroup);
+      }
+      currentGroup = {
+        agentName: message.agentName,
+        agentId: message.agentId,
+        role: message.role,
+        messages: [message],
+      };
+    } else {
+      // Add to current group
+      currentGroup.messages.push(message);
+    }
+  }
+
+  if (currentGroup) {
+    groups.push(currentGroup);
+  }
+
+  return groups;
+};
+
 const getAgentColors = (agentName?: string) => {
   const colors: Record<string, { border: string; bg: string; text: string }> = {
     "Task Orchestrator": {
@@ -388,7 +446,7 @@ const MessageComponent = ({ message }: { message: Message }) => {
         className="tool-message"
         p="md"
         style={{
-          backgroundColor: "rgba(15, 23, 42, 0.8)",
+          backgroundColor: "rgba(0, 0, 0, 0.9)",
           borderLeft:
             message.role === "tool_use"
               ? "3px solid #228BE6"
@@ -401,7 +459,7 @@ const MessageComponent = ({ message }: { message: Message }) => {
         }}
       >
         <Text
-          size="xs"
+          size="sm"
           fw={600}
           style={{
             color: message.role === "tool_use" ? "#60A5FA" : "#34D399",
@@ -431,29 +489,34 @@ const MessageComponent = ({ message }: { message: Message }) => {
       style={{
         background:
           message.role === "user"
-            ? "linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%)"
+            ? "linear-gradient(135deg, rgba(64, 36, 20, 0.95) 0%, rgba(92, 44, 28, 0.9) 50%, rgba(120, 52, 32, 0.85) 100%)"
             : agentColors
               ? `linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, ${agentColors.bg} 50%, rgba(15, 23, 42, 0.9) 100%)`
               : "linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%)",
-        alignSelf: message.role === "user" ? "flex-end" : "flex-start",
-        maxWidth: "85%",
+        marginLeft: message.role === "user" ? "auto" : "0",
+        marginRight: message.role === "user" ? "0" : "auto",
+        maxWidth: message.role === "user" ? "75%" : "85%",
         minWidth: 0,
-        width: "fit-content",
+        width: message.role === "user" ? "100%" : "fit-content",
         overflowWrap: "break-word",
         wordBreak: "break-word",
         overflowX: "hidden",
         borderLeft:
           message.role === "user"
-            ? "3px solid #A855F7"
+            ? "1px solid rgba(249, 115, 22, 0.3)"
             : agentColors
               ? `3px solid ${agentColors.border}`
               : "3px solid #228BE6",
+        borderRight:
+          message.role === "user"
+            ? "3px solid #F97316"
+            : "1px solid rgba(34, 139, 230, 0.2)",
         borderRadius: "0 8px 8px 0",
         position: "relative",
         boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
         clipPath:
           message.role === "user"
-            ? "polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)"
+            ? "polygon(8px 0, 100% 0, 100% 100%, calc(100% - 8px) 100%, 0 calc(100% - 8px), 0 8px)"
             : "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)",
       }}
       data-agent-name={
@@ -468,9 +531,9 @@ const MessageComponent = ({ message }: { message: Message }) => {
           wordBreak: "break-word",
           minWidth: 0,
 
-          color: message.role === "user" ? "#E2E8F0" : "#CBD5E1",
+          color: message.role === "user" ? "#FED7AA" : "#CBD5E1",
           fontFamily: "system-ui, -apple-system, sans-serif",
-          fontSize: "14px",
+          fontSize: "16px",
           lineHeight: "1.6",
           letterSpacing: "0.02em",
           "& code": {
@@ -479,7 +542,7 @@ const MessageComponent = ({ message }: { message: Message }) => {
             borderRadius: "3px",
             fontSize: "0.9em",
             fontFamily: "'SF Mono', Monaco, 'Cascadia Code', monospace",
-            color: message.role === "user" ? "#F472B6" : "#60A5FA",
+            color: message.role === "user" ? "#FB923C" : "#60A5FA",
             border: "1px solid rgba(34, 139, 230, 0.2)",
             overflowWrap: "break-word",
             wordBreak: "break-all",
@@ -520,6 +583,7 @@ const MessageComponent = ({ message }: { message: Message }) => {
               fontSize: "inherit",
               lineHeight: "inherit",
               whiteSpace: "pre-wrap",
+              textAlign: "right",
             }}
           >
             {message.content}
@@ -531,6 +595,79 @@ const MessageComponent = ({ message }: { message: Message }) => {
 };
 
 MessageComponent.displayName = "MessageComponent";
+
+// Message Group Component
+const MessageGroupComponent = ({ group }: { group: MessageGroup }) => {
+  const agentColors =
+    group.role === "assistant" ? getAgentColors(group.agentName) : null;
+
+  return (
+    <Box>
+      {/* Agent header for assistant messages */}
+      {group.role === "assistant" && (
+        <Text
+          size="xs"
+          style={{
+            fontFamily: "'SF Mono', Monaco, monospace",
+            color: agentColors?.text || "#228BE6",
+            letterSpacing: "0.05em",
+            opacity: 0.7,
+            marginBottom: "8px",
+            marginLeft: "0px",
+          }}
+        >
+          [{getAgentDisplayName(group.agentName)}]
+        </Text>
+      )}
+
+      {/* User header for user messages */}
+      {group.role === "user" && (
+        <Text
+          size="xs"
+          style={{
+            fontFamily: "'SF Mono', Monaco, monospace",
+            color: "#FB923C",
+            letterSpacing: "0.05em",
+            opacity: 0.7,
+            marginBottom: "8px",
+            marginRight: "0px",
+            textAlign: "right",
+          }}
+        >
+          [USER.TX]
+        </Text>
+      )}
+
+      {/* Group container with agent-themed styling */}
+      <Box
+        style={{
+          border:
+            group.role === "assistant"
+              ? `1px solid ${agentColors?.border || "#228BE6"}20`
+              : "1px solid rgba(168, 85, 247, 0.2)",
+          borderRadius: "12px",
+          padding: "8px",
+          background:
+            group.role === "assistant"
+              ? `linear-gradient(135deg, ${agentColors?.bg || "rgba(34, 139, 230, 0.08)"} 0%, rgba(15, 23, 42, 0.5) 100%)`
+              : "linear-gradient(135deg, rgba(249, 115, 22, 0.08) 0%, rgba(15, 23, 42, 0.5) 100%)",          alignSelf: group.role === "user" ? "flex-end" : "flex-start",
+          maxWidth: group.role === "user" ? "80%" : "100%",
+          marginLeft: group.role === "user" ? "auto" : "0",
+        }}
+      >
+        <Stack gap="sm">
+          {group.messages.map((message, index) => (
+            <Box key={message.id}>
+              <MessageComponent message={message} />
+            </Box>
+          ))}
+        </Stack>
+      </Box>
+    </Box>
+  );
+};
+
+MessageGroupComponent.displayName = "MessageGroupComponent";
 
 export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -816,10 +953,14 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
               addMessageWithDuplicateCheck(newMessage);
             }
             return "";
-          });        } else if (data.type === "subagent_start") {
+          });
+        } else if (data.type === "subagent_start") {
           console.log("[Chat] 🚀 Subagent started:", data.agentName);
           setActiveAgent({ name: data.agentName, id: data.agentId });
-        } else if (data.type === "agent_end" || data.type === "subagent_finish") {
+        } else if (
+          data.type === "agent_end" ||
+          data.type === "subagent_finish"
+        ) {
           console.log("[Chat] ⏹️ Agent ended:", data.agentName);
           setActiveAgent({ name: "Task Orchestrator", id: "orchestrator" });
         } else if (data.type === "run_state_update") {
@@ -977,13 +1118,15 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
     [sendMessage],
   );
 
-  // Filter out empty messages
+  // Filter out empty messages and group by agent
   const filteredMessages = messages.filter(
     (msg) =>
       msg.content?.trim() ||
       msg.role === "tool_use" ||
       msg.role === "tool_result",
   );
+
+  const messageGroups = groupMessagesByAgent(filteredMessages);
 
   return (
     <Box h="100%" style={{ display: "flex", flexDirection: "column" }}>
@@ -1336,19 +1479,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           }
         }
 
-        .user-message::before {
-          content: '[USER.TX]';
-          position: absolute;
-          top: -18px;
-          right: 0;
-          font-size: 10px;
-          font-family: 'SF Mono', Monaco, monospace;
-          color: #A855F7;
-          letter-spacing: 0.05em;
-          opacity: 0.7;
-        }
-
-        .user-message::after,
         .assistant-message::after {
           content: '';
           position: absolute;
@@ -1364,19 +1494,17 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
           opacity: 0.3;
         }
 
-        .user-message:hover,
         .assistant-message:hover {
           transform: translateX(2px);
           transition: transform 0.2s ease;
         }
 
-        .user-message {
-          margin-top: 20px;
-          border-right: 1px solid rgba(168, 85, 247, 0.2);
+        .user-message:hover {
+          transform: translateX(-2px);
+          transition: transform 0.2s ease;
         }
 
         .assistant-message {
-          margin-top: 20px;
           border-right: 1px solid rgba(34, 139, 230, 0.2);
         }
 
@@ -1448,32 +1576,18 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
             maxWidth: "100%",
           }}
         >
-          <Stack gap="md" style={{ width: "100%", maxWidth: "100%" }}>
-            {filteredMessages.map((message) => (
-              <Box key={message.id}>
-                {message.role === "assistant" && (
-                  <Text
-                    size="xs"
-                    style={{
-                      fontFamily: "'SF Mono', Monaco, monospace",
-                      color:
-                        getAgentColors(message.agentName)?.text || "#228BE6",
-                      letterSpacing: "0.05em",
-                      opacity: 0.7,
-                      marginBottom: "4px",
-                      marginLeft: "0px",
-                    }}
-                  >
-                    [{getAgentDisplayName(message.agentName)}]
-                  </Text>
-                )}
-                <MessageComponent message={message} />
-              </Box>
+          <Stack gap="lg" style={{ width: "100%", maxWidth: "100%" }}>
+            {messageGroups.map((group, groupIndex) => (
+              <MessageGroupComponent
+                key={`group-${groupIndex}`}
+                group={group}
+              />
             ))}
 
             {/* Show streaming response with enhanced typing indicator */}
             {isLoading && currentResponse && (
               <Box>
+                {/* Agent header for streaming */}
                 <Text
                   size="xs"
                   style={{
@@ -1481,62 +1595,73 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
                     color: getAgentColors(activeAgent?.name)?.text || "#228BE6",
                     letterSpacing: "0.05em",
                     opacity: 0.7,
-                    marginBottom: "4px",
+                    marginBottom: "8px",
                     marginLeft: "0px",
                   }}
                 >
                   [{getAgentDisplayName(activeAgent?.name)}]
                 </Text>
+
+                {/* Streaming group container */}
                 <Box
-                  className="assistant-message typing-message"
-                  p="lg"
-                  data-agent-name={activeAgent?.name}
                   style={{
-                    background:
-                      "linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%)",
-                    alignSelf: "flex-start",
-                    maxWidth: "85%",
-                    minWidth: 0,
-                    width: "fit-content",
-                    overflowWrap: "break-word",
-                    wordBreak: "break-word",
-                    overflowX: "hidden",
-                    borderLeft: "3px solid #228BE6",
-                    borderRadius: "0 8px 8px 0",
-                    position: "relative",
-                    boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
-                    clipPath:
-                      "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)",
-                    marginTop: "20px",
-                    borderRight: "1px solid rgba(34, 139, 230, 0.2)",
-                    animation: "pulse-glow 2s ease-in-out infinite",
+                    border: `1px solid ${getAgentColors(activeAgent?.name)?.border || "#228BE6"}20`,
+                    borderRadius: "12px",
+                    padding: "8px",
+                    background: `linear-gradient(135deg, ${getAgentColors(activeAgent?.name)?.bg || "rgba(34, 139, 230, 0.08)"} 0%, rgba(15, 23, 42, 0.5) 100%)`,
                   }}
                 >
-                  <Group gap="xs" align="flex-start">
-                    <Box
-                      flex={1}
-                      style={{
-                        minWidth: 0,
-                        maxWidth: "100%",
-                        width: "100%",
-                        overflowWrap: "break-word",
-                        wordBreak: "break-word",
-                        overflowX: "hidden",
-                        color: "#CBD5E1",
-                        fontFamily: "system-ui, -apple-system, sans-serif",
-                        fontSize: "14px",
-                        lineHeight: "1.6",
-                        letterSpacing: "0.02em",
-                      }}
-                    >
-                      <ReactMarkdown>{currentResponse}</ReactMarkdown>
-                    </Box>
-                    <div className="typing-indicator">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-                  </Group>
+                  <Box
+                    className="assistant-message typing-message"
+                    p="lg"
+                    data-agent-name={activeAgent?.name}
+                    style={{
+                      background:
+                        "linear-gradient(135deg, rgba(20, 27, 45, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%)",
+                      alignSelf: "flex-start",
+                      maxWidth: "100%",
+                      minWidth: 0,
+                      width: "fit-content",
+                      overflowWrap: "break-word",
+                      wordBreak: "break-word",
+                      overflowX: "hidden",
+                      borderLeft: `3px solid ${getAgentColors(activeAgent?.name)?.border || "#228BE6"}`,
+                      borderRadius: "0 8px 8px 0",
+                      position: "relative",
+                      boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
+                      clipPath:
+                        "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)",
+                      marginTop: "0px",
+                      borderRight: `1px solid ${getAgentColors(activeAgent?.name)?.border || "#228BE6"}20`,
+                      animation: "pulse-glow 2s ease-in-out infinite",
+                    }}
+                  >
+                    <Group gap="xs" align="flex-start">
+                      <Box
+                        flex={1}
+                        style={{
+                          minWidth: 0,
+                          maxWidth: "100%",
+                          width: "100%",
+                          overflowWrap: "break-word",
+                          wordBreak: "break-word",
+                          overflowX: "hidden",
+                          color: "#CBD5E1",
+                          fontFamily: "system-ui, -apple-system, sans-serif",
+                          fontSize: "14px",
+                          lineHeight: "1.6",
+                          letterSpacing: "0.02em",
+                        }}
+                      >
+                        <ReactMarkdown>{currentResponse}</ReactMarkdown>
+                      </Box>
+                      <div className="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                    </Group>
+                  </Box>
                 </Box>
               </Box>
             )}
