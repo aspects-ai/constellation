@@ -11,6 +11,9 @@ import reactTypescriptBuilder from "../../../lib/react-typescript-builder";
 
 // Import ETL pipeline manager
 import etlManager from "../../../lib/etl-manager";
+import extractAgent from "@/lib/extract-agent";
+import loadAgent from "@/lib/load-agent";
+import transformAgent from "@/lib/transform-agent";
 
 export async function POST(request: NextRequest) {
   console.log("[API] 🚀 POST request received");
@@ -273,6 +276,9 @@ async function processWithCodebuff(
 
       // etl
       etlManager,
+      extractAgent,
+      loadAgent,
+      transformAgent,
     ];
     console.log(
       "[CODEBUFF] 📋 Agent definitions loaded:",

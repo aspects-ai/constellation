@@ -143,9 +143,7 @@ Enrichment Services:
 - Geocoding: Convert addresses to lat/lng
 - Timezone: Normalize all times to location timezone
 - Categories: Map to standardized taxonomy
-- Quality scores: Aggregate ratings from multiple sources
-
-Output to: /data/etl/transform/{inputHash}.json`,
+- Quality scores: Aggregate ratings from multiple sources`,
 
   spawnerPrompt: `Use this agent to transform raw data into canonical schemas`,
 
