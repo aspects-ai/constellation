@@ -64,8 +64,8 @@ const createCyberpunkIcon = (color: string) => {
         <div class="marker-pulse"></div>
       </div>
     `,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
   });
 };
 
@@ -77,7 +77,7 @@ const MapEffects: React.FC = () => {
     // Add custom CSS filter to the map container
     const mapContainer = map.getContainer();
     mapContainer.style.filter =
-      "hue-rotate(240deg) saturate(1.5) brightness(0.3)";
+      "hue-rotate(240deg) saturate(7) brightness(0.5)";
 
     return () => {
       mapContainer.style.filter = "";
@@ -98,44 +98,6 @@ const CyberpunkSFMap: React.FC = () => {
 
   return (
     <div className="cyberpunk-map-container">
-      <div className="hud-overlay">
-        <div className="scan-line"></div>
-        <div className="grid-overlay"></div>
-
-        {/* District Info Panel */}
-        <div className={`district-panel ${selectedDistrict ? "active" : ""}`}>
-          {selectedDistrict && (
-            <>
-              <div className="panel-header">
-                <span className="district-name">
-                  {selectedDistrict.cyberpunkName}
-                </span>
-                <span className="original-name">({selectedDistrict.name})</span>
-              </div>
-              <div className="panel-content">
-                <p className="district-description">
-                  {selectedDistrict.description}
-                </p>
-                <div className="status-indicators">
-                  <div className="status-item">
-                    <span className="label">Awesomeness Level:</span>
-                    <span className="value high">HIGH</span>
-                  </div>
-                  <div className="status-item">
-                    <span className="label">Neural Activity:</span>
-                    <span className="value medium">MODERATE</span>
-                  </div>
-                  <div className="status-item">
-                    <span className="label">Data Flow:</span>
-                    <span className="value active">ACTIVE</span>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
       <MapContainer
         center={SF_CENTER}
         zoom={13}
