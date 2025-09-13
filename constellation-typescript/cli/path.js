@@ -4,6 +4,7 @@
  * Finds the location of the built native library
  */
 
+import { getLDPreloadPath } from './native-path.js'
 import { existsSync } from 'fs'
 import { resolve } from 'path'
 
@@ -13,40 +14,44 @@ import { resolve } from 'path'
  * @throws {Error} If library not found
  */
 export function getNativeLibraryPath() {
-  const possiblePaths = [
-    // Common output locations
-    './build/libintercept.so',
-    './dist-native/libintercept.so',
-    './lib/libintercept.so',
+  // First try to get from the npm package
+  try {
+    return getLDPreloadPath()
+  } catch {
+    // Fall back to checking other locations for development/building
+    const possiblePaths = [
+      // Common output locations
+      './build/libintercept.so',
+      './dist-native/libintercept.so',
+      './lib/libintercept.so',
+      
+      // Node modules locations (when installed as dependency)
+      './node_modules/constellationfs/native/libintercept.so',
+      
+      // Development locations
+      './native/libintercept.so',
+      '../native/libintercept.so',
+      
+      // Absolute paths for CI/CD environments
+      resolve(process.cwd(), 'libintercept.so')
+    ]
     
-    // Node modules locations (when installed as dependency)
-    './node_modules/constellationfs/dist-native/libintercept.so',
-    './node_modules/constellationfs/build/libintercept.so',
-    './node_modules/constellationfs/native/libintercept.so',
-    
-    // Development locations
-    './native/libintercept.so',
-    '../native/libintercept.so',
-    
-    // Absolute paths for CI/CD environments
-    resolve(process.cwd(), 'libintercept.so')
-  ]
-  
-  for (const path of possiblePaths) {
-    try {
-      const resolvedPath = resolve(path)
-      if (existsSync(resolvedPath)) {
-        return resolvedPath
+    for (const path of possiblePaths) {
+      try {
+        const resolvedPath = resolve(path)
+        if (existsSync(resolvedPath)) {
+          return resolvedPath
+        }
+      } catch (error) {
+        // Continue checking other paths
+        continue
       }
-    } catch (error) {
-      // Continue checking other paths
-      continue
     }
+    
+    throw new Error(
+      'Native library not found. Run: npx constellationfs build-native --output ./build/'
+    )
   }
-  
-  throw new Error(
-    'Native library not found. Run: npx constellationfs build-native --output ./build/'
-  )
 }
 
 /**

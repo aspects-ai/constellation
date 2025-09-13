@@ -26,8 +26,7 @@
     "lint:fix": "eslint src --fix",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build && npm run build:native",
-    "postinstall": "node scripts/build-native.js"
+    "prepublishOnly": "npm run build && npm run build:native"
   },
   "keywords": [
     "filesystem",

@@ -151,8 +151,10 @@ export default function Home() {
   const testBackendConnection = async (config: BackendConfig): Promise<boolean> => {
     if (config.type === 'local') return true
     
+    console.log('Testing backend connection:', config)
+    
     try {
-      // Test remote connection by trying to list files
+      // Test remote connection by trying to list files with timeout
       const params = new URLSearchParams({
         sessionId: sessionId,
         backendType: config.type,
@@ -161,10 +163,35 @@ export default function Home() {
         workspace: config.workspace || ''
       })
       
-      const response = await fetch(`/api/filesystem?${params}`)
-      return response.ok
+      console.log('Making request to:', `/api/filesystem?${params}`)
+      
+      // Add timeout to prevent indefinite hanging
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
+      const response = await fetch(`/api/filesystem?${params}`, {
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      
+      console.log('Response status:', response.status)
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Response error:', errorText)
+        return false
+      }
+      
+      const data = await response.json()
+      console.log('Response data:', data)
+      return true
     } catch (error) {
-      console.error('Backend connection test failed:', error)
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        console.error('Backend connection test timed out after 10 seconds')
+      } else {
+        console.error('Backend connection test failed:', error)
+      }
       return false
     }
   }

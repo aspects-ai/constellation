@@ -4,6 +4,7 @@
 
 import { buildNative } from './build-native.js'
 import { getNativeLibraryPath } from './path.js'
+import { getLDPreloadPath } from './native-path.js'
 import { dockerRun } from './docker-run.js'
 import { startRemote, stopRemote } from './remote.js'
 

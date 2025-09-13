@@ -30,12 +30,14 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('Filesystem API: sessionId =', JSON.stringify(sessionId), 'backend =', backendType)
+    console.log('Remote connection params:', { host, username, workspace })
 
     // Create backend configuration
     let backendConfig: any
 
     if (backendType === 'remote') {
       if (!host || !username || !workspace) {
+        console.error('Missing required remote backend parameters:', { host, username, workspace })
         return NextResponse.json({ 
           error: 'Remote backend requires host, username, and workspace parameters' 
         }, { status: 400 })
@@ -53,14 +55,17 @@ export async function GET(request: NextRequest) {
           }
         }
       }
+      console.log('Using remote backend config:', { ...backendConfig, auth: { ...backendConfig.auth, credentials: { username: backendConfig.auth.credentials.username, password: '[REDACTED]' } } })
     } else {
       backendConfig = {
         type: 'local',
         userId: sessionId
       }
+      console.log('Using local backend config')
     }
 
     // Initialize ConstellationFS with specified backend
+    console.log('Initializing FileSystem...')
     const fs = new FileSystem({
       userId: sessionId,
       ...backendConfig
@@ -71,11 +76,17 @@ export async function GET(request: NextRequest) {
     if (backendType === 'remote') {
       // For remote backend, use ConstellationFS exec to list files
       try {
+        console.log('Attempting to connect to remote backend and execute find command...')
         const output = await fs.exec('find . -type f -o -type d | head -100')
+        console.log('Remote command executed successfully, output:', output.substring(0, 200))
         files = parseRemoteFileTree(output)
       } catch (error) {
         console.error('Remote file listing failed:', error)
-        files = []
+        console.error('Error details:', (error as Error).message, (error as Error).stack)
+        return NextResponse.json({ 
+          error: 'Remote connection failed', 
+          details: (error as Error).message 
+        }, { status: 500 })
       }
     } else {
       // For local backend, use direct filesystem access
