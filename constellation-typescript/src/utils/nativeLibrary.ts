@@ -78,27 +78,36 @@ export function detectPlatformCapabilities(): PlatformCapabilities {
  * Searches for the native LD_PRELOAD library in common locations
  */
 export function findNativeLibrary(): string | null {
-  const possiblePaths = [
-    // Distributed with package
-    join(PACKAGE_ROOT, 'dist-native', 'libintercept.so'),
-    // Built in native directory
-    join(PACKAGE_ROOT, 'native', 'libintercept.so'),
-    // Development location
-    join(PACKAGE_ROOT, '..', 'dist-native', 'libintercept.so'),
-    // Container location (Docker development)
+  // Check Docker/container paths first as they're most reliable
+  const dockerPaths = [
+    '/app/dist-native/libintercept.so',
+    '/app/native/libintercept.so',
     '/container-native/libintercept.so'
   ]
   
-  logger.debug('Searching for native library in:', possiblePaths)
+  // Then check package-relative paths (for development/non-Docker environments)
+  const packagePaths = [
+    join(PACKAGE_ROOT, 'dist-native', 'libintercept.so'),
+    join(PACKAGE_ROOT, 'native', 'libintercept.so'),
+    join(PACKAGE_ROOT, '..', 'dist-native', 'libintercept.so')
+  ]
   
-  for (const path of possiblePaths) {
-    if (existsSync(path)) {
+  const allPaths = [...dockerPaths, ...packagePaths]
+  
+  logger.debug('PACKAGE_ROOT calculated as:', PACKAGE_ROOT)
+  logger.debug('Current working directory:', process.cwd())
+  logger.debug('Searching for native library in:', allPaths)
+  
+  for (const path of allPaths) {
+    const exists = existsSync(path)
+    logger.debug(`Checking path ${path}: ${exists ? 'EXISTS' : 'NOT FOUND'}`)
+    if (exists) {
       logger.info(`Found native library at: ${path}`)
       return path
     }
   }
   
-  logger.debug('Native library not found in any expected location')
+  logger.warn('Native library not found in any expected location')
   return null
 }
 

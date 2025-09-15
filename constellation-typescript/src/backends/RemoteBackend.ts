@@ -4,7 +4,7 @@ import { ERROR_CODES } from '../constants.js'
 import { isCommandSafe, isDangerous } from '../safety.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
 import { getLogger } from '../utils/logger.js'
-import { getRemoteBackendLibrary, getPlatformGuidance } from '../utils/nativeLibrary.js'
+import { getPlatformGuidance, getRemoteBackendLibrary } from '../utils/nativeLibrary.js'
 import type { FileSystemBackend, RemoteBackendConfig } from './types.js'
 
 /**
@@ -52,15 +52,9 @@ export class RemoteBackend implements FileSystemBackend {
     // Initialize SSH client
     this.initSSHClient()
     
-    // Test SSH connection
-    this.connected = true
-    
-    if (!this.connected) {
-      throw new FileSystemError(
-        'Could not establish SSH connection to remote backend',
-        ERROR_CODES.BACKEND_NOT_IMPLEMENTED
-      )
-    }
+    // Test SSH connection (will be tested on first exec call)
+    // We can't test async in constructor, so connection will be validated on first use
+    this.connected = false
   }
   
   /**
@@ -73,7 +67,6 @@ export class RemoteBackend implements FileSystemBackend {
       getLogger().warn('SSH2 module not available, remote operations may be limited', error)
     }
   }
-  
   
   /**
    * Extract username from auth configuration
@@ -154,11 +147,6 @@ export class RemoteBackend implements FileSystemBackend {
     // Set remote host for interception
     env.REMOTE_VM_HOST = this.getSSHHostString()
     
-    // Set working directory if specified
-    if (this.workspace && this.workspace !== '/') {
-      env.CONSTELLATION_CWD = this.workspace
-    }
-    
     return env
   }
   
@@ -196,9 +184,10 @@ export class RemoteBackend implements FileSystemBackend {
   }
 
   /**
-   * Get host and port from environment variable
+   * Get host and port from options or environment variable
    */
   private getHostAndPortFromEnv(): { host: string; port: number } {
+    // Fall back to environment variable
     const remoteHost = process.env.REMOTE_VM_HOST
     if (!remoteHost) {
       throw new FileSystemError(

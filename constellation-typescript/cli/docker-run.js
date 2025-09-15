@@ -5,8 +5,6 @@
  */
 
 import { execSync, spawn } from 'child_process'
-import { existsSync } from 'fs'
-import { resolve } from 'path'
 import { getNativeLibraryPath } from './path.js'
 
 /**
@@ -72,8 +70,8 @@ function getEnvironmentVariables() {
   const passThrough = [
     'NODE_ENV',
     'REMOTE_VM_HOST',
-    'CONSTELLATION_CWD',
-    'CONSTELLATION_DEBUG'
+    'CONSTELLATION_DEBUG',
+    'CONSTELLATIONFS_APP_ID'
   ]
   
   for (const key of passThrough) {

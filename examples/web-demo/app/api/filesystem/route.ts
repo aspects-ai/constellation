@@ -21,7 +21,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get('sessionId')
     const backendType = searchParams.get('backendType') || 'local'
-    const host = searchParams.get('host')
     const username = searchParams.get('username')
     const workspace = searchParams.get('workspace')
 
@@ -30,22 +29,22 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('Filesystem API: sessionId =', JSON.stringify(sessionId), 'backend =', backendType)
-    console.log('Remote connection params:', { host, username, workspace })
+    console.log('Remote connection params:', { username, workspace })
 
     // Create backend configuration
     let backendConfig: any
 
     if (backendType === 'remote') {
-      if (!host || !username || !workspace) {
-        console.error('Missing required remote backend parameters:', { host, username, workspace })
+      if (!username || !workspace) {
+        console.error('Missing required remote backend parameters:', { username, workspace })
         return NextResponse.json({ 
-          error: 'Remote backend requires host, username, and workspace parameters' 
+          error: 'Remote backend requires username and workspace parameters' 
         }, { status: 400 })
       }
 
       backendConfig = {
         type: 'remote',
-        host,
+        // Host will be determined from REMOTE_VM_HOST environment variable
         workspace,
         auth: {
           type: 'password',
@@ -55,7 +54,7 @@ export async function GET(request: NextRequest) {
           }
         }
       }
-      console.log('Using remote backend config:', { ...backendConfig, auth: { ...backendConfig.auth, credentials: { username: backendConfig.auth.credentials.username, password: '[REDACTED]' } } })
+      console.log('Using remote backend config (host from env):', { ...backendConfig, auth: { ...backendConfig.auth, credentials: { username: backendConfig.auth.credentials.username, password: '[REDACTED]' } } })
     } else {
       backendConfig = {
         type: 'local',

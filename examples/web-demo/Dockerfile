@@ -1,7 +1,7 @@
 FROM node:18-slim
 
-# Install SSH client for LD_PRELOAD intercept library
-RUN apt-get update && apt-get install -y openssh-client && rm -rf /var/lib/apt/lists/*
+# Install SSH client and bash (bash needed for LD_PRELOAD command execution)
+RUN apt-get update && apt-get install -y openssh-client bash && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ WORKDIR /app
 # Production consumers would use published npm package instead
 COPY constellation-typescript /constellationfs-local
 
-# Copy web-demo source code
+# Copy web-demo source code (including pre-built native library)
 COPY examples/web-demo .
 
 # Fix the ConstellationFS dependency path for Docker build

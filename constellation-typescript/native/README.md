@@ -42,7 +42,6 @@ make
 
 # Set up environment
 export REMOTE_VM_HOST="user@remote-server.com"
-export CONSTELLATION_CWD="/workspace/user123"
 
 # Run Node.js with interception
 LD_PRELOAD="$(pwd)/libintercept.so" node your-app.js
@@ -56,7 +55,6 @@ docker run -d -p 2222:22 --name remote-env ubuntu-ssh-server
 
 # Configure to use the container
 export REMOTE_VM_HOST="root@localhost:2222"
-export CONSTELLATION_CWD="/workspace"
 
 # Run with interception
 LD_PRELOAD="$(pwd)/native/libintercept.so" npm run dev

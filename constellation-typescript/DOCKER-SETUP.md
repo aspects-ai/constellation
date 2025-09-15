@@ -64,7 +64,6 @@ When using RemoteBackend, ConstellationFS:
 2. **Sets environment variables:**
    - `LD_PRELOAD=/path/to/libintercept.so`
    - `REMOTE_VM_HOST=root@localhost:2222`
-   - `CONSTELLATION_CWD=/workspace`
 3. **Intercepts commands**: When AI SDK runs `child_process.exec('ls')`, it gets forwarded as `ssh root@localhost:2222 'ls'`
 
 ## Docker Container Details
