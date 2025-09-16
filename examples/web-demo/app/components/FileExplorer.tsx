@@ -174,19 +174,40 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
       <Group 
         key={item.path} 
         justify="space-between"
-        p="xs"
+        p="sm"
         style={{
           cursor: item.type === 'file' ? 'pointer' : 'default',
           backgroundColor: item.type === 'file' && selectedFile === item.path 
-            ? 'var(--mantine-color-blue-9)' 
+            ? 'rgba(34, 139, 230, 0.15)' 
             : undefined,
-          borderRadius: 'var(--mantine-radius-sm)',
-          ':hover': {
-            backgroundColor: 'var(--mantine-color-dark-6)'
+          borderRadius: '12px',
+          border: item.type === 'file' && selectedFile === item.path
+            ? '1px solid rgba(34, 139, 230, 0.4)'
+            : '1px solid transparent',
+          transition: 'all 0.3s ease',
+          boxShadow: item.type === 'file' && selectedFile === item.path
+            ? '0 4px 12px rgba(34, 139, 230, 0.1)'
+            : 'none'
+        }}
+        onClick={() => handleFileClick(item)}
+        onMouseEnter={(e) => {
+          if (item.type === 'file' && selectedFile !== item.path) {
+            e.currentTarget.style.backgroundColor = 'rgba(34, 139, 230, 0.08)'
+            e.currentTarget.style.border = '1px solid rgba(34, 139, 230, 0.2)'
+            e.currentTarget.style.transform = 'translateY(-1px)'
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(34, 139, 230, 0.1)'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (item.type === 'file' && selectedFile !== item.path) {
+            e.currentTarget.style.backgroundColor = ''
+            e.currentTarget.style.border = '1px solid transparent'
+            e.currentTarget.style.transform = ''
+            e.currentTarget.style.boxShadow = 'none'
           }
         }}
       >
-        <Group gap="xs" onClick={() => handleFileClick(item)}>
+        <Group gap="xs">
           {item.type === 'directory' ? 
             <IconFolder size={16} color="var(--mantine-color-yellow-5)" /> : 
             <IconFile size={16} color="var(--mantine-color-blue-5)" />
@@ -213,17 +234,28 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
 
   return (
     <Box 
-      w={300} 
-      h="100%" 
-      p="md" 
       style={{ 
-        borderRight: '1px solid var(--mantine-color-dark-4)',
-        backgroundColor: 'var(--mantine-color-dark-7)'
+        width: '300px',
+        height: '100%',
+        padding: '20px',
+        borderRight: '1px solid rgba(34, 139, 230, 0.2)',
+        background: 'linear-gradient(135deg, var(--mantine-color-dark-7) 0%, var(--mantine-color-dark-6) 100%)',
+        backgroundImage: 'radial-gradient(circle at 20% 80%, rgba(34, 139, 230, 0.03) 0%, transparent 50%)',
+        display: 'flex',
+        flexDirection: 'column',
+        flexShrink: 0,
+        boxShadow: '2px 0 12px rgba(0, 0, 0, 0.1)'
       }}
     >
-      <Stack gap="md" h="100%">
+      <Stack gap="md" style={{ height: '100%', minHeight: 0 }}>
         <Group justify="space-between">
-          <Text fw={600} size="lg">Workspace Files</Text>
+          <Text 
+            fw={700} 
+            size="lg"
+            c="blue.4"
+          >
+            📁 Workspace
+          </Text>
           <Group gap="xs">
             <FileInput
               placeholder=""
@@ -252,7 +284,11 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
           </Group>
         </Group>
 
-        <ScrollArea flex={1}>
+        <ScrollArea flex={1} styles={{
+          viewport: {
+            paddingRight: '8px'
+          }
+        }}>
           <Stack gap="xs">
             {isLoading ? (
               <Center p="xl">

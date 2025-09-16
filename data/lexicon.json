@@ -1,0 +1,132 @@
+{
+  "version": "1.0.0",
+  "lexicon": {
+    "tech_terms": {
+      "company": ["megacorp", "syndicate", "conglomerate", "corp"],
+      "corporation": ["megacorporation", "zaibatsu", "corporate entity"],
+      "CEO": ["overlord", "architect", "prime node", "chief architect"],
+      "executive": ["corporate samurai", "suit", "high node"],
+      "employee": ["wage slave", "corporate drone", "node worker"],
+      "office": ["corporate fortress", "glass tower", "data center"],
+      "startup": ["upstart syndicate", "neural venture", "bootstrap collective"],
+      "business": ["operation", "syndicate dealings", "corporate machinations"]
+    },
+    "data_terms": {
+      "data": ["datastream", "infomatrix", "neural feed", "data flow"],
+      "database": ["data vault", "memory core", "info repository"],
+      "big data": ["massive datastreams", "the data ocean", "information matrix"],
+      "analytics": ["pattern recognition", "data mining", "neural analysis"],
+      "algorithm": ["neural pattern", "ghost code", "digital logic"],
+      "information": ["intel", "data packets", "info streams"]
+    },
+    "internet_terms": {
+      "internet": ["the net", "cyberspace", "the matrix", "the grid"],
+      "web": ["the mesh", "digital web", "neural network"],
+      "website": ["node", "digital fortress", "cyber location"],
+      "server": ["node", "data fortress", "server farm"],
+      "cloud": ["the grid", "distributed matrix", "sky data"],
+      "browser": ["net navigator", "cyber portal", "matrix interface"],
+      "download": ["jack in", "data siphon", "stream down"],
+      "upload": ["stream up", "neural upload", "data injection"],
+      "online": ["jacked in", "on the grid", "in the matrix"],
+      "offline": ["disconnected", "off-grid", "unplugged"]
+    },
+    "security_terms": {
+      "hack": ["breach", "neural intrusion", "ice break", "system crack"],
+      "hacker": ["netrunner", "console cowboy", "data thief", "ghost"],
+      "security": ["ice", "countermeasures", "defensive protocols"],
+      "firewall": ["ice wall", "security barrier", "data fortress wall"],
+      "virus": ["ice", "black ice", "daemon", "malware ghost"],
+      "encryption": ["cipher", "quantum lock", "data scramble"],
+      "password": ["access code", "cipher key", "neural key"],
+      "breach": ["intrusion", "system compromise", "wall break"],
+      "cybersecurity": ["net defense", "ice protocols", "matrix security"]
+    },
+    "ai_terms": {
+      "AI": ["synthetic intelligence", "ghost", "daemon", "artificial mind"],
+      "artificial intelligence": ["synthetic consciousness", "digital ghost", "machine mind"],
+      "machine learning": ["neural evolution", "pattern absorption", "ghost training"],
+      "neural network": ["synthetic neurons", "digital brain", "ghost net"],
+      "deep learning": ["deep neural diving", "consciousness simulation", "pattern mastery"],
+      "bot": ["daemon", "digital servant", "automated ghost"],
+      "automation": ["ghost labor", "daemon work", "synthetic operations"]
+    },
+    "device_terms": {
+      "smartphone": ["neural implant", "deck", "wetware", "pocket deck"],
+      "computer": ["deck", "terminal", "neural interface", "rig"],
+      "laptop": ["portable deck", "mobile terminal", "carry rig"],
+      "tablet": ["slate", "thin deck", "neural pad"],
+      "screen": ["display matrix", "visual feed", "holo display"],
+      "keyboard": ["neural interface", "input matrix", "tactile deck"],
+      "mouse": ["neural pointer", "interface controller", "deck navigator"]
+    },
+    "social_terms": {
+      "social media": ["the feed", "hivemind", "neural network", "social matrix"],
+      "post": ["broadcast", "neural transmission", "feed injection"],
+      "like": ["neural ping", "approval pulse", "social credit"],
+      "share": ["data propagation", "neural forward", "feed amplification"],
+      "follower": ["network node", "feed subscriber", "neural connection"],
+      "influencer": ["feed overlord", "neural influencer", "hivemind director"]
+    },
+    "finance_terms": {
+      "money": ["credits", "crypto", "digital currency", "nuyen"],
+      "bank": ["credit fortress", "financial node", "crypto vault"],
+      "payment": ["credit transfer", "crypto exchange", "digital transaction"],
+      "bitcoin": ["shadow credits", "dark crypto", "ghost currency"],
+      "cryptocurrency": ["crypto", "digital credits", "shadow money"],
+      "stock market": ["credit matrix", "financial grid", "market neural net"]
+    },
+    "government_terms": {
+      "government": ["the authority", "the system", "central node", "control grid"],
+      "police": ["enforcement", "system security", "authority nodes"],
+      "military": ["combat units", "enforcement legion", "system army"],
+      "law": ["system protocol", "authority code", "control parameters"],
+      "regulation": ["control protocol", "system constraints", "authority limits"]
+    },
+    "action_terms": {
+      "update": ["patch", "neural update", "firmware flash", "system revision"],
+      "install": ["neural injection", "system integration", "code implant"],
+      "delete": ["purge", "data wipe", "memory burn"],
+      "copy": ["data clone", "neural duplicate", "ghost copy"],
+      "search": ["data hunt", "neural scan", "matrix sweep"],
+      "connect": ["jack in", "neural link", "grid sync"],
+      "disconnect": ["jack out", "neural break", "grid exit"]
+    }
+  },
+  "intensity_rules": {
+    "0": {
+      "description": "No transformation",
+      "transformPercentage": 0
+    },
+    "1": {
+      "description": "Light styling - subtle terminology",
+      "transformPercentage": 25,
+      "focus": ["tech_terms", "ai_terms"]
+    },
+    "2": {
+      "description": "Medium - headlines and key terms",
+      "transformPercentage": 50,
+      "focus": ["tech_terms", "ai_terms", "internet_terms", "security_terms"]
+    },
+    "3": {
+      "description": "Full immersion - complete transformation",
+      "transformPercentage": 80,
+      "focus": "all"
+    }
+  },
+  "contextual_rules": [
+    {
+      "context": "formal_names",
+      "rule": "Keep company and person names recognizable, add descriptor",
+      "example": "Apple → MegaCorp Apple"
+    },
+    {
+      "context": "numbers",
+      "rule": "Never change numbers, dates, or statistics"
+    },
+    {
+      "context": "quotes",
+      "rule": "Keep quotes verbatim, transform attribution only"
+    }
+  ]
+}

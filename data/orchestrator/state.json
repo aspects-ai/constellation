@@ -1,0 +1,40 @@
+{
+  "config": {
+    "intensity": 2,
+    "sources": [
+      "https://techcrunch.com/feed/",
+      "https://news.ycombinator.com/rss",
+      "https://feeds.arstechnica.com/arstechnica/index",
+      "https://www.theverge.com/rss/index.xml",
+      "https://www.wired.com/feed/rss"
+    ],
+    "filters": {
+      "topics": ["technology", "AI", "security", "programming"],
+      "keywords": [],
+      "excludeKeywords": []
+    }
+  },
+  "pipeline": {
+    "status": "idle",
+    "lastRun": null,
+    "currentStage": null,
+    "errors": [],
+    "stats": {
+      "articlesProcessed": 0,
+      "articlesPublished": 0,
+      "lastFetch": null,
+      "cacheHitRate": 0
+    }
+  },
+  "agents": {
+    "news-fetcher": { "status": "idle", "lastRun": null },
+    "content-normalizer": { "status": "idle", "lastRun": null },
+    "trend-analyzer": { "status": "idle", "lastRun": null },
+    "cyber-stylizer": { "status": "idle", "lastRun": null },
+    "fact-guardian": { "status": "idle", "lastRun": null },
+    "visual-enhancer": { "status": "idle", "lastRun": null },
+    "feed-publisher": { "status": "idle", "lastRun": null }
+  },
+  "clusters": [],
+  "trends": []
+}
