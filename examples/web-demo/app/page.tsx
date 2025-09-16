@@ -1,14 +1,14 @@
 "use client";
 
-import { Box, Button, Container, Group, Tabs, Text } from '@mantine/core'
-import { IconReload } from '@tabler/icons-react'
-import { useEffect, useState } from 'react'
-import ApiKeyModal from './components/ApiKeyModal'
-import BackendSelector, { BackendConfig } from './components/BackendSelector'
-import Chat from './components/Chat'
-import ComponentSandbox from './components/ComponentSandbox'
-import FileExplorer from './components/FileExplorer'
-import FileViewer from './components/FileViewer'
+import { Box, Button, Container, Group, Tabs, Text } from '@mantine/core';
+import { IconReload } from '@tabler/icons-react';
+import React, { useEffect, useState } from 'react';
+import ApiKeyModal from './components/ApiKeyModal';
+import BackendSelector, { BackendConfig } from './components/BackendSelector';
+import Chat from './components/Chat';
+import ComponentSandbox from './components/ComponentSandbox';
+import FileExplorer from './components/FileExplorer';
+import FileViewer from './components/FileViewer';
 
 function FileExplorerTab({
   sessionId,
@@ -105,11 +105,6 @@ export default function Home() {
     setApiKey(key);
     setShowApiKeyModal(false);
   };
-
-  const testBackendConnection = async (
-    config: BackendConfig,
-  ): Promise<boolean> => {
-    if (config.type === "local") return true;
 
   const testBackendConnection = async (config: BackendConfig): Promise<boolean> => {
     if (config.type === 'local') return true
