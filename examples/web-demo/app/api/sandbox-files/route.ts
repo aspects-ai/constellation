@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
       // Helper function to process a single path
       async function processPath(filePath: string) {
         try {
-          const statResult = await fs.exec(`stat -c '%F' "${filePath}" 2>/dev/null || stat -f '%HT' "${filePath}"`);
+          const statResult = await fs.exec(`stat -c '%F' "${filePath}" || stat -f '%HT' "${filePath}"`);
           const fileType = statResult.trim().toLowerCase();
 
           if (fileType.includes('regular file')) {
