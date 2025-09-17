@@ -15,6 +15,9 @@
 // Declare environ variable
 extern char **environ;
 
+// Global variable to track fake working directory for this process
+static char fake_cwd[PATH_MAX] = {0};
+
 
 // Function pointer types for original functions
 typedef int (*orig_execve_f_type)(const char *filename, char *const argv[], char *const envp[]);
@@ -26,6 +29,7 @@ typedef int (*orig_execv_f_type)(const char *path, char *const argv[]);
 typedef int (*orig_system_f_type)(const char *command);
 typedef pid_t (*orig_fork_f_type)(void);
 typedef int (*orig_chdir_f_type)(const char *path);
+typedef char *(*orig_getcwd_f_type)(char *buf, size_t size);
 
 // Debug logging function
 static void debug_log(const char *format, ...) {
@@ -666,36 +670,7 @@ int execlp(const char *file, const char *arg, ...) {
     return result;  // Error - return to caller
 }
 
-// Helper function to create directory recursively
-static int mkdir_recursive(const char *path) {
-    char tmp[PATH_MAX];
-    char *p = NULL;
-    size_t len;
-    
-    snprintf(tmp, sizeof(tmp), "%s", path);
-    len = strlen(tmp);
-    if (tmp[len - 1] == '/') {
-        tmp[len - 1] = 0;
-    }
-    
-    for (p = tmp + 1; *p; p++) {
-        if (*p == '/') {
-            *p = 0;
-            if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
-                return -1;
-            }
-            *p = '/';
-        }
-    }
-    
-    if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
-        return -1;
-    }
-    
-    return 0;
-}
-
-// Intercept chdir - create directory if needed, then call real chdir
+// Intercept chdir - store path and fake success
 int chdir(const char *path) {
     debug_log("chdir called: path=%s", path ? path : "NULL");
     
@@ -704,33 +679,48 @@ int chdir(const char *path) {
         return -1;
     }
     
-    // Get original chdir function
-    static orig_chdir_f_type orig_chdir = NULL;
-    if (!orig_chdir) {
-        orig_chdir = (orig_chdir_f_type)dlsym(RTLD_NEXT, "chdir");
-    }
+    // Store the fake working directory
+    strncpy(fake_cwd, path, sizeof(fake_cwd) - 1);
+    fake_cwd[sizeof(fake_cwd) - 1] = '\0';
+    debug_log("Stored fake_cwd: %s", fake_cwd);
     
-    // Try original chdir first
-    int result = orig_chdir(path);
+    return 0; // Always fake success
+}
+
+// Intercept getcwd - return fake working directory if set
+char *getcwd(char *buf, size_t size) {
+    debug_log("getcwd called");
     
-    if (result == 0) {
-        debug_log("chdir succeeded: %s", path);
-        return 0;
-    }
-    
-    // chdir failed - try creating the directory
-    debug_log("chdir failed, attempting to create directory: %s", path);
-    
-    if (mkdir_recursive(path) == 0) {
-        debug_log("Directory created successfully, retrying chdir");
-        result = orig_chdir(path);
-        if (result == 0) {
-            debug_log("chdir succeeded after creating directory");
-        } else {
-            debug_log("chdir still failed after creating directory: errno=%d", errno);
+    // If we have a fake working directory, return it
+    if (fake_cwd[0] != '\0') {
+        debug_log("Returning fake_cwd: %s", fake_cwd);
+        if (buf == NULL) {
+            // getcwd should allocate buffer if buf is NULL
+            buf = malloc(strlen(fake_cwd) + 1);
+            if (!buf) {
+                errno = ENOMEM;
+                return NULL;
+            }
+        } else if (strlen(fake_cwd) >= size) {
+            errno = ERANGE;
+            return NULL;
         }
+        strcpy(buf, fake_cwd);
+        return buf;
+    }
+    
+    // No fake cwd set, use original getcwd
+    debug_log("No fake_cwd set, using original getcwd");
+    static orig_getcwd_f_type orig_getcwd = NULL;
+    if (!orig_getcwd) {
+        orig_getcwd = (orig_getcwd_f_type)dlsym(RTLD_NEXT, "getcwd");
+    }
+    
+    char *result = orig_getcwd(buf, size);
+    if (result) {
+        debug_log("Original getcwd returned: %s", result);
     } else {
-        debug_log("Failed to create directory: errno=%d", errno);
+        debug_log("Original getcwd failed: errno=%d", errno);
     }
     
     return result;
