@@ -5,41 +5,37 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
-    const backendType = searchParams.get('backendType') || 'local';
-    const host = searchParams.get('host');
-    const username = searchParams.get('username');
-    const workspace = searchParams.get('workspace');
+    // Get backend type from environment variable
+    const backendType = (process.env.NEXT_PUBLIC_CONSTELLATION_BACKEND_TYPE as 'local' | 'remote') || 'local';
 
     if (!sessionId) {
       return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
     }
 
+    console.log('Sandbox-files API: sessionId =', JSON.stringify(sessionId), 'backend =', backendType)
+
     // Create backend configuration
     let backendConfig: any;
     if (backendType === 'remote') {
-      if (!host || !username || !workspace) {
-        return NextResponse.json(
-          { error: 'Remote backend requires additional parameters' },
-          { status: 400 }
-        );
-      }
       backendConfig = {
         type: 'remote',
-        host,
-        workspace,
+        // Host will be determined from REMOTE_VM_HOST environment variable
+        userId: sessionId,
         auth: {
           type: 'password',
           credentials: {
-            username,
-            password: 'constellation',
+            username: 'root',
+            password: 'constellation', // Default password for Docker container
           },
         },
       };
+      console.log('Using remote backend config (host from env):', { ...backendConfig, auth: { ...backendConfig.auth, credentials: { username: backendConfig.auth.credentials.username, password: '[REDACTED]' } } })
     } else {
       backendConfig = {
         type: 'local',
         userId: sessionId,
       };
+      console.log('Using local backend config')
     }
 
     // Create a new FileSystem instance each time to avoid caching issues

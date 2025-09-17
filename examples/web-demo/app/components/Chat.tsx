@@ -2,15 +2,11 @@
 
 import {
   Box,
-  Button,
   Group,
-  Loader,
-  Paper,
   ScrollArea,
   Stack,
   Text,
-  Textarea,
-  Tooltip,
+  Textarea
 } from "@mantine/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -26,17 +22,9 @@ interface Message {
   agentId?: string;
 }
 
-interface BackendConfig {
-  type: "local" | "remote";
-  host?: string;
-  username?: string;
-  workspace?: string;
-}
-
 interface ChatProps {
   sessionId: string;
   apiKey: string | null;
-  backendConfig: BackendConfig;
 }
 
 // Separate component for expandable tool output
@@ -669,7 +657,7 @@ const MessageGroupComponent = ({ group }: { group: MessageGroup }) => {
 
 MessageGroupComponent.displayName = "MessageGroupComponent";
 
-export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
+export default function Chat({ sessionId, apiKey }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -728,7 +716,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
   // Initialize workspace on component mount
   useEffect(() => {
     const initializeWorkspace = async () => {
-      if (hasInitialized.current || !sessionId || !backendConfig) return;
+      if (hasInitialized.current || !sessionId) return;
 
       hasInitialized.current = true;
       console.log("[Chat] Initializing workspace on app load...");
@@ -737,7 +725,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
         const requestBody = {
           message: "", // Empty message for initialization only
           sessionId,
-          backendConfig,
         };
 
         const response = await fetch("/api/message", {
@@ -766,7 +753,7 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
     };
 
     initializeWorkspace();
-  }, [sessionId, backendConfig]);
+  }, [sessionId]);
 
   // Cleanup EventSource on unmount
   useEffect(() => {
@@ -801,7 +788,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
       const requestBody = {
         message: userMessage.content,
         sessionId,
-        backendConfig,
         ...(runState && { previousRunState: runState }),
       };
 
@@ -1102,7 +1088,6 @@ export default function Chat({ sessionId, apiKey, backendConfig }: ChatProps) {
     isLoading,
     apiKey,
     sessionId,
-    backendConfig,
     activeAgent,
 
     addMessageWithDuplicateCheck,

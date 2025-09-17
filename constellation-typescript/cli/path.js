@@ -6,7 +6,6 @@
 
 import { existsSync } from 'fs'
 import { resolve } from 'path'
-import { process } from 'process'
 import { getLDPreloadPath } from './native-path.js'
 
 /**

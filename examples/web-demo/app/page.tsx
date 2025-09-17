@@ -4,7 +4,7 @@ import { Box, Button, Container, Group, Tabs, Text } from '@mantine/core';
 import { IconReload } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import ApiKeyModal from './components/ApiKeyModal';
-import BackendSelector, { BackendConfig } from './components/BackendSelector';
+import StatusBar from './components/StatusBar';
 import Chat from './components/Chat';
 import ComponentSandbox from './components/ComponentSandbox';
 import FileExplorer from './components/FileExplorer';
@@ -12,10 +12,8 @@ import FileViewer from './components/FileViewer';
 
 function FileExplorerTab({
   sessionId,
-  backendConfig,
 }: {
   sessionId: string;
-  backendConfig: BackendConfig;
 }) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
@@ -25,12 +23,10 @@ function FileExplorerTab({
         sessionId={sessionId}
         onFileSelect={setSelectedFile}
         selectedFile={selectedFile}
-        backendConfig={backendConfig}
       />
       <FileViewer
         sessionId={sessionId}
         selectedFile={selectedFile}
-        backendConfig={backendConfig}
       />
     </Box>
   );
@@ -41,9 +37,8 @@ export default function Home() {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [activeTab, setActiveTab] = useState<string | null>("sandbox");
-  const [backendConfig, setBackendConfig] = useState<BackendConfig>({
-    type: "local",
-  });
+  // Get backend type from environment (set at build time)
+  const backendType = (process.env.NEXT_PUBLIC_CONSTELLATION_BACKEND_TYPE as 'local' | 'remote') || 'local';
   const [showTabs, setShowTabs] = useState(false);
   const [sandboxFileCount, setSandboxFileCount] = useState(0);
   const [sandboxForceRestart, setSandboxForceRestart] = useState(false);
@@ -106,49 +101,6 @@ export default function Home() {
     setShowApiKeyModal(false);
   };
 
-  const testBackendConnection = async (config: BackendConfig): Promise<boolean> => {
-    if (config.type === 'local') return true
-    
-    console.log('Testing backend connection:', config)
-    
-    try {
-      const params = new URLSearchParams({
-        sessionId: sessionId,
-        backendType: config.type
-      })
-      
-      console.log('Making request to:', `/api/filesystem?${params}`)
-      
-      // Add timeout to prevent indefinite hanging
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
-      
-      const response = await fetch(`/api/filesystem?${params}`, {
-        signal: controller.signal
-      })
-      
-      clearTimeout(timeoutId)
-      
-      console.log('Response status:', response.status)
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('Response error:', errorText)
-        return false
-      }
-      
-      const data = await response.json()
-      console.log('Response data:', data)
-      return true
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        console.error('Backend connection test timed out after 10 seconds')
-      } else {
-        console.error('Backend connection test failed:', error)
-      }
-      return false
-    }
-  };
 
   if (!sessionId) {
     return (
@@ -492,7 +444,6 @@ export default function Home() {
                 <Tabs.List>
                   <Tabs.Tab value="files">Workspace Files</Tabs.Tab>
                   <Tabs.Tab value="sandbox">Component Sandbox</Tabs.Tab>
-                  <Tabs.Tab value="config">Backend Config</Tabs.Tab>
                   {activeTab === "sandbox" && showTabs && (
                     <Box style={{ marginLeft: "auto", padding: "8px 12px" }}>
                       <Button
@@ -518,7 +469,6 @@ export default function Home() {
                   >
                     <FileExplorerTab
                       sessionId={sessionId}
-                      backendConfig={backendConfig}
                     />
                   </Tabs.Panel>
 
@@ -532,30 +482,12 @@ export default function Home() {
                   >
                     <ComponentSandbox
                       sessionId={sessionId}
-                      backendConfig={backendConfig}
                       onFileCountChange={setSandboxFileCount}
                       forceRestart={sandboxForceRestart}
                       showTabs={showTabs}
                     />
                   </Tabs.Panel>
 
-                  <Tabs.Panel
-                    value="config"
-                    style={{
-                      height: "100%",
-                      overflow: "auto",
-                      padding: "24px",
-                    }}
-                  >
-                    <Box style={{ maxWidth: "800px", margin: "0 auto" }}>
-                      <BackendSelector
-                        sessionId={sessionId}
-                        config={backendConfig}
-                        onChange={setBackendConfig}
-                        onTestConnection={testBackendConnection}
-                      />
-                    </Box>
-                  </Tabs.Panel>
                 </Box>
               </Tabs>
             </Box>
@@ -582,6 +514,7 @@ export default function Home() {
           >
             <Box
               p="md"
+              pb="xs"
               style={{
                 borderBottom: "2px solid transparent",
                 borderImage:
@@ -694,11 +627,11 @@ export default function Home() {
                 </Group>
               </Box>
             </Box>
+            <StatusBar sessionId={sessionId} backendType={backendType} />
             <Box style={{ flex: 1, minHeight: 0 }}>
               <Chat
                 sessionId={sessionId}
                 apiKey={apiKey}
-                backendConfig={backendConfig}
               />
             </Box>
           </Box>

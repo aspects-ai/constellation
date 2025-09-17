@@ -11,16 +11,15 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get('sessionId')
-    const backendType = searchParams.get('backendType') || 'local'
-    const username = searchParams.get('username')
-    const workspace = searchParams.get('workspace')
+    
+    // Get backend type from environment variable
+    const backendType = (process.env.NEXT_PUBLIC_CONSTELLATION_BACKEND_TYPE as 'local' | 'remote') || 'local'
 
     if (!sessionId) {
       return NextResponse.json({ error: 'SessionId is required' }, { status: 400 })
     }
 
     console.log('Filesystem API: sessionId =', JSON.stringify(sessionId), 'backend =', backendType)
-    console.log('Remote connection params:', { username, workspace })
 
     // Create backend configuration
     let backendConfig: any

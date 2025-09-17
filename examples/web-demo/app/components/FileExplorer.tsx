@@ -22,21 +22,13 @@ interface FileItem {
   name: string
 }
 
-interface BackendConfig {
-  type: 'local' | 'remote'
-  host?: string
-  username?: string
-  workspace?: string
-}
-
 interface FileExplorerProps {
   sessionId: string
   onFileSelect?: (filePath: string) => void
   selectedFile?: string | null
-  backendConfig: BackendConfig
 }
 
-export default function FileExplorer({ sessionId, onFileSelect, selectedFile, backendConfig }: FileExplorerProps) {
+export default function FileExplorer({ sessionId, onFileSelect, selectedFile }: FileExplorerProps) {
   const [files, setFiles] = useState<FileItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const fileInputRef = useRef<HTMLButtonElement>(null)
@@ -45,16 +37,8 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
     setIsLoading(true)
     try {
       const params = new URLSearchParams({
-        sessionId: sessionId,
-        backendType: backendConfig.type
+        sessionId: sessionId
       })
-      
-      // Add remote backend parameters if needed
-      if (backendConfig.type === 'remote') {
-        if (backendConfig.host) params.append('host', backendConfig.host)
-        if (backendConfig.username) params.append('username', backendConfig.username)
-        if (backendConfig.workspace) params.append('workspace', backendConfig.workspace)
-      }
       
       const response = await fetch(`/api/filesystem?${params}`)
       if (response.ok) {
@@ -69,7 +53,7 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
 
   useEffect(() => {
     fetchFileSystem()
-  }, [sessionId, backendConfig])
+  }, [sessionId])
 
   useEffect(() => {
     // Listen for filesystem updates from chat
@@ -93,7 +77,7 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
     const formData = new FormData()
     formData.append('file', file)
     formData.append('sessionId', sessionId)
-    formData.append('backendType', backendConfig.type)
+    // Backend type is now controlled by environment variable
 
     try {
       const response = await fetch('/api/upload', {
@@ -129,8 +113,7 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
     try {
       const params = new URLSearchParams({
         sessionId: sessionId,
-        file: filePath,
-        backendType: backendConfig.type
+        file: filePath
       })
       
       const response = await fetch(`/api/download?${params}`)

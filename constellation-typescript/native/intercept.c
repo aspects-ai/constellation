@@ -344,6 +344,53 @@ int system(const char *command) {
 int execl(const char *path, const char *arg, ...) {
     debug_log("execl called: path=%s", path);
 
+    // Check if we should intercept and get current working directory
+    char cwd[PATH_MAX];
+    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd))) {
+        // Execute normally without interception
+        static orig_execl_f_type orig_execl = NULL;
+        if (!orig_execl) {
+            orig_execl = (orig_execl_f_type)dlsym(RTLD_NEXT, "execl");
+        }
+        
+        // For execl, we need to build argv from variable arguments and call original execl
+        va_list args;
+        va_start(args, arg);
+        
+        // Count arguments
+        int argc = 1;
+        va_list count_args;
+        va_copy(count_args, args);
+        while (va_arg(count_args, char *) != NULL) {
+            argc++;
+        }
+        va_end(count_args);
+        
+        // Call original execl with all arguments
+        // Note: This is complex to implement generically, so we'll use execve instead
+        char **argv = malloc((argc + 1) * sizeof(char *));
+        if (!argv) {
+            va_end(args);
+            errno = ENOMEM;
+            return -1;
+        }
+        
+        argv[0] = (char *)arg;
+        for (int i = 1; i < argc; i++) {
+            argv[i] = va_arg(args, char *);
+        }
+        argv[argc] = NULL;
+        va_end(args);
+        
+        static orig_execve_f_type orig_execve = NULL;
+        if (!orig_execve) {
+            orig_execve = (orig_execve_f_type)dlsym(RTLD_NEXT, "execve");
+        }
+        int result = orig_execve(path, argv, environ);
+        free(argv);
+        return result;
+    }
+
     // For execl, we need to build argv from variable arguments
     va_list args;
     va_start(args, arg);
@@ -385,6 +432,52 @@ int execl(const char *path, const char *arg, ...) {
 
 int execlp(const char *file, const char *arg, ...) {
     debug_log("execlp called: file=%s", file);
+
+    // Check if we should intercept and get current working directory
+    char cwd[PATH_MAX];
+    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd))) {
+        // Execute normally without interception
+        static orig_execlp_f_type orig_execlp = NULL;
+        if (!orig_execlp) {
+            orig_execlp = (orig_execlp_f_type)dlsym(RTLD_NEXT, "execlp");
+        }
+        
+        // For execlp, we need to build argv from variable arguments and call original execvp
+        va_list args;
+        va_start(args, arg);
+        
+        // Count arguments
+        int argc = 1;
+        va_list count_args;
+        va_copy(count_args, args);
+        while (va_arg(count_args, char *) != NULL) {
+            argc++;
+        }
+        va_end(count_args);
+        
+        // Build argv and call execvp (which handles PATH searching)
+        char **argv = malloc((argc + 1) * sizeof(char *));
+        if (!argv) {
+            va_end(args);
+            errno = ENOMEM;
+            return -1;
+        }
+        
+        argv[0] = (char *)arg;
+        for (int i = 1; i < argc; i++) {
+            argv[i] = va_arg(args, char *);
+        }
+        argv[argc] = NULL;
+        va_end(args);
+        
+        static orig_execvp_f_type orig_execvp = NULL;
+        if (!orig_execvp) {
+            orig_execvp = (orig_execvp_f_type)dlsym(RTLD_NEXT, "execvp");
+        }
+        int result = orig_execvp(file, argv);
+        free(argv);
+        return result;
+    }
 
     // For execlp, we need to build argv from variable arguments  
     va_list args;

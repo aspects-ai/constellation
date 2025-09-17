@@ -6,9 +6,8 @@
  */
 
 import { existsSync } from 'fs'
-import { join, resolve } from 'path'
+import { dirname, join, resolve } from 'path'
 import { fileURLToPath } from 'url'
-import { dirname } from 'path'
 import { getLogger } from './logger.js'
 
 const logger = getLogger()
@@ -94,13 +93,8 @@ export function findNativeLibrary(): string | null {
   
   const allPaths = [...dockerPaths, ...packagePaths]
   
-  logger.debug('PACKAGE_ROOT calculated as:', PACKAGE_ROOT)
-  logger.debug('Current working directory:', process.cwd())
-  logger.debug('Searching for native library in:', allPaths)
-  
   for (const path of allPaths) {
     const exists = existsSync(path)
-    logger.debug(`Checking path ${path}: ${exists ? 'EXISTS' : 'NOT FOUND'}`)
     if (exists) {
       logger.info(`Found native library at: ${path}`)
       return path

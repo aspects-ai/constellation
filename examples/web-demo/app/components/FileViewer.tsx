@@ -1,32 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { 
-  Box, 
-  Text, 
-  ScrollArea, 
-  Center, 
-  Loader,
-  Alert
-} from '@mantine/core'
 import { CodeHighlight } from '@mantine/code-highlight'
+import {
+  Alert,
+  Box,
+  Center,
+  Loader,
+  ScrollArea,
+  Text
+} from '@mantine/core'
 import { IconAlertCircle, IconFile } from '@tabler/icons-react'
+import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
-
-interface BackendConfig {
-  type: 'local' | 'remote'
-  host?: string
-  username?: string
-  workspace?: string
-}
 
 interface FileViewerProps {
   sessionId: string
   selectedFile: string | null
-  backendConfig: BackendConfig
 }
 
-export default function FileViewer({ sessionId, selectedFile, backendConfig }: FileViewerProps) {
+export default function FileViewer({ sessionId, selectedFile }: FileViewerProps) {
   const [fileContent, setFileContent] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -47,16 +39,8 @@ export default function FileViewer({ sessionId, selectedFile, backendConfig }: F
       try {
         const params = new URLSearchParams({
           sessionId: sessionId,
-          filePath: selectedFile,
-          backendType: backendConfig.type
+          filePath: selectedFile
         })
-        
-        // Add remote backend parameters if needed
-        if (backendConfig.type === 'remote') {
-          if (backendConfig.host) params.append('host', backendConfig.host)
-          if (backendConfig.username) params.append('username', backendConfig.username)
-          if (backendConfig.workspace) params.append('workspace', backendConfig.workspace)
-        }
         
         setLoadingPhase('Sending request to server...')
         const startTime = Date.now()
@@ -93,7 +77,7 @@ export default function FileViewer({ sessionId, selectedFile, backendConfig }: F
     }
 
     fetchFileContent()
-  }, [sessionId, selectedFile, backendConfig])
+  }, [sessionId, selectedFile])
 
   const getFileLanguage = (filename: string): string => {
     const ext = filename.split('.').pop()?.toLowerCase()

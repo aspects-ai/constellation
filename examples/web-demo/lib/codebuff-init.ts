@@ -13,6 +13,7 @@ export async function getCodebuffClient(fs: FileSystem, apiKey: string) {
   let client = clientPool.get(workspaceKey)
 
   if (!client) {
+    console.log('Creating new Codebuff client for workspace:', fs.workspace)
     client = new CodebuffClient({
       apiKey,
       cwd: fs.workspace,

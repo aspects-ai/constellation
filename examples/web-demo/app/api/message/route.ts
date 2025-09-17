@@ -1,10 +1,7 @@
-import { AgentDefinition, CodebuffClient } from "@codebuff/sdk";
+import { CodebuffClient } from "@codebuff/sdk";
 import { BackendConfig, FileSystem } from "constellationfs";
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import etlManager from "../../../lib/agents/etl-manager";
-import orchestratorAgent from "../../../lib/agents/orchestrator-agent";
-import reactTypescriptBuilder from "../../../lib/agents/react-typescript-builder";
 import { getCodebuffClient } from "../../../lib/codebuff-init";
 import { broadcastToStream } from "../../../lib/streams";
 
@@ -40,13 +37,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { message, sessionId, backendConfig, previousRunState } = body;
+    const { message, sessionId, previousRunState } = body;
     console.log(
       "[API] 📝 Message:",
       message?.substring(0, 100) + (message?.length > 100 ? "..." : ""),
     );
     console.log("[API] 🆔 Session ID:", sessionId);
-    console.log("[API] 🔧 Backend config:", backendConfig?.type || "local");
+    
+    // Get backend type from environment variable
+    const backendType = (process.env.NEXT_PUBLIC_CONSTELLATION_BACKEND_TYPE as 'local' | 'remote') || 'local';
+    console.log("[API] 🔧 Backend type:", backendType);
     console.log("[API] 🔄 Previous runState present:", !!previousRunState);
     if (previousRunState) {
       console.log("[API] 📊 Previous runState type:", typeof previousRunState);
@@ -82,23 +82,26 @@ export async function POST(request: NextRequest) {
     // Create backend configuration
     let fsConfig: Partial<BackendConfig>;
 
-    if (backendConfig && backendConfig.type === "remote") {
+    if (backendType === "remote") {
       fsConfig = {
         type: "remote",
+        // Host will be determined from REMOTE_VM_HOST environment variable
         userId: sessionId,
         auth: {
           type: "password",
           credentials: {
             username: 'root',
-            password: "constellation",
+            password: "constellation", // Default password for Docker container
           },
         },
       };
+      console.log('[API] Using remote backend config (host from env):', { ...fsConfig, auth: { ...fsConfig.auth, credentials: { username: fsConfig.auth?.credentials.username, password: '[REDACTED]' } } })
     } else {
       fsConfig = {
         type: "local",
         userId: sessionId,
       };
+      console.log('[API] Using local backend config')
     }
 
     // Initialize ConstellationFS with specified backend
@@ -249,12 +252,12 @@ async function processWithCodebuff(
     console.log("[CODEBUFF] ✅ Client created successfully");
 
     // Define agent context
-    const baseAgentName = "Task Orchestrator";
-    const baseAgentId = "orchestrator";
+    const baseAgentName = "Base Agent";
+    const baseAgentId = "base";
 
     // Start streaming response
     console.log("[CODEBUFF] 🌊 Starting stream for session:", sessionId);
-    const targetAgent = "orchestrator";
+    // const targetAgent = "orchestrator";
     broadcastToStream(sessionId, {
       type: "message_start",
       role: "assistant",
@@ -263,21 +266,21 @@ async function processWithCodebuff(
     });
 
     // Use orchestrator as master coordinator
-    console.log("[CODEBUFF] 🎯 Target agent:", targetAgent);
-    const agentDefinitions: AgentDefinition[] = [
-      // orchestrator
-      orchestratorAgent,
+    // console.log("[CODEBUFF] 🎯 Target agent:", targetAgent);
+    // const agentDefinitions: AgentDefinition[] = [
+    //   // orchestrator
+    //   orchestratorAgent,
 
-      // builder
-      reactTypescriptBuilder,
+    //   // builder
+    //   reactTypescriptBuilder,
 
-      // etl
-      etlManager
-    ];
-    console.log(
-      "[CODEBUFF] 📋 Agent definitions loaded:",
-      agentDefinitions.map((a) => a.id),
-    );
+    //   // etl
+    //   etlManager
+    // ];
+    // console.log(
+    //   "[CODEBUFF] 📋 Agent definitions loaded:",
+    //   agentDefinitions.map((a) => a.id),
+    // );
 
     // Run the selected agent with appropriate definitions
     console.log(
@@ -290,8 +293,7 @@ async function processWithCodebuff(
     );
 
     const result = await client.run({
-      agent: targetAgent,
-      agentDefinitions,
+      agent: baseAgentId,
       prompt: message,
       ...(previousRunState && { previousRun: previousRunState }),
       handleEvent: (event: any) => {

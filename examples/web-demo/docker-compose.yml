@@ -13,6 +13,7 @@ services:
       - LD_PRELOAD=/app/dist-native/libintercept.so
       - CONSTELLATION_DEBUG=1
       - CONSTELLATIONFS_APP_ID=web-demo-abc123
+      - NEXT_PUBLIC_CONSTELLATION_BACKEND_TYPE=remote
     networks:
       - constellation-net
     depends_on:

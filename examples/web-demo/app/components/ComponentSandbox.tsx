@@ -18,16 +18,8 @@ import React, {
   useState,
 } from "react";
 
-interface BackendConfig {
-  type: "local" | "remote";
-  host?: string;
-  username?: string;
-  workspace?: string;
-}
-
 interface ComponentSandboxProps {
   sessionId: string;
-  backendConfig: BackendConfig;
   onFileCountChange?: (count: number) => void;
   forceRestart?: boolean;
   showTabs?: boolean;
@@ -101,7 +93,6 @@ interface WorkspaceFile {
 
 export default function ComponentSandbox({
   sessionId,
-  backendConfig,
   onFileCountChange,
   forceRestart,
   showTabs = false,
@@ -246,7 +237,7 @@ export default function ComponentSandbox({
   // Load files on mount and when backend config changes
   useEffect(() => {
     loadWorkspaceFiles();
-  }, [sessionId, backendConfig]);
+  }, [sessionId]);
 
   // Listen for filesystem updates from chat
   useEffect(() => {
@@ -264,7 +255,7 @@ export default function ComponentSandbox({
     return () => {
       window.removeEventListener("filesystem-update", handleUpdate);
     };
-  }, [sessionId, backendConfig]);
+  }, [sessionId]);
 
   // Handle force restart from parent - must be before conditional returns
   useEffect(() => {
