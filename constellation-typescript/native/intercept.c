@@ -28,25 +28,17 @@ typedef pid_t (*orig_fork_f_type)(void);
 // Debug logging function
 static void debug_log(const char *format, ...) {
     if (getenv("CONSTELLATION_DEBUG")) {
-        // Write to stderr (original)
-        va_list args1;
-        va_start(args1, format);
-        fprintf(stderr, "[LD_PRELOAD] ");
-        vfprintf(stderr, format, args1);
-        fprintf(stderr, "\n");
-        va_end(args1);
-        
-        // Also write to log file
+        // Only write to log file, never to stderr
         FILE *log_file = fopen("/tmp/constellation-fs-debug.log", "a");
         if (log_file) {
-            va_list args2;
-            va_start(args2, format);
+            va_list args;
+            va_start(args, format);
             struct timespec ts;
             clock_gettime(CLOCK_REALTIME, &ts);
             fprintf(log_file, "[%ld.%03ld] [LD_PRELOAD] ", ts.tv_sec, ts.tv_nsec / 1000000);
-            vfprintf(log_file, format, args2);
+            vfprintf(log_file, format, args);
             fprintf(log_file, "\n");
-            va_end(args2);
+            va_end(args);
             fclose(log_file);
         }
     }
@@ -59,9 +51,9 @@ static int is_shell(const char *filename) {
             strstr(filename, "/zsh") || strstr(filename, "/dash"));
 }
 
-// Helper function to check if we should intercept and get CWD
+// Helper function to check if we should intercept (combines SSH detection + gets CWD)
 // Returns 1 if we should intercept, 0 if not. If returning 1, cwd_buffer is filled with current directory
-static int should_intercept_and_get_cwd(char *cwd_buffer, size_t cwd_buffer_size);
+static int should_intercept_and_get_cwd(char *cwd_buffer, size_t cwd_buffer_size, const char *command_or_filename, char *const argv[]);
 
 // Helper function to execute command via SSH with specific working directory
 static int execute_via_ssh(const char *command_str, const char *working_directory);
@@ -113,40 +105,72 @@ static char* build_command_from_argv(char *const argv[]) {
     return cmd;
 }
 
-// Helper function to check if we should intercept based on current working directory
-static int should_intercept_and_get_cwd(char *cwd_buffer, size_t cwd_buffer_size) {
-    if (getcwd(cwd_buffer, cwd_buffer_size) == NULL) {
-        debug_log("Could not get current working directory, skipping interception");
-        return 0; // Don't intercept if we can't determine CWD
+// Helper function to check if a command involves SSH
+// Returns 1 if command contains SSH, 0 if not
+static int is_ssh_command(const char *command_or_filename, char *const argv[]) {
+    // First check if CONSTELLATIONFS_APP_ID is set (basic requirement)
+    const char *app_id = getenv("CONSTELLATIONFS_APP_ID");
+    if (!app_id) {
+        debug_log("CONSTELLATIONFS_APP_ID not set, not intercepting");
+        return 0; // Don't intercept without app ID (return 0 means "not SSH", so no interception)
     }
     
-    debug_log("Current working directory: %s", cwd_buffer);
+    // Check the filename/command directly
+    if (command_or_filename) {
+        // Direct ssh binary calls
+        if (strstr(command_or_filename, "/ssh") || strcmp(command_or_filename, "ssh") == 0) {
+            debug_log("Direct SSH command detected: %s", command_or_filename);
+            return 1; // This IS SSH, so don't intercept
+        }
+        
+        // Shell calls that might contain ssh
+        if (is_shell(command_or_filename) && argv && argv[0]) {
+            // For shell calls, check the command arguments
+            for (int i = 0; argv[i]; i++) {
+                if (strstr(argv[i], "ssh ") || strstr(argv[i], "ssh\t") || 
+                    strstr(argv[i], "ssh\n") || strcmp(argv[i], "ssh") == 0) {
+                    debug_log("SSH command in shell arguments detected: %s", argv[i]);
+                    return 1; // This IS SSH, so don't intercept
+                }
+            }
+        }
+    }
     
-    // Only intercept if we're in a ConstellationFS app workspace
+    debug_log("No SSH command detected, will intercept");
+    return 0; // No SSH detected, so we should intercept
+}
+
+// Helper function to check if we should intercept (combines SSH detection + gets CWD)
+// Returns 1 if we should intercept, 0 if not. If returning 1, cwd_buffer is filled with current directory
+static int should_intercept_and_get_cwd(char *cwd_buffer, size_t cwd_buffer_size, const char *command_or_filename, char *const argv[]) {
+    // First check if CONSTELLATIONFS_APP_ID is set (basic requirement)
     const char *app_id = getenv("CONSTELLATIONFS_APP_ID");
     if (!app_id) {
         debug_log("CONSTELLATIONFS_APP_ID not set, not intercepting");
         return 0;
     }
     
-    // Check if CWD contains the app ID path pattern
-    // Pattern: {workspaceRoot}/{CONSTELLATIONFS_APP_ID}/users/{userId}
-    // We check for the app_id in the path to match any workspace under this app
-    char app_pattern[PATH_MAX];
-    snprintf(app_pattern, sizeof(app_pattern), "/%s/", app_id);
-    
-    if (strstr(cwd_buffer, app_pattern) != NULL) {
-        debug_log("CWD matches ConstellationFS app pattern containing '%s', intercepting", app_pattern);
-        return 1;
+    // Check if this is an SSH command - if so, don't intercept
+    if (is_ssh_command(command_or_filename, argv)) {
+        debug_log("SSH command detected, not intercepting");
+        return 0;
     }
     
-    debug_log("CWD does not match ConstellationFS app pattern containing '%s', not intercepting", app_pattern);
-    return 0;
+    // Get current working directory
+    if (getcwd(cwd_buffer, cwd_buffer_size) == NULL) {
+        debug_log("Could not get current working directory, skipping interception");
+        return 0; // Don't intercept if we can't determine CWD
+    }
+    
+    debug_log("Current working directory: %s", cwd_buffer);
+    debug_log("Non-SSH command detected, will intercept");
+    return 1; // Intercept all non-SSH commands
 }
 
-// Helper function to execute command via SSH with specific working directory
+// Helper function to execute command via SSH
 static int execute_via_ssh(const char *command_str, const char *working_directory) {
-    debug_log("[STEP 1] execute_via_ssh called with command: %s, working_directory: %s", command_str, working_directory ? working_directory : "NULL");
+    // Note: working_directory parameter kept for compatibility but not used
+    debug_log("[STEP 1] execute_via_ssh called with command: %s", command_str);
     
     // Get the original execve function to completely bypass our interception
     static orig_execve_f_type orig_execve = NULL;
@@ -161,55 +185,84 @@ static int execute_via_ssh(const char *command_str, const char *working_director
     debug_log("[STEP 5] remote_host=%s", remote_host ? remote_host : "NULL");
     
     // Build the full command to execute on remote
-    debug_log("[STEP 6] Building full command");
     char *full_command;
+    
     if (working_directory) {
-        debug_log("[STEP 7] Building command with working_directory");
-        size_t cmd_size = strlen(working_directory) + strlen(command_str) + 10;
+        // Always try to cd to the working directory
+        debug_log("[STEP 6] Building command with working directory: %s", working_directory);
+        size_t cmd_size = strlen(working_directory) + strlen(command_str) + 20;
         full_command = malloc(cmd_size);
         if (!full_command) {
             debug_log("[ERROR] malloc failed for full_command");
             errno = ENOMEM;
             return -1;
         }
-        snprintf(full_command, cmd_size, "cd \"%s\" && %s", working_directory, command_str);
-        debug_log("[STEP 8] full_command = %s", full_command);
+        snprintf(full_command, cmd_size, "cd '%s' && %s", working_directory, command_str);
+        debug_log("[STEP 6a] full_command: %s", full_command);
     } else {
-        debug_log("[STEP 7] Building command without remote_cwd");
+        // No working directory provided
+        debug_log("[STEP 6] No working directory, using command as-is: %s", command_str);
         full_command = strdup(command_str);
         if (!full_command) {
             debug_log("[ERROR] strdup failed for full_command");
             errno = ENOMEM;
             return -1;
         }
-        debug_log("[STEP 8] full_command = %s", full_command);
     }
     
-    // Parse hostname and port from REMOTE_VM_HOST
+    // Parse hostname and port from REMOTE_VM_HOST (format: user@hostname:port)
+    char *host_copy = strdup(remote_host);
+    if (!host_copy) {
+        debug_log("[ERROR] strdup failed for host_copy");
+        free(full_command);
+        errno = ENOMEM;
+        return -1;
+    }
+    
+    char *user_host = host_copy;
+    char *port_str = NULL;
+    
+    // Find the port separator ':'
+    char *colon = strrchr(host_copy, ':');
+    if (colon) {
+        *colon = '\0';  // Terminate user@hostname part
+        port_str = colon + 1;  // Point to port number
+    }
+    
+    // Use REMOTE_VM_PORT if set, otherwise use parsed port
     const char *remote_port = getenv("REMOTE_VM_PORT");
     if (!remote_port) {
-        remote_port = "22";  // Default SSH port
+        remote_port = port_str;
+    }
+    
+    // Port is required
+    if (!remote_port) {
+        debug_log("[ERROR] No port specified in REMOTE_VM_HOST or REMOTE_VM_PORT");
+        free(full_command);
+        free(host_copy);
+        errno = EINVAL;
+        return -1;
     }
     
     // Build SSH arguments array
-    debug_log("[STEP 9] Building SSH arguments array with host=%s port=%s", remote_host, remote_port);
+    debug_log("[STEP 7] Building SSH arguments array with host=%s port=%s", user_host, remote_port);
     char *ssh_args[] = {
         "ssh",
         "-o", "BatchMode=yes",
         "-o", "StrictHostKeyChecking=no",
         "-p", (char *)remote_port,
-        (char *)remote_host,
+        user_host,
         full_command,
         NULL
     };
-    debug_log("[STEP 10] SSH args built successfully");
+    debug_log("[STEP 8] SSH args built successfully");
 
-    debug_log("[STEP 11] About to fork() - Executing SSH via fork/exec: ssh %s '%s'", remote_host, full_command);
+    debug_log("[STEP 9] About to fork() - Executing SSH via fork/exec: ssh %s '%s'", user_host, full_command);
     
     // Fork and exec SSH directly using original execve to bypass all interception
-    debug_log("[STEP 12] About to call fork()");
+    debug_log("[STEP 10] About to call fork()");
     pid_t pid = fork();
-    debug_log("[STEP 13] fork() returned: %d", pid);
+    debug_log("[STEP 11] fork() returned: %d", pid);
     
     if (pid == 0) {
         // Child process: exec SSH directly
@@ -226,15 +279,18 @@ static int execute_via_ssh(const char *command_str, const char *working_director
         if (waitpid(pid, &status, 0) == -1) {
             debug_log("[PARENT ERROR] waitpid failed with errno: %d", errno);
             free(full_command);
+            free(host_copy);
             return -1;
         }
         debug_log("[PARENT STEP 2] Child exited with status: %d", WEXITSTATUS(status));
         free(full_command);
+        free(host_copy);
         return WEXITSTATUS(status);
     } else {
         // Fork failed
         debug_log("[ERROR] fork() failed with errno: %d", errno);
         free(full_command);
+        free(host_copy);
         return -1;
     }
 }
@@ -244,7 +300,7 @@ int execve(const char *filename, char *const argv[], char *const envp[]) {
     
     // Check if we should intercept and get current working directory
     char cwd[PATH_MAX];
-    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd))) {
+    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd), filename, argv)) {
         // Execute normally without interception
         static orig_execve_f_type orig_execve = NULL;
         if (!orig_execve) {
@@ -262,7 +318,14 @@ int execve(const char *filename, char *const argv[], char *const envp[]) {
     debug_log("Intercepting command: %s", cmd);
     int result = execute_via_ssh(cmd, cwd);
     free(cmd);
-    return result;
+    
+    // execve should never return on success - it replaces the process
+    // If SSH succeeded (result == 0), we should exit with that status
+    // Only return if there was an error
+    if (result == 0) {
+        _exit(0);  // Success - exit the process
+    }
+    return result;  // Error - return to caller
 }
 
 int execvp(const char *file, char *const argv[]) {
@@ -270,7 +333,7 @@ int execvp(const char *file, char *const argv[]) {
 
     // Check if we should intercept and get current working directory
     char cwd[PATH_MAX];
-    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd))) {
+    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd), file, argv)) {
         // Execute normally without interception
         static orig_execvp_f_type orig_execvp = NULL;
         if (!orig_execvp) {
@@ -288,7 +351,14 @@ int execvp(const char *file, char *const argv[]) {
     debug_log("Intercepting command: %s", cmd);
     int result = execute_via_ssh(cmd, cwd);
     free(cmd);
-    return result;
+    
+    // execve should never return on success - it replaces the process
+    // If SSH succeeded (result == 0), we should exit with that status
+    // Only return if there was an error
+    if (result == 0) {
+        _exit(0);  // Success - exit the process
+    }
+    return result;  // Error - return to caller
 }
 
 int execv(const char *path, char *const argv[]) {
@@ -296,7 +366,7 @@ int execv(const char *path, char *const argv[]) {
     
     // Check if we should intercept and get current working directory
     char cwd[PATH_MAX];
-    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd))) {
+    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd), path, argv)) {
         // Execute normally without interception
         static orig_execv_f_type orig_execv = NULL;
         if (!orig_execv) {
@@ -314,7 +384,14 @@ int execv(const char *path, char *const argv[]) {
     debug_log("Intercepting command: %s", cmd);
     int result = execute_via_ssh(cmd, cwd);
     free(cmd);
-    return result;
+    
+    // execve should never return on success - it replaces the process
+    // If SSH succeeded (result == 0), we should exit with that status
+    // Only return if there was an error
+    if (result == 0) {
+        _exit(0);  // Success - exit the process
+    }
+    return result;  // Error - return to caller
 }
 
 int system(const char *command) {
@@ -326,7 +403,7 @@ int system(const char *command) {
 
     // Check if we should intercept and get current working directory
     char cwd[PATH_MAX];
-    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd))) {
+    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd), command, NULL)) {
         // Execute normally without interception
         static orig_system_f_type orig_system = NULL;
         if (!orig_system) {
@@ -346,7 +423,7 @@ int execl(const char *path, const char *arg, ...) {
 
     // Check if we should intercept and get current working directory
     char cwd[PATH_MAX];
-    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd))) {
+    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd), path, NULL)) {
         // Execute normally without interception
         static orig_execl_f_type orig_execl = NULL;
         if (!orig_execl) {
@@ -427,7 +504,14 @@ int execl(const char *path, const char *arg, ...) {
     debug_log("Intercepting command: %s", cmd);
     int result = execute_via_ssh(cmd, cwd);
     free(cmd);
-    return result;
+    
+    // execve should never return on success - it replaces the process
+    // If SSH succeeded (result == 0), we should exit with that status
+    // Only return if there was an error
+    if (result == 0) {
+        _exit(0);  // Success - exit the process
+    }
+    return result;  // Error - return to caller
 }
 
 int execlp(const char *file, const char *arg, ...) {
@@ -435,7 +519,7 @@ int execlp(const char *file, const char *arg, ...) {
 
     // Check if we should intercept and get current working directory
     char cwd[PATH_MAX];
-    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd))) {
+    if (!should_intercept_and_get_cwd(cwd, sizeof(cwd), file, NULL)) {
         // Execute normally without interception
         static orig_execlp_f_type orig_execlp = NULL;
         if (!orig_execlp) {
@@ -515,5 +599,12 @@ int execlp(const char *file, const char *arg, ...) {
     debug_log("Intercepting command: %s", cmd);
     int result = execute_via_ssh(cmd, cwd);
     free(cmd);
-    return result;
+    
+    // execve should never return on success - it replaces the process
+    // If SSH succeeded (result == 0), we should exit with that status
+    // Only return if there was an error
+    if (result == 0) {
+        _exit(0);  // Success - exit the process
+    }
+    return result;  // Error - return to caller
 }
