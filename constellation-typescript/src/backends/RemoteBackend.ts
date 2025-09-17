@@ -5,6 +5,7 @@ import { isCommandSafe, isDangerous } from '../safety.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
 import { getLogger } from '../utils/logger.js'
 import { getPlatformGuidance, getRemoteBackendLibrary } from '../utils/nativeLibrary.js'
+import { RemoteWorkspaceManager } from '../utils/RemoteWorkspaceManager.js'
 import type { FileSystemBackend, RemoteBackendConfig } from './types.js'
 
 /**
@@ -12,11 +13,15 @@ import type { FileSystemBackend, RemoteBackendConfig } from './types.js'
  * Provides transparent remote command execution by intercepting execve calls
  */
 export class RemoteBackend implements FileSystemBackend {
-  public readonly workspace: string
+  public workspace: string
   public readonly options: RemoteBackendConfig
   public readonly connected: boolean
   private sshClient: Client | null = null
   private interceptLibPath: string | null = null
+  private remoteWorkspaceManager: RemoteWorkspaceManager | null = null
+  private workspaceInitialized = false
+  private isConnected = false
+  private connectionPromise: Promise<void> | null = null
 
   /**
    * Create a new RemoteBackend instance
@@ -25,7 +30,10 @@ export class RemoteBackend implements FileSystemBackend {
    */
   constructor(options: RemoteBackendConfig) {
     this.options = options
-    this.workspace = options.workspace
+    
+    // Validate userId for security
+    RemoteWorkspaceManager.validateUserId(options.userId)
+    this.workspace = RemoteWorkspaceManager.getUserWorkspacePath(options.userId)
     
     // Check platform support and locate native library
     const guidance = getPlatformGuidance('remote')
@@ -52,9 +60,10 @@ export class RemoteBackend implements FileSystemBackend {
     // Initialize SSH client
     this.initSSHClient()
     
-    // Test SSH connection (will be tested on first exec call)
-    // We can't test async in constructor, so connection will be validated on first use
+    // Connection will be established on first use
     this.connected = false
+
+    getLogger().debug('RemoteBackend initialized with workspace:', this.workspace)
   }
   
   /**
@@ -170,17 +179,7 @@ export class RemoteBackend implements FileSystemBackend {
    * Get SSH host string for connection from environment
    */
   private getSSHHostString(): string {
-    // Get host from environment variable (required for LD_PRELOAD)
-    const remoteHost = process.env.REMOTE_VM_HOST
-    if (!remoteHost) {
-      throw new FileSystemError(
-        'REMOTE_VM_HOST environment variable is required for remote backend',
-        ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
-        'Set REMOTE_VM_HOST=user@hostname:port before running'
-      )
-    }
-    
-    return remoteHost
+    return this.getHostAndPortFromEnv().host
   }
 
   /**
@@ -243,8 +242,10 @@ export class RemoteBackend implements FileSystemBackend {
       throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
     }
     
+    getLogger().debug(`[ConstellationFS] execViaSSH called with command: ${command}`)
     // Ensure SSH connection is established
     await this.ensureSSHConnection()
+    getLogger().debug('[ConstellationFS] SSH connection ensured, proceeding with command execution')
     
     return new Promise((resolve, reject) => {
       if (!this.sshClient) {
@@ -313,12 +314,22 @@ export class RemoteBackend implements FileSystemBackend {
       throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
     }
     
-    // TODO: Check if already connected
-    // if (this.sshClient && this.sshClient.readyState === 'open') {
-    //   return Promise.resolve()
-    // }
+    // If already connected, return immediately
+    if (this.isConnected) {
+      getLogger().debug('SSH connection already established, reusing...')
+      return Promise.resolve()
+    }
     
-    return this.connectSSH()
+    // If connection is in progress, wait for it
+    if (this.connectionPromise) {
+      getLogger().debug('SSH connection in progress, waiting...')
+      return this.connectionPromise
+    }
+    
+    // Start new connection
+    getLogger().debug('Establishing new SSH connection...')
+    this.connectionPromise = this.connectSSH()
+    return this.connectionPromise
   }
   
   /**
@@ -335,7 +346,7 @@ export class RemoteBackend implements FileSystemBackend {
         host,
         port,
         username: this.getUserFromAuth(),
-        debug: (message: string, ...args: unknown[]) => getLogger().debug(`SSH: ${message}`, ...args)
+        debug: (message) => getLogger().debug(`[ConstellationFS] ${message}`)
       }
       
       if (auth.type === 'password') {
@@ -347,10 +358,69 @@ export class RemoteBackend implements FileSystemBackend {
         }
       }
       
-      this.sshClient.on('ready', () => resolve())
-      this.sshClient.on('error', (err) => reject(err))
+      this.sshClient.on('ready', async () => {
+        try {
+          getLogger().debug('[ConstellationFS] SSH ready event received, setting connected state')
+          this.isConnected = true
+          this.connectionPromise = null
+          
+          getLogger().debug('[ConstellationFS] Starting workspace initialization...')
+          // Initialize remote workspace manager after SSH connection
+          await this.initializeRemoteWorkspace()
+          
+          getLogger().debug('[ConstellationFS] Workspace initialization completed, resolving connection promise')
+          resolve()
+        } catch (error) {
+          getLogger().error('[ConstellationFS] Error in SSH ready handler:', error)
+          this.isConnected = false
+          this.connectionPromise = null
+          reject(error)
+        }
+      })
+      
+      this.sshClient.on('close', () => {
+        this.isConnected = false
+        this.connectionPromise = null
+        getLogger().debug('SSH connection closed')
+      })
+      
+      this.sshClient.on('error', (err) => {
+        this.isConnected = false
+        this.connectionPromise = null
+        reject(err)
+      })
+      
       this.sshClient.connect(connectOptions)
     })
+  }
+
+  /**
+   * Initialize the remote workspace after SSH connection is established
+   */
+  private async initializeRemoteWorkspace(): Promise<void> {
+    if (!this.sshClient) {
+      throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
+    }
+
+    if (this.workspaceInitialized) {
+      getLogger().debug('[ConstellationFS] Workspace already initialized, skipping')
+      return
+    }
+
+    getLogger().debug('[ConstellationFS] Creating remote workspace manager')
+    // Create remote workspace manager
+    this.remoteWorkspaceManager = new RemoteWorkspaceManager(this.sshClient)
+
+    getLogger().debug('[ConstellationFS] Ensuring remote workspace exists for userId:', this.options.userId)
+    // Ensure the remote workspace exists and get the actual path
+    const remoteWorkspacePath = await this.remoteWorkspaceManager.ensureUserWorkspace(this.options.userId)
+    
+    getLogger().debug('[ConstellationFS] Remote workspace path received:', remoteWorkspacePath)
+    // Update the workspace to the remote path (this is where the magic happens!)
+    this.workspace = remoteWorkspacePath
+
+    this.workspaceInitialized = true
+    getLogger().debug('[ConstellationFS] Remote workspace initialization complete:', this.workspace)
   }
 
   async read(path: string): Promise<string> {
@@ -453,6 +523,8 @@ export class RemoteBackend implements FileSystemBackend {
     if (this.sshClient) {
       this.sshClient.end()
       this.sshClient = null
+      this.isConnected = false
+      this.connectionPromise = null
     }
   }
 }

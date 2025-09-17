@@ -13,16 +13,13 @@ export async function GET(request: NextRequest) {
     const sessionId = searchParams.get('sessionId')
     const filePath = searchParams.get('filePath')
     const backendType = searchParams.get('backendType') || 'local'
-    const host = searchParams.get('host')
-    const username = searchParams.get('username')
-    const workspace = searchParams.get('workspace')
 
     if (!sessionId || !filePath) {
       return NextResponse.json({ error: 'sessionId and filePath are required' }, { status: 400 })
     }
 
     // Create a cache key
-    const cacheKey = `${sessionId}-${backendType}-${host || 'local'}`
+    const cacheKey = `${sessionId}-${backendType}`
     
     // Try to get cached filesystem or create new one
     let fs = fsCache.get(cacheKey)
@@ -34,20 +31,12 @@ export async function GET(request: NextRequest) {
       let backendConfig: any
 
       if (backendType === 'remote') {
-        if (!host || !username || !workspace) {
-          return NextResponse.json({ 
-            error: 'Remote backend requires host, username, and workspace parameters' 
-          }, { status: 400 })
-        }
-
         backendConfig = {
           type: 'remote',
-          host,
-          workspace,
           auth: {
             type: 'password',
             credentials: {
-              username,
+              username: 'root',
               password: 'constellation' // Default password for Docker container
             }
           }

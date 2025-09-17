@@ -1,28 +1,19 @@
 import { AgentDefinition, CodebuffClient } from "@codebuff/sdk";
-import { FileSystem } from "constellationfs";
+import { BackendConfig, FileSystem } from "constellationfs";
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import { readFile, readdir, stat } from "fs/promises";
-import { join } from "path";
-import { getCodebuffClient } from "../../../lib/codebuff-init";
-import { broadcastToStream } from "../../../lib/streams";
+import etlManager from "../../../lib/agents/etl-manager";
 import orchestratorAgent from "../../../lib/agents/orchestrator-agent";
 import reactTypescriptBuilder from "../../../lib/agents/react-typescript-builder";
-
-// Import ETL pipeline manager
-import etlManager from "../../../lib/agents/etl-manager";
-import extractAgent from "@/lib/agents/extract-agent";
-import loadAgent from "@/lib/agents/load-agent";
-import transformAgent from "@/lib/agents/transform-agent";
+import { getCodebuffClient } from "../../../lib/codebuff-init";
+import { broadcastToStream } from "../../../lib/streams";
 
 export async function POST(request: NextRequest) {
-  console.log("[API] 🚀 POST request received");
   try {
     // Check if request has a body
     const contentType = request.headers.get("content-type");
-    console.log("[API] Content-Type:", contentType);
     if (!contentType || !contentType.includes("application/json")) {
-      console.log("[API] ❌ Invalid content type");
+      console.error("[API] ❌ Invalid content type");
       return NextResponse.json(
         { error: "Content-Type must be application/json" },
         { status: 400 },
@@ -33,16 +24,14 @@ export async function POST(request: NextRequest) {
     let body;
     try {
       const text = await request.text();
-      console.log("[API] Raw request body length:", text.length);
       if (!text) {
-        console.log("[API] ❌ Empty request body");
+        console.error("[API] ❌ Empty request body");
         return NextResponse.json(
           { error: "Request body is empty" },
           { status: 400 },
         );
       }
       body = JSON.parse(text);
-      console.log("[API] ✅ JSON parsed successfully");
     } catch (parseError) {
       console.error("[API] ❌ JSON parse error:", parseError);
       return NextResponse.json(
@@ -91,31 +80,16 @@ export async function POST(request: NextRequest) {
     console.log("[API] 🌊 Stream ID created:", streamId);
 
     // Create backend configuration
-    let fsConfig: any;
+    let fsConfig: Partial<BackendConfig>;
 
     if (backendConfig && backendConfig.type === "remote") {
-      if (
-        !backendConfig.host ||
-        !backendConfig.username ||
-        !backendConfig.workspace
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "Remote backend requires host, username, and workspace parameters",
-          },
-          { status: 400 },
-        );
-      }
-
       fsConfig = {
         type: "remote",
-        host: backendConfig.host,
-        workspace: backendConfig.workspace,
+        userId: sessionId,
         auth: {
           type: "password",
           credentials: {
-            username: backendConfig.username,
+            username: 'root',
             password: "constellation",
           },
         },
@@ -174,71 +148,72 @@ async function initializeWorkspace(fs: FileSystem) {
 
     // If workspace is empty, create cyberpunk SF map app
     if (files.length === 0) {
-      console.log(
-        "[WORKSPACE] 🌃 Creating cyberpunk SF map app for empty workspace...",
-      );
+      fs.write("README.md", "Hello, world!");
+      // console.log(
+      //   "[WORKSPACE] 🌃 Creating cyberpunk SF map app for empty workspace...",
+      // );
 
-      try {
-        // Get the path to the cyberpunk-sf-map files from project root
-        const projectRoot = process.cwd();
-        const cyberpunkPath = join(projectRoot, "cyberpunk-sf-map");
-        console.log("[WORKSPACE] 📂 Reading from:", cyberpunkPath);
+      // try {
+      //   // Get the path to the cyberpunk-sf-map files from project root
+      //   const projectRoot = process.cwd();
+      //   const cyberpunkPath = join(projectRoot, "cyberpunk-sf-map");
+      //   console.log("[WORKSPACE] 📂 Reading from:", cyberpunkPath);
 
-        // Recursively copy all files and directories from cyberpunk-sf-map
-        const copyRecursively = async (
-          sourcePath: string,
-          destPath: string = "",
-        ) => {
-          const items = await readdir(sourcePath);
+      //   // Recursively copy all files and directories from cyberpunk-sf-map
+      //   const copyRecursively = async (
+      //     sourcePath: string,
+      //     destPath: string = "",
+      //   ) => {
+      //     const items = await readdir(sourcePath);
 
-          for (const itemName of items) {
-            // Skip hidden files/directories
-            if (itemName.startsWith(".")) continue;
+      //     for (const itemName of items) {
+      //       // Skip hidden files/directories
+      //       if (itemName.startsWith(".")) continue;
 
-            const sourceItemPath = join(sourcePath, itemName);
-            const destItemPath = destPath ? join(destPath, itemName) : itemName;
-            const itemStat = await stat(sourceItemPath);
+      //       const sourceItemPath = join(sourcePath, itemName);
+      //       const destItemPath = destPath ? join(destPath, itemName) : itemName;
+      //       const itemStat = await stat(sourceItemPath);
 
-            if (itemStat.isFile()) {
-              try {
-                const content = await readFile(sourceItemPath, "utf-8");
-                await fs.write(destItemPath, content);
-                console.log(`[WORKSPACE] ✅ Copied file: ${destItemPath}`);
-              } catch (fileError) {
-                console.warn(
-                  `[WORKSPACE] ⚠️ Failed to copy file ${destItemPath}:`,
-                  fileError,
-                );
-              }
-            } else if (itemStat.isDirectory()) {
-              console.log(`[WORKSPACE] 📁 Creating directory: ${destItemPath}`);
-              // Create the directory in the filesystem
-              await fs.exec(`mkdir -p "${destItemPath}"`);
-              // Recursively copy the directory contents
-              await copyRecursively(sourceItemPath, destItemPath);
-            }
-          }
-        };
+      //       if (itemStat.isFile()) {
+      //         try {
+      //           const content = await readFile(sourceItemPath, "utf-8");
+      //           await fs.write(destItemPath, content);
+      //           console.log(`[WORKSPACE] ✅ Copied file: ${destItemPath}`);
+      //         } catch (fileError) {
+      //           console.warn(
+      //             `[WORKSPACE] ⚠️ Failed to copy file ${destItemPath}:`,
+      //             fileError,
+      //           );
+      //         }
+      //       } else if (itemStat.isDirectory()) {
+      //         console.log(`[WORKSPACE] 📁 Creating directory: ${destItemPath}`);
+      //         // Create the directory in the filesystem
+      //         await fs.exec(`mkdir -p "${destItemPath}"`);
+      //         // Recursively copy the directory contents
+      //         await copyRecursively(sourceItemPath, destItemPath);
+      //       }
+      //     }
+      //   };
 
-        console.log(
-          "[WORKSPACE] 🔄 Starting recursive copy from:",
-          cyberpunkPath,
-        );
-        await copyRecursively(cyberpunkPath);
+      //   console.log(
+      //     "[WORKSPACE] 🔄 Starting recursive copy from:",
+      //     cyberpunkPath,
+      //   );
+      //   await copyRecursively(cyberpunkPath);
 
-        console.log(
-          "[WORKSPACE] ✅ Cyberpunk SF map files copied successfully",
-        );
-      } catch (copyError) {
-        console.error(
-          "[WORKSPACE] ⚠️ Failed to copy cyberpunk files, creating basic files:",
-          copyError,
-        );
-        await fs.write(
-          "README.md",
-          "# Cyberpunk SF Map\n\nA React app with cyberpunk-themed San Francisco map.",
-        );
-      }
+      //   console.log(
+      //     "[WORKSPACE] ✅ Cyberpunk SF map files copied successfully",
+      //   );
+      // } catch (copyError) {
+      //   console.error(
+      //     "[WORKSPACE] ⚠️ Failed to copy cyberpunk files, creating basic files:",
+      //     copyError,
+      //   );
+      //   await fs.write(
+      //     "README.md",
+      //     "# Cyberpunk SF Map\n\nA React app with cyberpunk-themed San Francisco map.",
+      //   );
+      // }
     } else {
       console.log("[WORKSPACE] ✅ Workspace already contains files");
     }
@@ -297,10 +272,7 @@ async function processWithCodebuff(
       reactTypescriptBuilder,
 
       // etl
-      etlManager,
-      extractAgent,
-      loadAgent,
-      transformAgent,
+      etlManager
     ];
     console.log(
       "[CODEBUFF] 📋 Agent definitions loaded:",

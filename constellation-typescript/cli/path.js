@@ -4,9 +4,10 @@
  * Finds the location of the built native library
  */
 
-import { getLDPreloadPath } from './native-path.js'
 import { existsSync } from 'fs'
 import { resolve } from 'path'
+import { process } from 'process'
+import { getLDPreloadPath } from './native-path.js'
 
 /**
  * Find the path to the built native library

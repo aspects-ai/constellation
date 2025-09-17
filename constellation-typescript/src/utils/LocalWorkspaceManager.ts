@@ -3,9 +3,9 @@ import { join } from 'path'
 import { ConstellationFS } from '../config/Config.js'
 
 /**
- * Manages user workspace directories for multi-tenant support
+ * Manages user workspace directories for local filesystem operations
  */
-export class WorkspaceManager {
+export class LocalWorkspaceManager {
   /**
    * Get the workspace path for a specific user
    * @param userId - The user identifier
@@ -17,7 +17,7 @@ export class WorkspaceManager {
   }
 
   /**
-   * Ensure a user's workspace directory exists
+   * Ensure a user's workspace directory exists on local filesystem
    * @param userId - The user identifier
    * @returns Absolute path to the created/existing workspace
    */
@@ -32,7 +32,7 @@ export class WorkspaceManager {
   }
 
   /**
-   * Check if a user workspace exists
+   * Check if a user workspace exists on local filesystem
    * @param userId - The user identifier
    * @returns True if the workspace exists
    */

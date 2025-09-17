@@ -1,3 +1,4 @@
+import { getLogger } from '@/utils/logger'
 import { existsSync, readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -32,17 +33,21 @@ interface LibraryConfig {
 export class ConstellationFS {
   private static instance: ConstellationFS | null = null
   private config: LibraryConfig
+  private appId: string
 
-  private constructor() {
+  private constructor(appId: string) {
+    this.appId = appId
     // Default configuration
     this.config = {
-      workspaceRoot: join(tmpdir(), 'constellation-fs', 'users'),
+      workspaceRoot: join(tmpdir(), 'constellation-fs'),
       fuseMountPoint: undefined,
       backends: {}
     }
 
     // Always try to load from .constellationfs.json in current directory
     this.loadConfigFile()
+
+    getLogger().info('ConstellationFS initialized with config:', this.config)
   }
 
   /**
@@ -74,16 +79,20 @@ export class ConstellationFS {
    */
   static getInstance(): ConstellationFS {
     if (!ConstellationFS.instance) {
-      ConstellationFS.instance = new ConstellationFS()
+      const appId = process.env.CONSTELLATIONFS_APP_ID
+      if (!appId) {
+        throw new Error('CONSTELLATIONFS_APP_ID is not set')
+      }
+      ConstellationFS.instance = new ConstellationFS(appId)
     }
     return ConstellationFS.instance
   }
 
   /**
-   * Get the workspace root directory
+   * Get the workspace root directory. Always has APP ID appended.
    */
   get workspaceRoot(): string {
-    return this.config.workspaceRoot
+    return join(this.config.workspaceRoot, this.appId)
   }
 
   /**

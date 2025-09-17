@@ -93,6 +93,7 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
     const formData = new FormData()
     formData.append('file', file)
     formData.append('sessionId', sessionId)
+    formData.append('backendType', backendConfig.type)
 
     try {
       const response = await fetch('/api/upload', {
@@ -126,7 +127,13 @@ export default function FileExplorer({ sessionId, onFileSelect, selectedFile, ba
 
   const handleDownload = async (filePath: string) => {
     try {
-      const response = await fetch(`/api/download?sessionId=${sessionId}&file=${encodeURIComponent(filePath)}`)
+      const params = new URLSearchParams({
+        sessionId: sessionId,
+        file: filePath,
+        backendType: backendConfig.type
+      })
+      
+      const response = await fetch(`/api/download?${params}`)
       
       if (response.ok) {
         const blob = await response.blob()

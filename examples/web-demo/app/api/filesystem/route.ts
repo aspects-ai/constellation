@@ -1,19 +1,10 @@
 import { FileSystem } from 'constellationfs'
-import { readdir, stat } from 'fs/promises'
 import { NextRequest, NextResponse } from 'next/server'
-import { join } from 'path'
 
 interface FileItem {
   path: string
   type: 'file' | 'directory'
   name: string
-}
-
-interface BackendConfig {
-  type: 'local' | 'remote'
-  host?: string
-  username?: string
-  workspace?: string
 }
 
 export async function GET(request: NextRequest) {
@@ -35,21 +26,14 @@ export async function GET(request: NextRequest) {
     let backendConfig: any
 
     if (backendType === 'remote') {
-      if (!username || !workspace) {
-        console.error('Missing required remote backend parameters:', { username, workspace })
-        return NextResponse.json({ 
-          error: 'Remote backend requires username and workspace parameters' 
-        }, { status: 400 })
-      }
-
       backendConfig = {
         type: 'remote',
         // Host will be determined from REMOTE_VM_HOST environment variable
-        workspace,
+        userId: sessionId,
         auth: {
           type: 'password',
           credentials: {
-            username,
+            username: 'root',
             password: 'constellation' // Default password for Docker container
           }
         }
@@ -89,7 +73,7 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // For local backend, use direct filesystem access
-      files = await getFileTree(fs.workspace)
+      files = await getFileTree(fs)
     }
 
     return NextResponse.json({ files, backend: backendType })
@@ -129,7 +113,7 @@ function parseRemoteFileTree(output: string): FileItem[] {
   return files
 }
 
-async function getFileTree(basePath: string, currentPath: string = '', files: FileItem[] = [], depth: number = 0): Promise<FileItem[]> {
+async function getFileTree(fs: FileSystem, currentPath: string = '', files: FileItem[] = [], depth: number = 0): Promise<FileItem[]> {
   // Limit recursion depth to prevent deep traversal
   if (depth > 3) return files
   
@@ -150,37 +134,44 @@ async function getFileTree(basePath: string, currentPath: string = '', files: Fi
   ])
   
   try {
-    const fullPath = join(basePath, currentPath)
-    const items = await readdir(fullPath)
+    const searchPath = currentPath || '.'
+    const output = await fs.exec(`find "${searchPath}" -maxdepth 1 -type f -o -type d`)
+    const lines = output.split('\n').filter(line => line.trim())
 
-    for (const item of items) {
+    for (const line of lines) {
+      const path = line.replace(/^\.\//, '') // Remove leading ./
+      if (!path || path === '.' || path === currentPath) continue
+      
+      const name = path.split('/').pop() || path
+      
       // Skip hidden files/directories (except .gitignore, .env, etc.)
-      if (item.startsWith('.') && !item.match(/^\.(gitignore|env|env\..*|prettierrc|eslintrc.*|babelrc.*)$/)) {
+      if (name.startsWith('.') && !name.match(/^\.(gitignore|env|env\..*|prettierrc|eslintrc.*|babelrc.*)$/)) {
         continue
       }
       
-      const itemPath = join(fullPath, item)
-      const relativePath = currentPath ? join(currentPath, item) : item
-      const stats = await stat(itemPath)
-
-      if (stats.isDirectory()) {
-        // Skip ignored directories
-        if (ignoreDirs.has(item)) {
-          continue
-        }
-        
+      // Skip ignored directories
+      if (ignoreDirs.has(name)) {
+        continue
+      }
+      
+      const relativePath = currentPath ? `${currentPath}/${name}` : name
+      
+      // Check if it's a directory using find command
+      const isDir = await fs.exec(`find "${path}" -maxdepth 0 -type d`).then(result => result.trim() !== '').catch(() => false)
+      
+      if (isDir) {
         files.push({
           path: relativePath,
           type: 'directory',
-          name: item
+          name
         })
         // Recursively get subdirectory contents
-        await getFileTree(basePath, relativePath, files, depth + 1)
+        await getFileTree(fs, relativePath, files, depth + 1)
       } else {
         files.push({
           path: relativePath,
           type: 'file',
-          name: item
+          name
         })
       }
     }

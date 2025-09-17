@@ -1,18 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { FileSystem } from 'constellationfs'
+import { FileSystem, BackendConfig } from 'constellationfs'
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File
     const sessionId = formData.get('sessionId') as string
+    const backendType = formData.get('backendType') as string || 'local'
 
     if (!file || !sessionId) {
       return NextResponse.json({ error: 'File and sessionId are required' }, { status: 400 })
     }
 
-    // Initialize ConstellationFS with session-based userId
-    const fs = new FileSystem({ userId: sessionId })
+    // Create backend configuration
+    let backendConfig: Partial<BackendConfig>
+    
+    if (backendType === 'remote') {
+      backendConfig = {
+        type: 'remote',
+        auth: {
+          type: 'password',
+          credentials: {
+            username: 'root',
+            password: 'constellation'
+          }
+        }
+      }
+    } else {
+      backendConfig = {
+        type: 'local',
+        userId: sessionId
+      }
+    }
+
+    // Initialize ConstellationFS with specified backend
+    const fs = new FileSystem({
+      userId: sessionId,
+      ...backendConfig
+    })
 
     // Read file content
     const arrayBuffer = await file.arrayBuffer()

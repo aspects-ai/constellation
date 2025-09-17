@@ -1,3 +1,4 @@
+import { getLogger } from '@/utils/logger.js'
 import { execSync, spawn } from 'child_process'
 import { readFile, writeFile } from 'fs/promises'
 import { isAbsolute, join, relative, resolve } from 'path'
@@ -5,7 +6,7 @@ import { ERROR_CODES } from '../constants.js'
 import { isCommandSafe, isDangerous } from '../safety.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
 import { checkSymlinkSafety } from '../utils/pathValidator.js'
-import { WorkspaceManager } from '../utils/workspaceManager.js'
+import { LocalWorkspaceManager } from '../utils/LocalWorkspaceManager.js'
 import type { FileSystemBackend, LocalBackendConfig } from './types.js'
 import { validateLocalBackendConfig } from './types.js'
 
@@ -31,8 +32,8 @@ export class LocalBackend implements FileSystemBackend {
     this.options = options
     
     // Use userId-based workspace management
-    WorkspaceManager.validateUserId(options.userId)
-    this.workspace = WorkspaceManager.ensureUserWorkspace(options.userId)
+    LocalWorkspaceManager.validateUserId(options.userId)
+    this.workspace = LocalWorkspaceManager.ensureUserWorkspace(options.userId)
     this.connected = true
     
     this.shell = this.detectShell()
@@ -40,6 +41,7 @@ export class LocalBackend implements FileSystemBackend {
     if (options.validateUtils) {
       this.validateEnvironment()
     }
+    getLogger().debug('LocalBackend initialized with workspace:', this.workspace)
   }
   
   /**

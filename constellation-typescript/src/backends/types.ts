@@ -27,7 +27,7 @@ const LocalBackendConfigSchema = BaseBackendConfigSchema.extend({
 
 const RemoteBackendConfigSchema = BaseBackendConfigSchema.extend({
   type: z.literal('remote'),
-  workspace: z.string().min(1, 'Workspace path is required for remote backend'),
+  userId: z.string().min(1, 'userId is required for remote backend'),
   auth: z.object({
     type: z.enum(AUTH_TYPES),
     credentials: z.record(z.string(), z.unknown()),

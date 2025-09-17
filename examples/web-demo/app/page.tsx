@@ -2,7 +2,7 @@
 
 import { Box, Button, Container, Group, Tabs, Text } from '@mantine/core';
 import { IconReload } from '@tabler/icons-react';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import ApiKeyModal from './components/ApiKeyModal';
 import BackendSelector, { BackendConfig } from './components/BackendSelector';
 import Chat from './components/Chat';
@@ -114,10 +114,7 @@ export default function Home() {
     try {
       const params = new URLSearchParams({
         sessionId: sessionId,
-        backendType: config.type,
-        host: config.host || '',
-        username: config.username || '',
-        workspace: config.workspace || ''
+        backendType: config.type
       })
       
       console.log('Making request to:', `/api/filesystem?${params}`)

@@ -1,15 +1,11 @@
 'use client'
 
-import { Alert, Badge, Box, Button, Group, Paper, SegmentedControl, Stack, Text, TextInput } from '@mantine/core'
+import { Alert, Badge, Box, Button, Group, Paper, SegmentedControl, Stack, Text } from '@mantine/core'
 import { IconAlertCircle, IconCheck, IconDatabase, IconServer } from '@tabler/icons-react'
 import { useEffect, useState } from 'react'
 
 export interface BackendConfig {
   type: 'local' | 'remote'
-  // Remote backend specific fields
-  host?: string
-  username?: string
-  workspace?: string
 }
 
 interface BackendSelectorProps {
@@ -57,10 +53,7 @@ export default function BackendSelector({
     } else {
       // Set Docker container defaults for remote backend
       onChange({
-        type: 'remote',
-        host: 'localhost:2222',
-        username: 'root',
-        workspace: '/workspace'
+        type: 'remote'
       })
     }
     
@@ -159,34 +152,6 @@ export default function BackendSelector({
         {config.type === 'remote' && (
           <Stack gap="sm">
             {!dockerContainerRunning && getDockerSetupInstructions()}
-            
-            <Stack gap="xs">
-              <TextInput
-                label="SSH Host"
-                placeholder="localhost:2222"
-                value={config.host || ''}
-                onChange={(e) => handleRemoteConfigChange('host', e.currentTarget.value)}
-                description="Format: hostname:port (e.g., localhost:2222 for Docker container)"
-              />
-              
-              <Group grow>
-                <TextInput
-                  label="Username"
-                  placeholder="root"
-                  value={config.username || ''}
-                  onChange={(e) => handleRemoteConfigChange('username', e.currentTarget.value)}
-                  description="SSH username"
-                />
-                
-                <TextInput
-                  label="Remote Workspace"
-                  placeholder="/workspace"
-                  value={config.workspace || ''}
-                  onChange={(e) => handleRemoteConfigChange('workspace', e.currentTarget.value)}
-                  description="Remote directory path"
-                />
-              </Group>
-            </Stack>
 
             <Group justify="space-between" align="center">
               <Group gap="xs">
@@ -195,7 +160,6 @@ export default function BackendSelector({
                   variant="light"
                   onClick={testConnection}
                   loading={isTestingConnection}
-                  disabled={!config.host || !config.username || !config.workspace}
                 >
                   Test Connection
                 </Button>

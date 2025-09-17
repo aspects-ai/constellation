@@ -1,21 +1,21 @@
 "use client";
 
 import {
-  SandpackProvider,
-  SandpackLayout,
-  SandpackFileExplorer,
   SandpackCodeEditor,
+  SandpackFileExplorer,
+  SandpackLayout,
   SandpackPreview,
+  SandpackProvider,
   SandpackStack,
 } from "@codesandbox/sandpack-react";
-import { Box, Button, Group, Loader, Text } from "@mantine/core";
+import { Box, Button, Text } from "@mantine/core";
 import { IconReload } from "@tabler/icons-react";
 import React, {
-  useEffect,
-  useState,
   Component,
   ErrorInfo,
   ReactNode,
+  useEffect,
+  useState,
 } from "react";
 
 interface BackendConfig {
@@ -116,128 +116,132 @@ export default function ComponentSandbox({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const loadWorkspaceFiles = async (forceRefresh = false) => {
-    if (forceRefresh) {
-      setIsRefreshing(true);
-      // Clear existing files for a clean slate
-      setFiles({});
-    } else {
-      setLoading(true);
-    }
-    setError(null);
-
-    try {
-      // Fetch files via API with cache buster
-      const params = new URLSearchParams({
-        sessionId,
-        backendType: backendConfig.type,
-        timestamp: Date.now().toString(), // Cache buster
-        ...(backendConfig.type === "remote" && {
-          host: backendConfig.host || "",
-          username: backendConfig.username || "",
-          workspace: backendConfig.workspace || "",
-        }),
-      });
-
-      const response = await fetch(`/api/sandbox-files?${params}`, {
-        cache: "no-store",
-        headers: {
-          "Cache-Control": "no-cache",
-        },
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch files: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const sandpackFiles: Record<string, string> = {};
-      let deps: Record<string, string> = {};
-
-      console.log(
-        "[ComponentSandbox] Loading",
-        data.files?.length || 0,
-        "files from workspace",
-      );
-
-      // Process files from API response
-      if (data.files && data.files.length > 0) {
-        console.log(
-          "[ComponentSandbox] Processing",
-          data.files.length,
-          "files from API",
-        );
-        for (const file of data.files) {
-          let sandpackPath = file.path.startsWith("/")
-            ? file.path
-            : `/${file.path}`;
-
-          // Handle src directory files - map them to root for Sandpack
-          if (sandpackPath.startsWith("/src/")) {
-            // Also include the file at root level for Sandpack compatibility
-            const rootPath = sandpackPath.replace("/src/", "/");
-            sandpackFiles[rootPath] = file.content;
-            console.log(
-              "[ComponentSandbox] Mapped src file to root:",
-              rootPath,
-            );
-          }
-
-          sandpackFiles[sandpackPath] = file.content;
-          console.log("[ComponentSandbox] Added to sandpack:", sandpackPath);
-
-          // Extract dependencies from package.json
-          if (
-            file.path === "package.json" ||
-            file.path.endsWith("/package.json")
-          ) {
-            try {
-              const pkg = JSON.parse(file.content);
-              deps = { ...pkg.dependencies, ...pkg.devDependencies };
-              // Filter out local dependencies and ConstellationFS
-              delete deps["constellationfs"];
-              Object.keys(deps).forEach((key) => {
-                if (
-                  deps[key].startsWith("file:") ||
-                  deps[key].startsWith("link:")
-                ) {
-                  delete deps[key];
-                }
-              });
-            } catch {}
-          }
-        }
-      }
-
-      // Log what we're setting
-      console.log(
-        "[ComponentSandbox] Setting files:",
-        Object.keys(sandpackFiles),
-      );
-      console.log("[ComponentSandbox] Setting deps:", Object.keys(deps));
-
-      setFiles(sandpackFiles);
-      setPackageJsonDeps(deps);
-      onFileCountChange?.(Object.keys(sandpackFiles).length);
-      // Force Sandpack to completely re-instantiate with new files
-      setSandpackKey((prev) => {
-        const newKey = prev + 1;
-        console.log(
-          "[ComponentSandbox] Incrementing sandpackKey from",
-          prev,
-          "to",
-          newKey,
-        );
-        return newKey;
-      });
-    } catch (err) {
-      console.error("Failed to load workspace files:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to load workspace files",
-      );
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
-    }
+    return;
   };
+
+  // const loadWorkspaceFiles = async (forceRefresh = false) => {
+  //   if (forceRefresh) {
+  //     setIsRefreshing(true);
+  //     // Clear existing files for a clean slate
+  //     setFiles({});
+  //   } else {
+  //     setLoading(true);
+  //   }
+  //   setError(null);
+
+  //   try {
+  //     // Fetch files via API with cache buster
+  //     const params = new URLSearchParams({
+  //       sessionId,
+  //       backendType: backendConfig.type,
+  //       timestamp: Date.now().toString(), // Cache buster
+  //       ...(backendConfig.type === "remote" && {
+  //         host: backendConfig.host || "",
+  //         username: backendConfig.username || "",
+  //         workspace: backendConfig.workspace || "",
+  //       }),
+  //     });
+
+  //     const response = await fetch(`/api/sandbox-files?${params}`, {
+  //       cache: "no-store",
+  //       headers: {
+  //         "Cache-Control": "no-cache",
+  //       },
+  //     });
+  //     if (!response.ok) {
+  //       throw new Error(`Failed to fetch files: ${response.statusText}`);
+  //     }
+
+  //     const data = await response.json();
+  //     const sandpackFiles: Record<string, string> = {};
+  //     let deps: Record<string, string> = {};
+
+  //     console.log(
+  //       "[ComponentSandbox] Loading",
+  //       data.files?.length || 0,
+  //       "files from workspace",
+  //     );
+
+  //     // Process files from API response
+  //     if (data.files && data.files.length > 0) {
+  //       console.log(
+  //         "[ComponentSandbox] Processing",
+  //         data.files.length,
+  //         "files from API",
+  //       );
+  //       for (const file of data.files) {
+  //         let sandpackPath = file.path.startsWith("/")
+  //           ? file.path
+  //           : `/${file.path}`;
+
+  //         // Handle src directory files - map them to root for Sandpack
+  //         if (sandpackPath.startsWith("/src/")) {
+  //           // Also include the file at root level for Sandpack compatibility
+  //           const rootPath = sandpackPath.replace("/src/", "/");
+  //           sandpackFiles[rootPath] = file.content;
+  //           console.log(
+  //             "[ComponentSandbox] Mapped src file to root:",
+  //             rootPath,
+  //           );
+  //         }
+
+  //         sandpackFiles[sandpackPath] = file.content;
+  //         console.log("[ComponentSandbox] Added to sandpack:", sandpackPath);
+
+  //         // Extract dependencies from package.json
+  //         if (
+  //           file.path === "package.json" ||
+  //           file.path.endsWith("/package.json")
+  //         ) {
+  //           try {
+  //             const pkg = JSON.parse(file.content);
+  //             deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  //             // Filter out local dependencies and ConstellationFS
+  //             delete deps["constellationfs"];
+  //             Object.keys(deps).forEach((key) => {
+  //               if (
+  //                 deps[key].startsWith("file:") ||
+  //                 deps[key].startsWith("link:")
+  //               ) {
+  //                 delete deps[key];
+  //               }
+  //             });
+  //           } catch {}
+  //         }
+  //       }
+  //     }
+
+  //     // Log what we're setting
+  //     console.log(
+  //       "[ComponentSandbox] Setting files:",
+  //       Object.keys(sandpackFiles),
+  //     );
+  //     console.log("[ComponentSandbox] Setting deps:", Object.keys(deps));
+
+  //     setFiles(sandpackFiles);
+  //     setPackageJsonDeps(deps);
+  //     onFileCountChange?.(Object.keys(sandpackFiles).length);
+  //     // Force Sandpack to completely re-instantiate with new files
+  //     setSandpackKey((prev) => {
+  //       const newKey = prev + 1;
+  //       console.log(
+  //         "[ComponentSandbox] Incrementing sandpackKey from",
+  //         prev,
+  //         "to",
+  //         newKey,
+  //       );
+  //       return newKey;
+  //     });
+  //   } catch (err) {
+  //     console.error("Failed to load workspace files:", err);
+  //     setError(
+  //       err instanceof Error ? err.message : "Failed to load workspace files",
+  //     );
+  //   } finally {
+  //     setLoading(false);
+  //     setIsRefreshing(false);
+  //   }
+  // };
 
   // Load files on mount and when backend config changes
   useEffect(() => {
