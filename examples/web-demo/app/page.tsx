@@ -36,10 +36,10 @@ export default function Home() {
   const [sessionId, setSessionId] = useState<string>("");
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<string | null>("sandbox");
+  const [activeTab, setActiveTab] = useState<string | null>("files");
   // Get backend type from environment (set at build time)
   const backendType = (process.env.NEXT_PUBLIC_CONSTELLATION_BACKEND_TYPE as 'local' | 'remote') || 'local';
-  const [showTabs, setShowTabs] = useState(false);
+  const [showTabs, setShowTabs] = useState(true);
   const [sandboxFileCount, setSandboxFileCount] = useState(0);
   const [sandboxForceRestart, setSandboxForceRestart] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -83,17 +83,6 @@ export default function Home() {
       setShowApiKeyModal(true);
     }
 
-    // Keyboard shortcut handler
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // F2 to toggle tabs
-      if (e.key === "F2") {
-        e.preventDefault();
-        setShowTabs((prev) => !prev);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   const handleApiKeySubmit = (key: string) => {
@@ -605,14 +594,6 @@ export default function Home() {
                       letterSpacing: "0.05em",
                     }}
                   >
-                    <Text
-                      size="xs"
-                      style={{
-                        color: "rgba(148, 163, 184, 0.6)",
-                      }}
-                    >
-                      [F2] TABS
-                    </Text>
                     {sandboxFileCount > 0 && (
                       <Text
                         size="xs"

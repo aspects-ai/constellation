@@ -1,7 +1,7 @@
 FROM node:18-slim
 
-# Install SSH client and bash (bash needed for LD_PRELOAD command execution)
-RUN apt-get update && apt-get install -y openssh-client bash && rm -rf /var/lib/apt/lists/*
+# Install SSH client, sshpass for password auth, and bash (bash needed for LD_PRELOAD command execution)
+RUN apt-get update && apt-get install -y openssh-client sshpass bash && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

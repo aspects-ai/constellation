@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <limits.h>
+#include <sys/stat.h>
 
 // Declare environ variable
 extern char **environ;
@@ -24,21 +25,43 @@ typedef int (*orig_execle_f_type)(const char *path, const char *arg, ...);
 typedef int (*orig_execv_f_type)(const char *path, char *const argv[]);
 typedef int (*orig_system_f_type)(const char *command);
 typedef pid_t (*orig_fork_f_type)(void);
+typedef int (*orig_chdir_f_type)(const char *path);
 
 // Debug logging function
 static void debug_log(const char *format, ...) {
     if (getenv("CONSTELLATION_DEBUG")) {
-        // Only write to log file, never to stderr
+        // Write to stderr for immediate visibility
+        va_list args1;
+        va_start(args1, format);
+        fprintf(stderr, "[LD_PRELOAD] ");
+        vfprintf(stderr, format, args1);
+        fprintf(stderr, "\n");
+        va_end(args1);
+        
+        // Also write to log file with human readable timestamp
         FILE *log_file = fopen("/tmp/constellation-fs-debug.log", "a");
         if (log_file) {
-            va_list args;
-            va_start(args, format);
+            va_list args2;
+            va_start(args2, format);
+            
+            // Get current time and format as human readable
+            time_t now;
+            struct tm *tm_info;
+            char time_string[64];
+            
+            time(&now);
+            tm_info = localtime(&now);
+            strftime(time_string, sizeof(time_string), "%Y-%m-%d %H:%M:%S", tm_info);
+            
+            // Get milliseconds for precision
             struct timespec ts;
             clock_gettime(CLOCK_REALTIME, &ts);
-            fprintf(log_file, "[%ld.%03ld] [LD_PRELOAD] ", ts.tv_sec, ts.tv_nsec / 1000000);
-            vfprintf(log_file, format, args);
+            int milliseconds = ts.tv_nsec / 1000000;
+            
+            fprintf(log_file, "[%s.%03d] [LD_PRELOAD] ", time_string, milliseconds);
+            vfprintf(log_file, format, args2);
             fprintf(log_file, "\n");
-            va_end(args);
+            va_end(args2);
             fclose(log_file);
         }
     }
@@ -163,6 +186,7 @@ static int should_intercept_and_get_cwd(char *cwd_buffer, size_t cwd_buffer_size
     }
     
     debug_log("Current working directory: %s", cwd_buffer);
+    
     debug_log("Non-SSH command detected, will intercept");
     return 1; // Intercept all non-SSH commands
 }
@@ -245,16 +269,33 @@ static int execute_via_ssh(const char *command_str, const char *working_director
     }
     
     // Build SSH arguments array
-    debug_log("[STEP 7] Building SSH arguments array with host=%s port=%s", user_host, remote_port);
-    char *ssh_args[] = {
-        "ssh",
-        "-o", "BatchMode=yes",
-        "-o", "StrictHostKeyChecking=no",
-        "-p", (char *)remote_port,
-        user_host,
-        full_command,
-        NULL
-    };
+    // Check if we should use password authentication
+    const char *ssh_password = getenv("REMOTE_VM_PASSWORD");
+    
+    // Allocate args - use char* (not const char*) and make static strings
+    char *ssh_args[12];
+    int arg_idx = 0;
+    
+    if (ssh_password) {
+        // Use sshpass for password authentication
+        debug_log("[STEP 7] Building SSH arguments with password authentication");
+        ssh_args[arg_idx++] = strdup("sshpass");
+        ssh_args[arg_idx++] = strdup("-p");
+        ssh_args[arg_idx++] = strdup(ssh_password);
+    } else {
+        debug_log("[STEP 7] Building SSH arguments with key authentication");
+    }
+    
+    ssh_args[arg_idx++] = strdup("ssh");
+    ssh_args[arg_idx++] = strdup("-o");
+    ssh_args[arg_idx++] = strdup("StrictHostKeyChecking=no");
+    ssh_args[arg_idx++] = strdup("-p");
+    ssh_args[arg_idx++] = strdup(remote_port);
+    ssh_args[arg_idx++] = strdup(user_host);
+    ssh_args[arg_idx++] = strdup(full_command);
+    ssh_args[arg_idx] = NULL;
+    
+    debug_log("[STEP 7a] SSH command: %s", ssh_password ? "sshpass -p <password> ssh ..." : "ssh ...");
     debug_log("[STEP 8] SSH args built successfully");
 
     debug_log("[STEP 9] About to fork() - Executing SSH via fork/exec: ssh %s '%s'", user_host, full_command);
@@ -267,8 +308,12 @@ static int execute_via_ssh(const char *command_str, const char *working_director
     if (pid == 0) {
         // Child process: exec SSH directly
         debug_log("[CHILD STEP 1] In child process, about to call orig_execve");
-        debug_log("[CHILD STEP 2] Calling orig_execve('/usr/bin/ssh', ssh_args, environ)");
-        orig_execve("/usr/bin/ssh", ssh_args, environ);
+        
+        // Determine which binary to execute
+        const char *exec_binary = ssh_password ? "/usr/bin/sshpass" : "/usr/bin/ssh";
+        debug_log("[CHILD STEP 2] Calling orig_execve('%s', ssh_args, environ)", exec_binary);
+        
+        orig_execve(exec_binary, ssh_args, environ);
         // If execve fails, exit with error
         debug_log("[CHILD ERROR] orig_execve failed with errno: %d, exiting", errno);
         _exit(127);
@@ -283,12 +328,24 @@ static int execute_via_ssh(const char *command_str, const char *working_director
             return -1;
         }
         debug_log("[PARENT STEP 2] Child exited with status: %d", WEXITSTATUS(status));
+        
+        // Free all allocated strings in ssh_args
+        for (int i = 0; ssh_args[i] != NULL; i++) {
+            free(ssh_args[i]);
+        }
+        
         free(full_command);
         free(host_copy);
         return WEXITSTATUS(status);
     } else {
         // Fork failed
         debug_log("[ERROR] fork() failed with errno: %d", errno);
+        
+        // Free all allocated strings in ssh_args
+        for (int i = 0; ssh_args[i] != NULL; i++) {
+            free(ssh_args[i]);
+        }
+        
         free(full_command);
         free(host_copy);
         return -1;
@@ -607,4 +664,74 @@ int execlp(const char *file, const char *arg, ...) {
         _exit(0);  // Success - exit the process
     }
     return result;  // Error - return to caller
+}
+
+// Helper function to create directory recursively
+static int mkdir_recursive(const char *path) {
+    char tmp[PATH_MAX];
+    char *p = NULL;
+    size_t len;
+    
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    len = strlen(tmp);
+    if (tmp[len - 1] == '/') {
+        tmp[len - 1] = 0;
+    }
+    
+    for (p = tmp + 1; *p; p++) {
+        if (*p == '/') {
+            *p = 0;
+            if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
+                return -1;
+            }
+            *p = '/';
+        }
+    }
+    
+    if (mkdir(tmp, 0755) != 0 && errno != EEXIST) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+// Intercept chdir - create directory if needed, then call real chdir
+int chdir(const char *path) {
+    debug_log("chdir called: path=%s", path ? path : "NULL");
+    
+    if (!path) {
+        errno = EFAULT;
+        return -1;
+    }
+    
+    // Get original chdir function
+    static orig_chdir_f_type orig_chdir = NULL;
+    if (!orig_chdir) {
+        orig_chdir = (orig_chdir_f_type)dlsym(RTLD_NEXT, "chdir");
+    }
+    
+    // Try original chdir first
+    int result = orig_chdir(path);
+    
+    if (result == 0) {
+        debug_log("chdir succeeded: %s", path);
+        return 0;
+    }
+    
+    // chdir failed - try creating the directory
+    debug_log("chdir failed, attempting to create directory: %s", path);
+    
+    if (mkdir_recursive(path) == 0) {
+        debug_log("Directory created successfully, retrying chdir");
+        result = orig_chdir(path);
+        if (result == 0) {
+            debug_log("chdir succeeded after creating directory");
+        } else {
+            debug_log("chdir still failed after creating directory: errno=%d", errno);
+        }
+    } else {
+        debug_log("Failed to create directory: errno=%d", errno);
+    }
+    
+    return result;
 }

@@ -1,3 +1,4 @@
+import { clearTimeout, setTimeout } from 'node:timers'
 import type { Client } from 'ssh2'
 import { ConstellationFS } from '../config/Config.js'
 import { ERROR_CODES } from '../constants.js'
@@ -53,7 +54,7 @@ export class RemoteWorkspaceManager {
         // Add timeout as safety measure
         const timeout = setTimeout(() => {
           if (!resolved) {
-            getLogger().debug(`[RemoteWorkspaceManager] Timeout waiting for command completion, assuming success`)
+            getLogger().debug('[RemoteWorkspaceManager] Timeout waiting for command completion, assuming success')
             resolved = true
             resolve(workspacePath) // Assume success if command was sent
           }
