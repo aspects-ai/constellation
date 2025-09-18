@@ -13,6 +13,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget \
     tree \
+    ripgrep \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Create workspace directory

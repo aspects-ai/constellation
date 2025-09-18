@@ -23,9 +23,9 @@ const PACKAGE_ROOT = resolve(__dirname, '..', '..')
 export interface PlatformCapabilities {
   /** Whether the current platform supports local filesystem backend */
   localBackend: boolean
-  /** Whether the current platform supports remote backend with LD_PRELOAD */
+  /** Whether the current platform supports remote backend */
   remoteBackend: boolean
-  /** Whether native LD_PRELOAD library is available */
+  /** Whether native LD_PRELOAD library is available (optional enhancement) */
   nativeLibraryAvailable: boolean
   /** Path to native library if available */
   nativeLibraryPath: string | null
@@ -39,35 +39,35 @@ export interface PlatformCapabilities {
 export function detectPlatformCapabilities(): PlatformCapabilities {
   const platform = process.platform
   const arch = process.arch
+  const useNativeIntercept = process.env.USE_LD_PRELOAD === 'true'
   
   logger.debug(`Detecting platform capabilities for ${platform} (${arch})`)
   
-  // All platforms support local backend
+  // All platforms support both local and remote backends now
   const capabilities: PlatformCapabilities = {
     localBackend: true,
-    remoteBackend: false,
+    remoteBackend: true,  // Remote backend works on all platforms now
     nativeLibraryAvailable: false,
     nativeLibraryPath: null,
     notes: []
   }
   
-  if (platform === 'linux') {
-    // Linux platforms may support remote backend if native library is available
+  // Check if LD_PRELOAD is requested and available (Linux only)
+  if (useNativeIntercept && platform === 'linux') {
     const nativeLibPath = findNativeLibrary()
     
     if (nativeLibPath) {
-      capabilities.remoteBackend = true
       capabilities.nativeLibraryAvailable = true
       capabilities.nativeLibraryPath = nativeLibPath
-      capabilities.notes.push('Full remote backend support with LD_PRELOAD available')
+      capabilities.notes.push('LD_PRELOAD intercept library available for enhanced performance')
     } else {
-      capabilities.notes.push('Remote backend requires native library build')
+      capabilities.notes.push('LD_PRELOAD requested but native library not found')
       capabilities.notes.push('Run: npm run build:native')
     }
+  } else if (useNativeIntercept && platform !== 'linux') {
+    capabilities.notes.push(`LD_PRELOAD only available on Linux (current: ${platform})`)
   } else {
-    // Non-Linux platforms don't support LD_PRELOAD
-    capabilities.notes.push(`Remote backend not supported on ${platform}`)
-    capabilities.notes.push('For remote backend development, use: @constellationfs/docker-dev')
+    capabilities.notes.push('Remote backend using standard approach (LD_PRELOAD disabled)')
   }
   
   return capabilities
@@ -123,19 +123,20 @@ export function validateNativeLibrary(libraryPath: string): boolean {
 }
 
 /**
- * Gets the appropriate LD_PRELOAD library path for remote backend
- * @returns Library path if available, null otherwise
+ * Gets the appropriate LD_PRELOAD library path if enabled and available
+ * @returns Library path if LD_PRELOAD is enabled and available, null otherwise
  */
 export function getRemoteBackendLibrary(): string | null {
   const capabilities = detectPlatformCapabilities()
   
-  if (!capabilities.remoteBackend) {
-    logger.debug('Remote backend not supported on current platform')
+  // LD_PRELOAD is now optional - only use if explicitly enabled
+  if (process.env.USE_LD_PRELOAD !== 'true') {
+    logger.debug('LD_PRELOAD not enabled (set USE_LD_PRELOAD=true to enable)')
     return null
   }
   
   if (!capabilities.nativeLibraryAvailable) {
-    logger.warn('Remote backend requires native library, but none found')
+    logger.debug('LD_PRELOAD enabled but native library not available')
     return null
   }
   
@@ -145,6 +146,7 @@ export function getRemoteBackendLibrary(): string | null {
     return null
   }
   
+  logger.info('Using LD_PRELOAD intercept library for enhanced performance')
   return libraryPath
 }
 
@@ -166,29 +168,21 @@ export function getPlatformGuidance(requestedBackend: 'local' | 'remote'): {
   }
   
   if (requestedBackend === 'remote') {
-    if (capabilities.remoteBackend) {
-      return {
-        supported: true,
-        suggestions: []
-      }
-    }
-    
+    // Remote backend is now supported on all platforms
     const suggestions = []
     
-    if (process.platform !== 'linux') {
-      suggestions.push('Remote backend requires Linux platform')
-      suggestions.push('For development on non-Linux:')
-      suggestions.push('  npm install --save-dev @constellationfs/docker-dev')
-      suggestions.push('  npx @constellationfs/docker-dev start')
-    } else {
-      suggestions.push('Native library not found or invalid')
-      suggestions.push('Build the native library:')
-      suggestions.push('  npm run build:native')
+    // Add suggestions about optional LD_PRELOAD enhancement
+    if (process.platform === 'linux' && !capabilities.nativeLibraryAvailable) {
+      suggestions.push('Optional: Enable LD_PRELOAD for enhanced performance:')
+      suggestions.push('  1. Build native library: npm run build:native')
+      suggestions.push('  2. Set environment: USE_LD_PRELOAD=true')
+    } else if (process.platform !== 'linux' && process.env.USE_LD_PRELOAD === 'true') {
+      suggestions.push('Note: LD_PRELOAD is only available on Linux platforms')
     }
     
     return {
-      supported: false,
-      message: `Remote backend not available: ${capabilities.notes.join(', ')}`,
+      supported: true,
+      message: capabilities.notes.length > 0 ? capabilities.notes.join(', ') : undefined,
       suggestions
     }
   }

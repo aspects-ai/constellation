@@ -1,3 +1,16 @@
+/*
+ * ConstellationFS LD_PRELOAD Intercept Library (Optional)
+ * 
+ * This library provides optional performance enhancements for remote backend
+ * operations on Linux systems. It intercepts exec* and system calls to redirect
+ * them through SSH when enabled.
+ * 
+ * To enable: Set USE_LD_PRELOAD=true environment variable
+ * 
+ * Note: Remote backend works without this library on all platforms.
+ *       This is only an optional Linux-specific performance optimization.
+ */
+
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <stdio.h>
@@ -135,13 +148,6 @@ static char* build_command_from_argv(char *const argv[]) {
 // Helper function to check if a command involves SSH
 // Returns 1 if command contains SSH, 0 if not
 static int is_ssh_command(const char *command_or_filename, char *const argv[]) {
-    // First check if CONSTELLATIONFS_APP_ID is set (basic requirement)
-    const char *app_id = getenv("CONSTELLATIONFS_APP_ID");
-    if (!app_id) {
-        debug_log("CONSTELLATIONFS_APP_ID not set, not intercepting");
-        return 0; // Don't intercept without app ID (return 0 means "not SSH", so no interception)
-    }
-    
     // Check the filename/command directly
     if (command_or_filename) {
         // Direct ssh binary calls
@@ -163,13 +169,20 @@ static int is_ssh_command(const char *command_or_filename, char *const argv[]) {
         }
     }
     
-    debug_log("No SSH command detected, will intercept");
-    return 0; // No SSH detected, so we should intercept
+    debug_log("No SSH command detected");
+    return 0; // No SSH detected
 }
 
 // Helper function to check if we should intercept (combines SSH detection + gets CWD)
 // Returns 1 if we should intercept, 0 if not. If returning 1, cwd_buffer is filled with current directory
 static int should_intercept_and_get_cwd(char *cwd_buffer, size_t cwd_buffer_size, const char *command_or_filename, char *const argv[]) {
+    // Check if LD_PRELOAD interception is enabled
+    const char *use_ld_preload = getenv("USE_LD_PRELOAD");
+    if (!use_ld_preload || strcmp(use_ld_preload, "true") != 0) {
+        debug_log("USE_LD_PRELOAD not set to 'true', not intercepting");
+        return 0;
+    }
+    
     // First check if CONSTELLATIONFS_APP_ID is set (basic requirement)
     const char *app_id = getenv("CONSTELLATIONFS_APP_ID");
     if (!app_id) {

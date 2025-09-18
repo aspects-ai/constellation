@@ -1,6 +1,5 @@
-// Codebuff SDK integration for ConstellationFS
 import { CodebuffClient } from '@codebuff/sdk'
-import type { FileSystem } from 'constellationfs'
+import { CodebuffAdapter, type FileSystem } from 'constellationfs'
 
 // Client pool to maintain persistent connections per workspace
 const clientPool = new Map<string, CodebuffClient>()
@@ -13,10 +12,12 @@ export async function getCodebuffClient(fs: FileSystem, apiKey: string) {
   let client = clientPool.get(workspaceKey)
 
   if (!client) {
+    const adapter = new CodebuffAdapter(fs)
     console.log('Creating new Codebuff client for workspace:', fs.workspace)
     client = new CodebuffClient({
       apiKey,
       cwd: fs.workspace,
+      overrideTools: adapter.getToolHandlers(),
       onError: (e: { message: string }) => {
         clientPool.delete(workspaceKey)
       }

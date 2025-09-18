@@ -47,14 +47,16 @@ export class RemoteBackend implements FileSystemBackend {
     }
     
     // Locate the LD_PRELOAD intercept library using platform detection
-    this.interceptLibPath = getRemoteBackendLibrary()
-    if (!this.interceptLibPath) {
-      const suggestions = guidance.suggestions.join('\n  ')
-      throw new FileSystemError(
-        'Native library required for remote backend but not found',
-        ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
-        `Suggestions:\n  ${suggestions}`
-      )
+    if (process.env.USE_LD_PRELOAD === 'true') {
+      this.interceptLibPath = getRemoteBackendLibrary()
+      if (!this.interceptLibPath) {
+        const suggestions = guidance.suggestions.join('\n  ')
+        throw new FileSystemError(
+          'Native library required for remote backend but not found',
+          ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
+          `Suggestions:\n  ${suggestions}`
+        )
+      }
     }
     
     // Initialize SSH client
@@ -135,31 +137,6 @@ export class RemoteBackend implements FileSystemBackend {
   }
   
   /**
-   * Get environment variables for LD_PRELOAD interception
-   */
-  getInterceptEnvironment(): Record<string, string> {
-    const env: Record<string, string> = {}
-    
-    // Copy process env, filtering out undefined values
-    Object.entries(process.env).forEach(([key, value]) => {
-      if (value !== undefined) {
-        env[key] = value
-      }
-    })
-    
-    // Set LD_PRELOAD with validated library path
-    if (this.interceptLibPath) {
-      env.LD_PRELOAD = this.interceptLibPath
-      getLogger().debug(`Setting LD_PRELOAD to: ${this.interceptLibPath}`)
-    }
-    
-    // Set remote host for interception
-    env.REMOTE_VM_HOST = this.getSSHHostString()
-    
-    return env
-  }
-  
-  /**
    * Parse host:port format into separate host and port
    */
   private parseHostPort(hostString: string): { host: string; port: number } {
@@ -173,13 +150,6 @@ export class RemoteBackend implements FileSystemBackend {
     }
     // Default to port 22 if no port specified or invalid
     return { host: hostString, port: 22 }
-  }
-
-  /**
-   * Get SSH host string for connection from environment
-   */
-  private getSSHHostString(): string {
-    return this.getHostAndPortFromEnv().host
   }
 
   /**
