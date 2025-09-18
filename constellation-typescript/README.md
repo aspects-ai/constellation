@@ -18,6 +18,8 @@ AI models are already trained on millions of filesystem operations. Instead of t
 npm install constellationfs
 ```
 
+### Local Backend (Default)
+
 ```typescript
 import { FileSystem } from 'constellationfs'
 
@@ -33,6 +35,47 @@ await fs.write('config.json', JSON.stringify({ version: '1.0' }))
 const content = await fs.read('config.json')
 const files = await fs.ls('*.txt')
 ```
+
+### Remote Backend (SSH)
+
+Remote backend allows execution on a separate machine or container via SSH.
+
+**1. Start the remote container (optional for testing):**
+```bash
+docker run -d --name constellation-remote \
+  -p 2222:22 \
+  constellationfs/remote-backend:latest
+```
+
+**2. Set environment variables:**
+```bash
+# Required for remote backend
+export REMOTE_VM_HOST=root@localhost:2222    # SSH connection string
+export REMOTE_VM_PASSWORD=constellation       # Or use SSH keys
+
+# Optional performance enhancement (Linux only)
+export USE_LD_PRELOAD=true                   # Enable LD_PRELOAD intercept
+```
+
+**3. Use remote backend in your code:**
+```typescript
+import { FileSystem } from 'constellationfs'
+
+const fs = new FileSystem({
+  workspace: './my-workspace',
+  backend: 'remote',
+  userId: 'user-123'  // Isolates workspaces per user
+})
+
+// Commands execute on remote machine
+await fs.exec('uname -a')
+await fs.write('remote-file.txt', 'This runs remotely!')
+```
+
+**Environment Variables:**
+- `REMOTE_VM_HOST`: SSH target (format: `user@host:port`)
+- `REMOTE_VM_PASSWORD`: SSH password (optional if using keys)
+- `USE_LD_PRELOAD`: Enable native intercept for better performance (Linux only, optional)
 
 ## 🚀 Interactive Demo
 
