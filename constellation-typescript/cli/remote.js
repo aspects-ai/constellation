@@ -15,8 +15,10 @@ const REMOTE_DIR = join(PACKAGE_ROOT, 'remote')
 
 /**
  * Start the ConstellationFS remote backend service
+ * @param {Object} options - Configuration options
+ * @param {boolean} options.build - Force rebuild the Docker image
  */
-export async function startRemote() {
+export async function startRemote(options = {}) {
   console.log('🚀 Starting ConstellationFS remote backend...')
   
   // Check if Docker is available
@@ -29,6 +31,13 @@ export async function startRemote() {
     )
   }
   
+  // Build image if requested (do this first, even if container is running)
+  if (options.build) {
+    console.log('   Building Docker image...')
+    await buildImage()
+    console.log('   ✅ Docker image built successfully')
+  }
+  
   // Check if service is already running
   try {
     execSync('docker ps --filter "name=constellation-remote" --format "{{.Names}}"', { stdio: 'pipe' })
@@ -38,10 +47,18 @@ export async function startRemote() {
     }).trim()
     
     if (output.includes('constellation-remote')) {
-      console.log('✅ Remote backend is already running')
-      console.log('   SSH available at: root@localhost:2222')
-      console.log('   Default password: constellation')
-      return
+      if (options.build) {
+        console.log('   Restarting container with new image...')
+        // Stop and remove existing container
+        await runCommand(['docker', 'stop', 'constellation-remote-backend']).catch(() => {})
+        await runCommand(['docker', 'rm', 'constellation-remote-backend']).catch(() => {})
+        // Container will be recreated below
+      } else {
+        console.log('✅ Remote backend is already running')
+        console.log('   SSH available at: root@localhost:2222')
+        console.log('   Default password: constellation')
+        return
+      }
     }
   } catch {
     // Service not running, continue
@@ -53,7 +70,7 @@ export async function startRemote() {
       await runDockerCompose()
     } catch {
       // Fallback to direct docker run
-      await runDockerDirect()
+      await runDockerDirect(options)
     }
     
     // Wait a moment for service to start
@@ -119,18 +136,28 @@ async function runDockerCompose() {
 }
 
 /**
- * Start using direct docker run as fallback
+ * Build the Docker image
  */
-async function runDockerDirect() {
-  console.log('   Using direct docker run...')
-  
-  // Build image if needed
+async function buildImage() {
   await runCommand([
     'docker', 'build',
     '-f', join(REMOTE_DIR, 'Dockerfile.runtime'),
     '-t', 'constellationfs/remote-backend:latest',
     PACKAGE_ROOT
   ])
+}
+
+/**
+ * Start using direct docker run as fallback
+ */
+async function runDockerDirect(options = {}) {
+  console.log('   Using direct docker run...')
+  
+  // Build image if not already built via --build flag
+  if (!options.build) {
+    console.log('   Building Docker image...')
+    await buildImage()
+  }
   
   // Run container
   await runCommand([

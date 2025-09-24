@@ -24,6 +24,15 @@ services:
       # SSH key configuration (optional)
       # - SSH_PUBLIC_KEY=ssh-rsa AAAAB3N...your-key-here
     
+    devices:
+      - /dev/fuse:/dev/fuse
+    
+    cap_add:
+      - SYS_ADMIN
+    
+    security_opt:
+      - apparmor:unconfined
+    
     restart: unless-stopped
     
     # Health check

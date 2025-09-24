@@ -30,7 +30,7 @@ export async function main(args) {
       break
       
     case 'start-remote':
-      await handleStartRemote()
+      await handleStartRemote(args.slice(1))
       break
       
     case 'stop-remote':
@@ -97,9 +97,11 @@ async function handleDockerRun(args) {
   }
 }
 
-async function handleStartRemote() {
+async function handleStartRemote(args) {
+  const shouldBuild = args.includes('--build')
+  
   try {
-    await startRemote()
+    await startRemote({ build: shouldBuild })
   } catch (error) {
     console.error(`❌ Failed to start remote backend: ${error.message}`)
     process.exit(1)
@@ -129,8 +131,9 @@ Commands:
                                  
   path                          Show path to built native library
   
-  start-remote                  Start ConstellationFS remote backend service
+  start-remote [--build]        Start ConstellationFS remote backend service
                                 (Docker-based SSH filesystem service)
+                                --build: Force rebuild the Docker image
   
   stop-remote                   Stop ConstellationFS remote backend service
   
