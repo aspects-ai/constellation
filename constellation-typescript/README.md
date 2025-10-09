@@ -41,10 +41,9 @@ const files = await fs.ls('*.txt')
 Remote backend allows execution on a separate machine or container via SSH.
 
 **1. Start the remote container (optional for testing):**
+This command will spin up a lightweight server that simply runs SSH daemon (see remote/Dockerfile.runtime).
 ```bash
-docker run -d --name constellation-remote \
-  -p 2222:22 \
-  constellationfs/remote-backend:latest
+npx constellationfs start-remote
 ```
 
 **2. Set environment variables:**
@@ -140,7 +139,7 @@ const fs = new FileSystem('./workspace')
 // Full configuration
 const fs = new FileSystem({
   workspace: './workspace',
-  backend: 'local',                    // Only 'local' supported for now
+  backend: 'local',                    // Use 'remote' for production
   preventDangerous: true,              // Block dangerous commands (default: true)
   onDangerousOperation: (cmd) => {     // Handle blocked commands
     console.log(`Blocked: ${cmd}`)
@@ -233,7 +232,6 @@ import type { FileSystemOptions, FileSystemInterface } from 'constellationfs'
 
 const options: FileSystemOptions = {
   workspace: './data',
-  preventDangerous: true
 }
 
 const fs: FileSystemInterface = new FileSystem(options)

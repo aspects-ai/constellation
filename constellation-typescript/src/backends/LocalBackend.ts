@@ -1,6 +1,6 @@
 import { getLogger } from '@/utils/logger.js'
 import { execSync, spawn } from 'child_process'
-import { readFile, writeFile } from 'fs/promises'
+import { mkdir as fsMkdir, readFile, writeFile } from 'fs/promises'
 import { isAbsolute, join, relative, resolve } from 'path'
 import { ERROR_CODES } from '../constants.js'
 import { isCommandSafe, isDangerous } from '../safety.js'
@@ -200,7 +200,7 @@ export class LocalBackend implements FileSystemBackend {
 
   async write(path: string, content: string): Promise<void> {
     const fullPath = this.resolvePath(path)
-    
+
     // Check symlink safety for parent directories
     const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
     if (parentPath !== '.') {
@@ -213,11 +213,58 @@ export class LocalBackend implements FileSystemBackend {
         )
       }
     }
-    
+
     try {
       await writeFile(fullPath, content, 'utf-8')
     } catch (error) {
       throw this.wrapError(error, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${path}`)
+    }
+  }
+
+  async mkdir(path: string, recursive = true): Promise<void> {
+    const fullPath = this.resolvePath(path)
+
+    // Check symlink safety for parent directories
+    const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
+    if (parentPath !== '.') {
+      const symlinkCheck = checkSymlinkSafety(this.workspace, parentPath)
+      if (!symlinkCheck.safe) {
+        throw new FileSystemError(
+          `Cannot create directory: ${symlinkCheck.reason}`,
+          ERROR_CODES.PATH_ESCAPE_ATTEMPT,
+          `mkdir ${path}`
+        )
+      }
+    }
+
+    try {
+      await fsMkdir(fullPath, { recursive })
+    } catch (error) {
+      throw this.wrapError(error, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${path}`)
+    }
+  }
+
+  async touch(path: string): Promise<void> {
+    const fullPath = this.resolvePath(path)
+
+    // Check symlink safety for parent directories
+    const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
+    if (parentPath !== '.') {
+      const symlinkCheck = checkSymlinkSafety(this.workspace, parentPath)
+      if (!symlinkCheck.safe) {
+        throw new FileSystemError(
+          `Cannot create file: ${symlinkCheck.reason}`,
+          ERROR_CODES.PATH_ESCAPE_ATTEMPT,
+          `touch ${path}`
+        )
+      }
+    }
+
+    try {
+      // Create empty file or update timestamp if it exists
+      await writeFile(fullPath, '', { flag: 'a' })
+    } catch (error) {
+      throw this.wrapError(error, 'Create file', ERROR_CODES.WRITE_FAILED, `touch ${path}`)
     }
   }
 

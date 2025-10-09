@@ -89,5 +89,22 @@ export interface FileSystemBackend {
    * @throws {FileSystemError} When file cannot be written
    */
   write(path: string, content: string): Promise<void>
-  
+
+  /**
+   * Create a directory in the backend storage
+   * @param path - Relative path to the directory within the workspace
+   * @param recursive - Create parent directories if they don't exist (default: true)
+   * @returns Promise that resolves when the directory is created
+   * @throws {FileSystemError} When directory cannot be created
+   */
+  mkdir(path: string, recursive?: boolean): Promise<void>
+
+  /**
+   * Create an empty file in the backend storage
+   * @param path - Relative path to the file within the workspace
+   * @returns Promise that resolves when the file is created
+   * @throws {FileSystemError} When file cannot be created
+   */
+  touch(path: string): Promise<void>
+
 }

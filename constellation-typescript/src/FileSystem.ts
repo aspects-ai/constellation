@@ -118,8 +118,37 @@ export class FileSystem implements FileSystemInterface {
     if (!path.trim()) {
       throw new FileSystemError('Path cannot be empty', ERROR_CODES.EMPTY_PATH)
     }
-    
+
     return this.backend.write(path, content)
+  }
+
+  /**
+   * Create a directory
+   * @param path - Relative path to the directory within the workspace
+   * @param recursive - Create parent directories if they don't exist (default: true)
+   * @returns Promise that resolves when the directory is created
+   * @throws {FileSystemError} When path is empty or directory creation fails
+   */
+  async mkdir(path: string, recursive = true): Promise<void> {
+    if (!path.trim()) {
+      throw new FileSystemError('Path cannot be empty', ERROR_CODES.EMPTY_PATH)
+    }
+
+    return this.backend.mkdir(path, recursive)
+  }
+
+  /**
+   * Create an empty file
+   * @param path - Relative path to the file within the workspace
+   * @returns Promise that resolves when the file is created
+   * @throws {FileSystemError} When path is empty or file creation fails
+   */
+  async touch(path: string): Promise<void> {
+    if (!path.trim()) {
+      throw new FileSystemError('Path cannot be empty', ERROR_CODES.EMPTY_PATH)
+    }
+
+    return this.backend.touch(path)
   }
 
 }
