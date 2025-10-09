@@ -1,3 +1,4 @@
+import { join } from 'path'
 import type { ConnectConfig } from 'ssh2'
 import { Client } from 'ssh2'
 import { ERROR_CODES } from '../constants.js'
@@ -33,7 +34,10 @@ export class RemoteBackend implements FileSystemBackend {
     
     // Validate userId for security
     RemoteWorkspaceManager.validateUserId(options.userId)
-    this.workspace = RemoteWorkspaceManager.getUserWorkspacePath(options.userId)
+    const fullWorkspacePath = options.workspacePath 
+      ? join(options.userId, options.workspacePath)
+      : options.userId
+    this.workspace = RemoteWorkspaceManager.getUserWorkspacePath(fullWorkspacePath)
     
     // Check platform support and locate native library
     const guidance = getPlatformGuidance('remote')
@@ -441,6 +445,113 @@ export class RemoteBackend implements FileSystemBackend {
           } else {
             resolve()
           }
+        })
+      })
+    })
+  }
+
+  async mkdir(path: string, recursive = true): Promise<void> {
+    // Validate path
+    this.validatePath(path)
+    
+    if (!this.sshClient) {
+      throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+    }
+    
+    // Ensure SSH connection
+    await this.ensureSSHConnection()
+    
+    return new Promise((resolve, reject) => {
+      if (!this.sshClient) {
+        throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+      }
+      this.sshClient.sftp((err, sftp) => {
+        if (err) {
+          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.WRITE_FAILED, `mkdir ${path}`))
+          return
+        }
+        
+        const remotePath = this.resolveRemotePath(path)
+        
+        if (recursive) {
+          if (!this.sshClient) {
+            throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+          }
+          // Use mkdir -p for recursive directory creation
+          this.sshClient.exec(`mkdir -p "${remotePath}"`, (err, stream) => {
+            if (err) {
+              reject(this.wrapError(err, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${path}`))
+              return
+            }
+            
+            stream.on('close', (code: number) => {
+              if (code === 0) {
+                resolve()
+              } else {
+                reject(new FileSystemError(
+                  `Failed to create directory: ${path}`,
+                  ERROR_CODES.WRITE_FAILED,
+                  `mkdir ${path}`
+                ))
+              }
+            }).on('data', () => {
+              // Consume stdout
+            }).stderr.on('data', () => {
+              // Consume stderr
+            })
+          })
+        } else {
+          sftp.mkdir(remotePath, (err) => {
+            if (err) {
+              reject(this.wrapError(err, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${path}`))
+            } else {
+              resolve()
+            }
+          })
+        }
+      })
+    })
+  }
+
+  async touch(path: string): Promise<void> {
+    // Validate path
+    this.validatePath(path)
+    
+    if (!this.sshClient) {
+      throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+    }
+    
+    // Ensure SSH connection
+    await this.ensureSSHConnection()
+    
+    return new Promise((resolve, reject) => {
+      if (!this.sshClient) {
+        throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+      }
+      
+      const remotePath = this.resolveRemotePath(path)
+      
+      // Use touch command for creating empty files
+      this.sshClient.exec(`touch "${remotePath}"`, (err, stream) => {
+        if (err) {
+          reject(this.wrapError(err, 'Create file', ERROR_CODES.WRITE_FAILED, `touch ${path}`))
+          return
+        }
+        
+        stream.on('close', (code: number) => {
+          if (code === 0) {
+            resolve()
+          } else {
+            reject(new FileSystemError(
+              `Failed to create file: ${path}`,
+              ERROR_CODES.WRITE_FAILED,
+              `touch ${path}`
+            ))
+          }
+        }).on('data', () => {
+          // Consume stdout
+        }).stderr.on('data', () => {
+          // Consume stderr
         })
       })
     })

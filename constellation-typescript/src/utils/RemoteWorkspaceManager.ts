@@ -17,22 +17,22 @@ export class RemoteWorkspaceManager {
 
   /**
    * Get the workspace path for a specific user on remote system
-   * @param userId - The user identifier
+   * @param path - The path to the workspace
    * @returns Absolute path to the user's workspace on remote system
    */
-  static getUserWorkspacePath(userId: string): string {
+  static getUserWorkspacePath(path: string): string {
     const libraryConfig = ConstellationFS.getInstance()
     // Use POSIX path joining for remote systems (same structure as local)
-    return `${libraryConfig.workspaceRoot}/${userId}`
+    return `${libraryConfig.workspaceRoot}/${path}`
   }
 
   /**
    * Ensure a user's workspace directory exists on remote filesystem
-   * @param userId - The user identifier
+   * @param path - The path to the workspace
    * @returns Promise resolving to absolute path of the created/existing workspace
    */
-  async ensureUserWorkspace(userId: string): Promise<string> {
-    const workspacePath = RemoteWorkspaceManager.getUserWorkspacePath(userId)
+  async ensureUserWorkspace(path: string): Promise<string> {
+    const workspacePath = RemoteWorkspaceManager.getUserWorkspacePath(path)
     
     // Create directory via SSH if it doesn't exist
     const command = `mkdir -p "${workspacePath}"`
@@ -90,11 +90,11 @@ export class RemoteWorkspaceManager {
 
   /**
    * Check if a user workspace exists on remote filesystem
-   * @param userId - The user identifier
+   * @param path - The path to the workspace
    * @returns Promise resolving to true if the workspace exists
    */
-  async workspaceExists(userId: string): Promise<boolean> {
-    const workspacePath = RemoteWorkspaceManager.getUserWorkspacePath(userId)
+  async workspaceExists(path: string): Promise<boolean> {
+    const workspacePath = RemoteWorkspaceManager.getUserWorkspacePath(path)
     
     // Test if directory exists via SSH
     const command = `test -d "${workspacePath}"`
@@ -122,6 +122,28 @@ export class RemoteWorkspaceManager {
         })
       })
     })
+  }
+
+  /**
+   * Validate a workspace path for safe directory naming
+   * @param path - The path to the workspace to validate
+   * @throws Error if path is invalid
+   */
+  static validateWorkspacePath(path: string): void {
+    if (!path || path.trim().length === 0) {
+      throw new Error('Workspace path cannot be empty')
+    }
+    
+    // Only allow alphanumeric, hyphens, underscores, and periods
+    const validChars = /^[a-zA-Z0-9._-]+$/
+    if (!validChars.test(path)) {
+      throw new Error(`Workspace path '${path}' can only contain letters, numbers, hyphens, underscores, and periods`)
+    }
+    
+    // Prevent directory traversal
+    if (path.includes('..') || path.includes('./') || path.includes('/') || path.includes('\\')) {
+      throw new Error('Workspace path cannot contain path traversal sequences')
+    }
   }
 
   /**

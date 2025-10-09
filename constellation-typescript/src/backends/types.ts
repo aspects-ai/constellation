@@ -23,11 +23,13 @@ const LocalBackendConfigSchema = BaseBackendConfigSchema.extend({
   shell: z.enum(SHELL_TYPES).default(DEFAULTS.SHELL),
   validateUtils: z.boolean().default(DEFAULTS.VALIDATE_UTILS),
   userId: z.string().min(1, 'userId is required for local backend'),
+  workspacePath: z.string().optional(),
 })
 
 const RemoteBackendConfigSchema = BaseBackendConfigSchema.extend({
   type: z.literal('remote'),
   userId: z.string().min(1, 'userId is required for remote backend'),
+  workspacePath: z.string().optional(),
   auth: z.object({
     type: z.enum(AUTH_TYPES),
     credentials: z.record(z.string(), z.unknown()),

@@ -5,8 +5,8 @@ import { isAbsolute, join, relative, resolve } from 'path'
 import { ERROR_CODES } from '../constants.js'
 import { isCommandSafe, isDangerous } from '../safety.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
-import { checkSymlinkSafety } from '../utils/pathValidator.js'
 import { LocalWorkspaceManager } from '../utils/LocalWorkspaceManager.js'
+import { checkSymlinkSafety } from '../utils/pathValidator.js'
 import type { FileSystemBackend, LocalBackendConfig } from './types.js'
 import { validateLocalBackendConfig } from './types.js'
 
@@ -31,9 +31,12 @@ export class LocalBackend implements FileSystemBackend {
     validateLocalBackendConfig(options)
     this.options = options
     
-    // Use userId-based workspace management
-    LocalWorkspaceManager.validateUserId(options.userId)
-    this.workspace = LocalWorkspaceManager.ensureUserWorkspace(options.userId)
+    // Use userId-based workspace management with optional workspace path
+    LocalWorkspaceManager.validateWorkspacePath(options.userId)
+    const fullWorkspacePath = options.workspacePath 
+      ? join(options.userId, options.workspacePath)
+      : options.userId
+    this.workspace = LocalWorkspaceManager.ensureUserWorkspace(fullWorkspacePath)
     this.connected = true
     
     this.shell = this.detectShell()
