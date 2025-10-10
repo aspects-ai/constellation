@@ -1,6 +1,6 @@
 {
   "name": "constellationfs",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A filesystem abstraction for AI agents that provides familiar bash commands instead of custom APIs",
   "type": "module",
   "main": "dist/index.js",
@@ -47,7 +47,7 @@
   },
   "homepage": "https://github.com/constellation-fs/constellation-fs#readme",
   "dependencies": {
-    "@codebuff/sdk": "^0.4.0",
+    "@codebuff/sdk": "^0.4.1",
     "ssh2": "^1.16.0",
     "zod": "^4.1.5"
   },

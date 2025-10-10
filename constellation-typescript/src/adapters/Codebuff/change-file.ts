@@ -1,4 +1,4 @@
-// import { type CodebuffToolOutput } from '@codebuff/sdk'
+import { type CodebuffToolOutput } from '@codebuff/sdk'
 import { applyPatch } from 'diff'
 import fs from 'fs'
 import path from 'path'
@@ -13,8 +13,7 @@ const FileChangeSchema = z.object({
 export function changeFile(
   parameters: unknown,
   cwd: string,
-// ): CodebuffToolOutput<'str_replace'> {
-): any {
+): CodebuffToolOutput<'str_replace'> {
   if (cwd.includes('../')) {
     throw new Error('cwd cannot include ../')
   }
@@ -25,8 +24,7 @@ export function changeFile(
     fileChange,
   ])
 
-  // const results: CodebuffToolOutput<'str_replace'>[0]['value'][] = []
-  const results: any[] = []
+  const results: CodebuffToolOutput<'str_replace'>[0]['value'][] = []
 
   for (const file of created) {
     results.push({

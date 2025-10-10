@@ -1,5 +1,5 @@
+import type { CodebuffToolOutput } from '@codebuff/sdk'
 import { spawn } from 'child_process'
-// import type { CodebuffToolOutput } from '@codebuff/sdk'
 import * as path from 'path'
 
 export function codeSearch({
@@ -14,8 +14,7 @@ export function codeSearch({
   flags?: string
   cwd?: string
   maxResults?: number
-// }): Promise<CodebuffToolOutput> {
-}): Promise<any> {
+}): Promise<CodebuffToolOutput<'code_search'>> {
   return new Promise((resolve) => {
     let stdout = ''
     let stderr = ''
