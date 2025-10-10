@@ -1,4 +1,3 @@
-import { BackendPool } from './backends/BackendPool.js'
 import { BackendFactory } from './backends/index.js'
 import type { BackendConfig, FileSystemBackend, LocalBackendConfig } from './types.js'
 import { getLogger } from './utils/logger.js'
@@ -34,15 +33,13 @@ import type { Workspace } from './workspace/Workspace.js'
 export class FileSystem {
   private readonly backend: FileSystemBackend
   private readonly backendConfig: BackendConfig
-  private readonly shouldReleaseBackend: boolean
 
   /**
    * Create a new FileSystem instance
    * @param input - Backend configuration object with userId
-   * @param useBackendPool - Whether to use backend pooling (default: true)
    * @throws {FileSystemError} When configuration is invalid
    */
-  constructor(input: Partial<BackendConfig>, useBackendPool = true) {
+  constructor(input: Partial<BackendConfig>) {
     // Normalize config
     if (input.type) {
       // Full backend config - use as-is with defaults for missing fields
@@ -59,12 +56,8 @@ export class FileSystem {
       } as LocalBackendConfig
     }
 
-    // Get backend from pool or create new one
-    this.backend = useBackendPool
-      ? BackendPool.getBackend(this.backendConfig)
-      : BackendFactory.create(this.backendConfig)
-
-    this.shouldReleaseBackend = useBackendPool
+    // Create a new backend instance for this FileSystem
+    this.backend = BackendFactory.create(this.backendConfig)
   }
 
   /**
@@ -102,13 +95,9 @@ export class FileSystem {
 
   /**
    * Clean up resources
-   * Releases backend reference if using backend pooling
+   * Destroys the backend instance
    */
   async destroy(): Promise<void> {
-    if (this.shouldReleaseBackend) {
-      await BackendPool.releaseBackend(this.backend)
-    } else {
-      await this.backend.destroy()
-    }
+    await this.backend.destroy()
   }
 }

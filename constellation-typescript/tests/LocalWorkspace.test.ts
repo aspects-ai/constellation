@@ -1,0 +1,403 @@
+import { describe, expect, it, beforeEach, afterEach } from 'vitest'
+import { LocalBackend } from '../src/backends/LocalBackend.js'
+import { FileSystemError } from '../src/types.js'
+import type { LocalWorkspace } from '../src/workspace/LocalWorkspace.js'
+
+describe('LocalWorkspace', () => {
+  let backend: LocalBackend
+  let workspace: LocalWorkspace
+  const testUserId = 'test-workspace-user'
+
+  beforeEach(async () => {
+    backend = new LocalBackend({
+      userId: testUserId,
+      type: 'local',
+      shell: 'bash',
+      validateUtils: false,
+      preventDangerous: true
+    })
+
+    workspace = (await backend.getWorkspace('test-workspace')) as LocalWorkspace
+  })
+
+  afterEach(async () => {
+    await backend.destroy()
+  })
+
+  describe('properties', () => {
+    it('should have correct workspacePath', () => {
+      expect(workspace.workspacePath).toBe('test-workspace')
+    })
+
+    it('should have correct userId', () => {
+      expect(workspace.userId).toBe(testUserId)
+    })
+
+    it('should have valid path', () => {
+      expect(workspace.path).toBeDefined()
+      expect(workspace.path).toContain(testUserId)
+      expect(workspace.path).toContain('test-workspace')
+    })
+
+    it('should reference backend', () => {
+      expect(workspace.backend).toBe(backend)
+    })
+  })
+
+  describe('exec', () => {
+    it('should execute simple commands', async () => {
+      const result = await workspace.exec('echo "hello"')
+      expect(result).toBe('hello')
+    })
+
+    it('should execute commands in workspace directory', async () => {
+      const pwd = await workspace.exec('pwd')
+      expect(pwd).toBe(workspace.path)
+    })
+
+    it('should reject empty commands', async () => {
+      await expect(workspace.exec('')).rejects.toThrow('Command cannot be empty')
+      await expect(workspace.exec('   ')).rejects.toThrow('Command cannot be empty')
+    })
+
+    it('should handle command failures', async () => {
+      await expect(workspace.exec('exit 1')).rejects.toThrow(FileSystemError)
+    })
+
+    it('should support piping and shell features', async () => {
+      await workspace.write('test1.txt', 'line1\nline2\nline3')
+      const result = await workspace.exec('cat test1.txt | grep line2')
+      expect(result).toBe('line2')
+    })
+  })
+
+  describe('read', () => {
+    it('should read file content', async () => {
+      await workspace.write('read-test.txt', 'test content')
+      const content = await workspace.read('read-test.txt')
+
+      expect(content).toBe('test content')
+    })
+
+    it('should reject absolute paths', async () => {
+      await expect(workspace.read('/etc/passwd')).rejects.toThrow('Absolute paths are not allowed')
+    })
+
+    it('should reject parent traversal', async () => {
+      await expect(workspace.read('../../../etc/passwd')).rejects.toThrow('Path escapes workspace')
+    })
+
+    it('should throw when file does not exist', async () => {
+      await expect(workspace.read('nonexistent.txt')).rejects.toThrow()
+    })
+
+    it('should read files in subdirectories', async () => {
+      await workspace.mkdir('subdir')
+      await workspace.write('subdir/nested.txt', 'nested content')
+
+      const content = await workspace.read('subdir/nested.txt')
+      expect(content).toBe('nested content')
+    })
+
+    it('should handle empty files', async () => {
+      await workspace.write('empty.txt', '')
+      const content = await workspace.read('empty.txt')
+
+      expect(content).toBe('')
+    })
+  })
+
+  describe('write', () => {
+    it('should write file content', async () => {
+      await workspace.write('write-test.txt', 'new content')
+      const content = await workspace.read('write-test.txt')
+
+      expect(content).toBe('new content')
+    })
+
+    it('should overwrite existing files', async () => {
+      await workspace.write('overwrite.txt', 'original')
+      await workspace.write('overwrite.txt', 'updated')
+
+      const content = await workspace.read('overwrite.txt')
+      expect(content).toBe('updated')
+    })
+
+    it('should reject absolute paths', async () => {
+      await expect(workspace.write('/tmp/bad.txt', 'content')).rejects.toThrow('Absolute paths are not allowed')
+    })
+
+    it('should reject parent traversal', async () => {
+      await expect(workspace.write('../escape.txt', 'content')).rejects.toThrow('Path escapes workspace')
+    })
+
+    it('should create parent directories if they exist', async () => {
+      await workspace.mkdir('parent')
+      await workspace.write('parent/child.txt', 'nested write')
+
+      const content = await workspace.read('parent/child.txt')
+      expect(content).toBe('nested write')
+    })
+
+    it('should handle unicode content', async () => {
+      const unicodeContent = 'Hello World'
+      await workspace.write('unicode.txt', unicodeContent)
+
+      const content = await workspace.read('unicode.txt')
+      expect(content).toBe(unicodeContent)
+    })
+
+    it('should handle multiline content', async () => {
+      const multiline = 'line1\nline2\nline3'
+      await workspace.write('multiline.txt', multiline)
+
+      const content = await workspace.read('multiline.txt')
+      expect(content).toBe(multiline)
+    })
+  })
+
+  describe('mkdir', () => {
+    it('should create directory', async () => {
+      await workspace.mkdir('new-dir')
+      const result = await workspace.exec('test -d new-dir && echo "exists"')
+
+      expect(result).toBe('exists')
+    })
+
+    it('should create nested directories recursively by default', async () => {
+      await workspace.mkdir('parent/child/grandchild')
+      const result = await workspace.exec('test -d parent/child/grandchild && echo "exists"')
+
+      expect(result).toBe('exists')
+    })
+
+    it('should not fail if directory already exists', async () => {
+      await workspace.mkdir('existing')
+      await expect(workspace.mkdir('existing')).resolves.not.toThrow()
+    })
+
+    it('should reject absolute paths', async () => {
+      await expect(workspace.mkdir('/tmp/bad')).rejects.toThrow('Absolute paths are not allowed')
+    })
+
+    it('should reject parent traversal', async () => {
+      await expect(workspace.mkdir('../escape')).rejects.toThrow('Path escapes workspace')
+    })
+  })
+
+  describe('touch', () => {
+    it('should create empty file', async () => {
+      await workspace.touch('touched.txt')
+      const content = await workspace.read('touched.txt')
+
+      expect(content).toBe('')
+    })
+
+    it('should create file in subdirectory', async () => {
+      await workspace.mkdir('subdir')
+      await workspace.touch('subdir/file.txt')
+
+      const content = await workspace.read('subdir/file.txt')
+      expect(content).toBe('')
+    })
+
+    it('should not overwrite existing file content', async () => {
+      await workspace.write('existing.txt', 'original content')
+      await workspace.touch('existing.txt')
+
+      const content = await workspace.read('existing.txt')
+      expect(content).toBe('original content')
+    })
+
+    it('should reject absolute paths', async () => {
+      await expect(workspace.touch('/tmp/bad.txt')).rejects.toThrow('Absolute paths are not allowed')
+    })
+
+    it('should reject parent traversal', async () => {
+      await expect(workspace.touch('../escape.txt')).rejects.toThrow('Path escapes workspace')
+    })
+  })
+
+  describe('exists', () => {
+    it('should return true for existing workspace', async () => {
+      const exists = await workspace.exists()
+      expect(exists).toBe(true)
+    })
+
+    it('should return false after deletion', async () => {
+      await workspace.delete()
+      const exists = await workspace.exists()
+
+      expect(exists).toBe(false)
+    })
+  })
+
+  describe('delete', () => {
+    it('should delete workspace directory', async () => {
+      const tempWorkspace = (await backend.getWorkspace('temp-delete')) as LocalWorkspace
+      await tempWorkspace.write('test.txt', 'content')
+
+      expect(await tempWorkspace.exists()).toBe(true)
+
+      await tempWorkspace.delete()
+
+      expect(await tempWorkspace.exists()).toBe(false)
+    })
+
+    it('should delete workspace with nested content', async () => {
+      const tempWorkspace = (await backend.getWorkspace('temp-nested')) as LocalWorkspace
+
+      await tempWorkspace.mkdir('dir1/dir2/dir3')
+      await tempWorkspace.write('dir1/file1.txt', 'content1')
+      await tempWorkspace.write('dir1/dir2/file2.txt', 'content2')
+      await tempWorkspace.write('dir1/dir2/dir3/file3.txt', 'content3')
+
+      await tempWorkspace.delete()
+
+      expect(await tempWorkspace.exists()).toBe(false)
+    })
+  })
+
+  describe('list', () => {
+    it('should list files and directories', async () => {
+      await workspace.write('file1.txt', 'content1')
+      await workspace.write('file2.txt', 'content2')
+      await workspace.mkdir('dir1')
+
+      const items = await workspace.list()
+
+      expect(items).toContain('file1.txt')
+      expect(items).toContain('file2.txt')
+      expect(items).toContain('dir1')
+    })
+
+    it('should return empty array for empty workspace', async () => {
+      const emptyWorkspace = (await backend.getWorkspace('empty-list')) as LocalWorkspace
+
+      const items = await emptyWorkspace.list()
+
+      expect(items).toEqual([])
+    })
+
+    it('should not list items from parent directories', async () => {
+      await workspace.write('workspace-file.txt', 'content')
+
+      const items = await workspace.list()
+
+      // Should only contain items in this workspace
+      expect(items).toContain('workspace-file.txt')
+      expect(items.every(item => !item.includes('..'))).toBe(true)
+    })
+  })
+
+  describe('security and isolation', () => {
+    it('should prevent symlink escape attempts', async () => {
+      // Try to create symlink to parent directory
+      await expect(
+        workspace.exec('ln -s ../../ escape-link')
+      ).resolves.toBeDefined() // Command succeeds
+
+      // But reading through the symlink should be blocked
+      await expect(workspace.read('escape-link/etc/passwd')).rejects.toThrow()
+    })
+
+    it('should validate all paths before operations', async () => {
+      const dangerousPaths = [
+        '/etc/passwd',
+        '../../../etc/passwd',
+        '~/secrets',
+      ]
+
+      for (const path of dangerousPaths) {
+        await expect(workspace.read(path)).rejects.toThrow()
+        await expect(workspace.write(path, 'bad')).rejects.toThrow()
+      }
+    })
+
+    it('should maintain workspace isolation across operations', async () => {
+      const ws1 = (await backend.getWorkspace('isolated-1')) as LocalWorkspace
+      const ws2 = (await backend.getWorkspace('isolated-2')) as LocalWorkspace
+
+      await ws1.write('secret.txt', 'ws1 secret')
+      await ws2.write('secret.txt', 'ws2 secret')
+
+      const ws1Content = await ws1.read('secret.txt')
+      const ws2Content = await ws2.read('secret.txt')
+
+      expect(ws1Content).toBe('ws1 secret')
+      expect(ws2Content).toBe('ws2 secret')
+    })
+  })
+
+  describe('error handling', () => {
+    it('should wrap errors with FileSystemError', async () => {
+      try {
+        await workspace.read('nonexistent.txt')
+      } catch (error) {
+        expect(error).toBeInstanceOf(FileSystemError)
+        expect((error as FileSystemError).errorCode).toBe('READ_FAILED')
+      }
+    })
+
+    it('should not double-wrap FileSystemError', async () => {
+      try {
+        await workspace.read('/etc/passwd')
+      } catch (error) {
+        expect(error).toBeInstanceOf(FileSystemError)
+        // Should be the original FileSystemError, not wrapped again
+      }
+    })
+
+    it('should include operation context in errors', async () => {
+      try {
+        await workspace.read('missing.txt')
+      } catch (error) {
+        expect(error).toBeInstanceOf(FileSystemError)
+        const fsError = error as FileSystemError
+        expect(fsError.message).toContain('Read file failed')
+      }
+    })
+  })
+
+  describe('integration tests', () => {
+    it('should support complete workflow', async () => {
+      // Create directory structure
+      await workspace.mkdir('src/utils')
+
+      // Create files
+      await workspace.write('src/index.ts', 'export * from "./utils"')
+      await workspace.write('src/utils/helper.ts', 'export const help = true')
+
+      // Read files
+      const indexContent = await workspace.read('src/index.ts')
+      expect(indexContent).toBe('export * from "./utils"')
+
+      // List files
+      const srcItems = await workspace.exec('find src -type f')
+      expect(srcItems).toContain('src/index.ts')
+      expect(srcItems).toContain('src/utils/helper.ts')
+
+      // Execute commands
+      const fileCount = await workspace.exec('find src -type f | wc -l')
+      expect(parseInt(fileCount.trim())).toBe(2)
+    })
+
+    it('should handle concurrent operations', async () => {
+      const operations = []
+
+      for (let i = 0; i < 10; i++) {
+        operations.push(workspace.write(`file-${i}.txt`, `content ${i}`))
+      }
+
+      await Promise.all(operations)
+
+      const items = await workspace.list()
+      expect(items.length).toBeGreaterThanOrEqual(10)
+
+      for (let i = 0; i < 10; i++) {
+        const content = await workspace.read(`file-${i}.txt`)
+        expect(content).toBe(`content ${i}`)
+      }
+    })
+  })
+})

@@ -3,7 +3,6 @@ export { FileSystem } from './FileSystem.js'
 export { ConstellationFS } from './config/Config.js'
 
 // Backend Management
-export { BackendPool } from './backends/BackendPool.js'
 export { BackendFactory } from './backends/BackendFactory.js'
 
 // Workspace Classes
