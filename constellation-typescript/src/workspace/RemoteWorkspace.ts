@@ -13,10 +13,10 @@ export class RemoteWorkspace extends BaseWorkspace {
   constructor(
     backend: RemoteBackend,
     userId: string,
-    workspacePath: string,
-    path: string
+    workspaceName: string,
+    workspacePath: string
   ) {
-    super(backend, userId, workspacePath, path)
+    super(backend, userId, workspaceName, workspacePath)
   }
 
   async exec(command: string): Promise<string> {
@@ -25,7 +25,7 @@ export class RemoteWorkspace extends BaseWorkspace {
     }
 
     // Delegate to backend with this workspace's path
-    return this.backend.execInWorkspace(this.path, command)
+    return this.backend.execInWorkspace(this.workspacePath, command)
   }
 
   async read(path: string): Promise<string> {
@@ -77,16 +77,16 @@ export class RemoteWorkspace extends BaseWorkspace {
   }
 
   async exists(): Promise<boolean> {
-    return this.backend.directoryExists(this.path)
+    return this.backend.directoryExists(this.workspacePath)
   }
 
   async delete(): Promise<void> {
     // Delete the entire workspace directory
-    return this.backend.deleteDirectory(this.path)
+    return this.backend.deleteDirectory(this.workspacePath)
   }
 
   async list(): Promise<string[]> {
-    return this.backend.listDirectory(this.path)
+    return this.backend.listDirectory(this.workspacePath)
   }
 
   /**
@@ -117,7 +117,7 @@ export class RemoteWorkspace extends BaseWorkspace {
 
     // Validate that resolved path is within workspace
     const resolvedPath = this.resolveRemotePath(path)
-    if (!resolvedPath.startsWith(this.path)) {
+    if (!resolvedPath.startsWith(this.workspacePath)) {
       throw new FileSystemError(
         'Path escapes workspace boundary',
         ERROR_CODES.PATH_ESCAPE_ATTEMPT,
@@ -131,10 +131,10 @@ export class RemoteWorkspace extends BaseWorkspace {
    */
   private resolveRemotePath(path: string): string {
     // Join workspace and relative path
-    if (this.path.endsWith('/')) {
-      return `${this.path}${path}`
+    if (this.workspacePath.endsWith('/')) {
+      return `${this.workspacePath}${path}`
     } else {
-      return `${this.path}/${path}`
+      return `${this.workspacePath}/${path}`
     }
   }
 }

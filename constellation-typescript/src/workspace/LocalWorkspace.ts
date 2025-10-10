@@ -17,10 +17,10 @@ export class LocalWorkspace extends BaseWorkspace {
   constructor(
     backend: LocalBackend,
     userId: string,
-    workspacePath: string,
-    path: string
+    workspaceName: string,
+    workspacePath: string
   ) {
-    super(backend, userId, workspacePath, path)
+    super(backend, userId, workspaceName, workspacePath)
   }
 
   async exec(command: string): Promise<string> {
@@ -29,14 +29,14 @@ export class LocalWorkspace extends BaseWorkspace {
     }
 
     // Delegate to backend with this workspace's path
-    return this.backend.execInWorkspace(this.path, command)
+    return this.backend.execInWorkspace(this.workspacePath, command)
   }
 
   async read(path: string): Promise<string> {
     this.validatePath(path)
 
     // Check symlink safety
-    const symlinkCheck = checkSymlinkSafety(this.path, path)
+    const symlinkCheck = checkSymlinkSafety(this.workspacePath, path)
     if (!symlinkCheck.safe) {
       throw new FileSystemError(
         `Cannot read file: ${symlinkCheck.reason}`,
@@ -60,7 +60,7 @@ export class LocalWorkspace extends BaseWorkspace {
     // Check symlink safety for parent directories
     const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
     if (parentPath !== '.') {
-      const symlinkCheck = checkSymlinkSafety(this.path, parentPath)
+      const symlinkCheck = checkSymlinkSafety(this.workspacePath, parentPath)
       if (!symlinkCheck.safe) {
         throw new FileSystemError(
           `Cannot write file: ${symlinkCheck.reason}`,
@@ -85,7 +85,7 @@ export class LocalWorkspace extends BaseWorkspace {
     // Check symlink safety for parent directories
     const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
     if (parentPath !== '.') {
-      const symlinkCheck = checkSymlinkSafety(this.path, parentPath)
+      const symlinkCheck = checkSymlinkSafety(this.workspacePath, parentPath)
       if (!symlinkCheck.safe) {
         throw new FileSystemError(
           `Cannot create directory: ${symlinkCheck.reason}`,
@@ -110,7 +110,7 @@ export class LocalWorkspace extends BaseWorkspace {
     // Check symlink safety for parent directories
     const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
     if (parentPath !== '.') {
-      const symlinkCheck = checkSymlinkSafety(this.path, parentPath)
+      const symlinkCheck = checkSymlinkSafety(this.workspacePath, parentPath)
       if (!symlinkCheck.safe) {
         throw new FileSystemError(
           `Cannot create file: ${symlinkCheck.reason}`,
@@ -131,31 +131,31 @@ export class LocalWorkspace extends BaseWorkspace {
   }
 
   async exists(): Promise<boolean> {
-    return existsSync(this.path)
+    return existsSync(this.workspacePath)
   }
 
   async delete(): Promise<void> {
     try {
-      await rm(this.path, { recursive: true, force: true })
+      await rm(this.workspacePath, { recursive: true, force: true })
     } catch (error) {
       throw this.wrapError(
         error,
         'Delete workspace',
         ERROR_CODES.WRITE_FAILED,
-        `delete ${this.workspacePath}`
+        `delete ${this.workspaceName}`
       )
     }
   }
 
   async list(): Promise<string[]> {
     try {
-      return await readdir(this.path)
+      return await readdir(this.workspacePath)
     } catch (error) {
       throw this.wrapError(
         error,
         'List workspace',
         ERROR_CODES.READ_FAILED,
-        `list ${this.workspacePath}`
+        `list ${this.workspaceName}`
       )
     }
   }

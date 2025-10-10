@@ -25,18 +25,18 @@ describe('LocalWorkspace', () => {
   })
 
   describe('properties', () => {
-    it('should have correct workspacePath', () => {
-      expect(workspace.workspacePath).toBe('test-workspace')
+    it('should have correct workspaceName', () => {
+      expect(workspace.workspaceName).toBe('test-workspace')
     })
 
     it('should have correct userId', () => {
       expect(workspace.userId).toBe(testUserId)
     })
 
-    it('should have valid path', () => {
-      expect(workspace.path).toBeDefined()
-      expect(workspace.path).toContain(testUserId)
-      expect(workspace.path).toContain('test-workspace')
+    it('should have valid workspacePath', () => {
+      expect(workspace.workspacePath).toBeDefined()
+      expect(workspace.workspacePath).toContain(testUserId)
+      expect(workspace.workspacePath).toContain('test-workspace')
     })
 
     it('should reference backend', () => {
@@ -52,7 +52,7 @@ describe('LocalWorkspace', () => {
 
     it('should execute commands in workspace directory', async () => {
       const pwd = await workspace.exec('pwd')
-      expect(pwd).toBe(workspace.path)
+      expect(pwd).toBe(workspace.workspacePath)
     })
 
     it('should reject empty commands', async () => {

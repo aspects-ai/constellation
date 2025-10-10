@@ -130,7 +130,7 @@ describe('Security Integration Tests', () => {
     it('should execute commands in correct workspace', async () => {
       const workspace = await fs.getWorkspace()
       const pwd = await workspace.exec('pwd')
-      expect(pwd).toBe(workspace.path)
+      expect(pwd).toBe(workspace.workspacePath)
     })
 
     it('should block environment variable access for security', async () => {
@@ -145,7 +145,7 @@ describe('Security Integration Tests', () => {
 
       // Verify we're still in workspace after failed cd attempt
       const pwd = await workspace.exec('pwd')
-      expect(pwd).toBe(workspace.path)
+      expect(pwd).toBe(workspace.workspacePath)
     })
   })
 

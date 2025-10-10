@@ -95,11 +95,11 @@ describe('FileSystem', () => {
       const fs = new FileSystem({ userId: 'testuser' })
       const workspace = await fs.getWorkspace('custom-subdir')
 
-      // Workspace should contain both userId and workspacePath
+      // Workspace should contain both userId and workspaceName
       expect(workspace.userId).toBe('testuser')
-      expect(workspace.workspacePath).toBe('custom-subdir')
-      expect(workspace.path).toContain('testuser')
-      expect(workspace.path).toContain('custom-subdir')
+      expect(workspace.workspaceName).toBe('custom-subdir')
+      expect(workspace.workspacePath).toContain('testuser')
+      expect(workspace.workspacePath).toContain('custom-subdir')
     })
 
     it('should allow read/write operations in custom workspace', async () => {
@@ -122,7 +122,7 @@ describe('FileSystem', () => {
       await ws1.write('isolated-file.txt', 'Content in workspace 1')
 
       // Verify workspaces are different
-      expect(ws1.path).not.toBe(ws2.path)
+      expect(ws1.workspacePath).not.toBe(ws2.workspacePath)
 
       // Second workspace should not have the file
       await expect(ws2.read('isolated-file.txt')).rejects.toThrow()
@@ -132,7 +132,7 @@ describe('FileSystem', () => {
       const fs = new FileSystem({ userId: 'testuser' })
       const workspace = await fs.getWorkspace('projects/2024/my-app')
 
-      expect(workspace.path).toContain('projects/2024/my-app')
+      expect(workspace.workspacePath).toContain('projects/2024/my-app')
 
       // Should be able to perform operations
       await workspace.write('nested-test.txt', 'Nested workspace test')
@@ -145,7 +145,7 @@ describe('FileSystem', () => {
       const workspace = await fs.getWorkspace()
 
       // Should use default workspace name
-      expect(workspace.workspacePath).toBe('default')
+      expect(workspace.workspaceName).toBe('default')
 
       // Should still work normally
       await workspace.write('default-workspace.txt', 'Default workspace test')

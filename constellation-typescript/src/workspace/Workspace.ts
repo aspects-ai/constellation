@@ -9,10 +9,10 @@ import type { FileSystemBackend } from '../backends/types.js'
  */
 export interface Workspace {
   /** Absolute path to the workspace directory */
-  readonly path: string
-
-  /** Relative path within the user's root (e.g., "project-a") */
   readonly workspacePath: string
+
+  /** Name of the workspace (e.g., "project-a", "default") */
+  readonly workspaceName: string
 
   /** User identifier this workspace belongs to */
   readonly userId: string
@@ -84,8 +84,8 @@ export abstract class BaseWorkspace implements Workspace {
   constructor(
     public readonly backend: FileSystemBackend,
     public readonly userId: string,
-    public readonly workspacePath: string,
-    public readonly path: string
+    public readonly workspaceName: string,
+    public readonly workspacePath: string
   ) {
     // Verify userId matches backend for security
     if (backend.userId !== userId) {
@@ -111,9 +111,9 @@ export abstract class BaseWorkspace implements Workspace {
       )
     }
 
-    const fullPath = resolve(join(this.path, relativePath))
+    const fullPath = resolve(join(this.workspacePath, relativePath))
 
-    const rel = relative(this.path, fullPath)
+    const rel = relative(this.workspacePath, fullPath)
     if (rel.startsWith('..') || isAbsolute(rel)) {
       throw new FileSystemError(
         'Path escapes workspace boundary',

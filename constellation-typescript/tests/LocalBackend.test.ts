@@ -73,7 +73,7 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace()
 
       expect(workspace).toBeDefined()
-      expect(workspace.workspacePath).toBe('default')
+      expect(workspace.workspaceName).toBe('default')
       expect(workspace.userId).toBe(testUserId)
     })
 
@@ -81,7 +81,7 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('my-project')
 
       expect(workspace).toBeDefined()
-      expect(workspace.workspacePath).toBe('my-project')
+      expect(workspace.workspaceName).toBe('my-project')
     })
 
     it('should cache and return same workspace instance', async () => {
@@ -96,8 +96,8 @@ describe('LocalBackend', () => {
       const ws2 = await backend.getWorkspace('workspace-b')
 
       expect(ws1).not.toBe(ws2)
-      expect(ws1.workspacePath).toBe('workspace-a')
-      expect(ws2.workspacePath).toBe('workspace-b')
+      expect(ws1.workspaceName).toBe('workspace-a')
+      expect(ws2.workspaceName).toBe('workspace-b')
     })
 
     it('should create workspace directory on disk', async () => {
@@ -140,23 +140,23 @@ describe('LocalBackend', () => {
   describe('execInWorkspace', () => {
     it('should execute simple command', async () => {
       const workspace = await backend.getWorkspace('exec-test')
-      const result = await backend.execInWorkspace(workspace.path, 'echo "hello world"')
+      const result = await backend.execInWorkspace(workspace.workspacePath, 'echo "hello world"')
 
       expect(result).toBe('hello world')
     })
 
     it('should execute command in correct workspace directory', async () => {
       const workspace = await backend.getWorkspace('pwd-test')
-      const pwd = await backend.execInWorkspace(workspace.path, 'pwd')
+      const pwd = await backend.execInWorkspace(workspace.workspacePath, 'pwd')
 
-      expect(pwd).toBe(workspace.path)
+      expect(pwd).toBe(workspace.workspacePath)
     })
 
     it('should block dangerous commands when preventDangerous is true', async () => {
       const workspace = await backend.getWorkspace('danger-test')
 
       await expect(
-        backend.execInWorkspace(workspace.path, 'rm -rf /')
+        backend.execInWorkspace(workspace.workspacePath, 'rm -rf /')
       ).rejects.toThrow(DangerousOperationError)
     })
 
@@ -164,7 +164,7 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('abs-path-test')
 
       await expect(
-        backend.execInWorkspace(workspace.path, 'cat /etc/passwd')
+        backend.execInWorkspace(workspace.workspacePath, 'cat /etc/passwd')
       ).rejects.toThrow()
     })
 
@@ -172,7 +172,7 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('network-test')
 
       await expect(
-        backend.execInWorkspace(workspace.path, 'wget http://example.com')
+        backend.execInWorkspace(workspace.workspacePath, 'wget http://example.com')
       ).rejects.toThrow(FileSystemError)
     })
 
@@ -191,7 +191,7 @@ describe('LocalBackend', () => {
       })
 
       const workspace = await callbackBackend.getWorkspace()
-      const result = await callbackBackend.execInWorkspace(workspace.path, 'sudo something')
+      const result = await callbackBackend.execInWorkspace(workspace.workspacePath, 'sudo something')
 
       expect(result).toBe('')
       expect(calledWith).toBe('sudo something')
@@ -203,7 +203,7 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('error-test')
 
       await expect(
-        backend.execInWorkspace(workspace.path, 'nonexistent-command-xyz')
+        backend.execInWorkspace(workspace.workspacePath, 'nonexistent-command-xyz')
       ).rejects.toThrow(FileSystemError)
     })
 
@@ -220,7 +220,7 @@ describe('LocalBackend', () => {
       const workspace = await truncateBackend.getWorkspace()
       // Generate long output
       const result = await truncateBackend.execInWorkspace(
-        workspace.path,
+        workspace.workspacePath,
         'for i in {1..100}; do echo "Line $i with some text"; done'
       )
 
@@ -293,8 +293,8 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('home-test')
 
       // HOME is blocked by safety checks, but PWD should be workspace
-      const pwd = await backend.execInWorkspace(workspace.path, 'pwd')
-      expect(pwd).toBe(workspace.path)
+      const pwd = await backend.execInWorkspace(workspace.workspacePath, 'pwd')
+      expect(pwd).toBe(workspace.workspacePath)
     })
   })
 
@@ -303,7 +303,7 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('wrap-error-test')
 
       try {
-        await backend.execInWorkspace(workspace.path, 'exit 1')
+        await backend.execInWorkspace(workspace.workspacePath, 'exit 1')
         // If we get here, test should fail
         expect.fail('Should have thrown an error')
       } catch (error) {
@@ -317,7 +317,7 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('context-test')
 
       try {
-        await backend.execInWorkspace(workspace.path, 'cat /etc/passwd')
+        await backend.execInWorkspace(workspace.workspacePath, 'cat /etc/passwd')
       } catch (error) {
         expect(error).toBeInstanceOf(FileSystemError)
         // Error should provide context about the command

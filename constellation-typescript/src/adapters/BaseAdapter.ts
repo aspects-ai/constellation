@@ -18,7 +18,7 @@ export interface AgentSDKAdapter {
   readonly workspace: Workspace
 
   /**
-   * Get the workspace path
+   * Get the absolute workspace path
    */
   readonly workspacePath: string
 
@@ -42,9 +42,9 @@ export abstract class BaseSDKAdapter implements AgentSDKAdapter {
 
   constructor(
     protected readonly fs: FileSystem,
-    workspacePath = 'default'
+    workspaceName = 'default'
   ) {
-    this.defaultWorkspacePath = workspacePath
+    this.defaultWorkspacePath = workspaceName
   }
 
   /**
@@ -72,7 +72,7 @@ export abstract class BaseSDKAdapter implements AgentSDKAdapter {
     if (!this.workspaceInstance) {
       throw new Error('Workspace not initialized. Call an async method first.')
     }
-    return this.workspaceInstance.path
+    return this.workspaceInstance.workspacePath
   }
 
   get backendConfig(): BackendConfig {

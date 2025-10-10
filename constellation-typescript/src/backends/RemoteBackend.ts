@@ -308,15 +308,15 @@ export class RemoteBackend implements FileSystemBackend {
 
   /**
    * Get or create a workspace for this user
-   * @param workspacePath - Workspace path (defaults to 'default')
+   * @param workspaceName - Workspace name (defaults to 'default')
    * @returns Promise resolving to Workspace instance
    */
-  async getWorkspace(workspacePath = 'default'): Promise<Workspace> {
+  async getWorkspace(workspaceName = 'default'): Promise<Workspace> {
     // Ensure SSH connection
     await this.ensureSSHConnection()
 
-    if (this.workspaceCache.has(workspacePath)) {
-      return this.workspaceCache.get(workspacePath)!
+    if (this.workspaceCache.has(workspaceName)) {
+      return this.workspaceCache.get(workspaceName)!
     }
 
     if (!this.sshClient) {
@@ -326,13 +326,13 @@ export class RemoteBackend implements FileSystemBackend {
     // Create workspace directory for this user on remote system using static utility
     const fullPath = await RemoteWorkspaceUtils.ensureUserWorkspace(
       this.sshClient,
-      join(this.userId, workspacePath)
+      join(this.userId, workspaceName)
     )
 
-    const workspace = new RemoteWorkspace(this, this.userId, workspacePath, fullPath)
-    this.workspaceCache.set(workspacePath, workspace)
+    const workspace = new RemoteWorkspace(this, this.userId, workspaceName, fullPath)
+    this.workspaceCache.set(workspaceName, workspace)
 
-    getLogger().debug(`Created remote workspace for user ${this.userId}: ${workspacePath}`)
+    getLogger().debug(`Created remote workspace for user ${this.userId}: ${workspaceName}`)
 
     return workspace
   }

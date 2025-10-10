@@ -75,20 +75,20 @@ export interface FileSystemBackend {
 
   /**
    * Get or create a workspace for this user
-   * @param workspacePath - Optional workspace path (defaults to 'default')
+   * @param workspaceName - Optional workspace name (defaults to 'default')
    * @returns Promise resolving to a Workspace instance
    * @throws {FileSystemError} When workspace cannot be created
    */
-  getWorkspace(workspacePath?: string): Promise<Workspace>
+  getWorkspace(workspaceName?: string): Promise<Workspace>
 
   /**
    * List all workspaces for this user
-   * @returns Promise resolving to array of workspace paths
+   * @returns Promise resolving to array of workspace names
    */
   listWorkspaces(): Promise<string[]>
 
   /**
-   * Execute command in a specific workspace path (internal use by Workspace)
+   * Execute command in a specific workspace (internal use by Workspace)
    * @param workspacePath - Absolute path to workspace directory
    * @param command - Command to execute
    * @returns Promise resolving to command output

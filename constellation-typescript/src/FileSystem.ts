@@ -62,16 +62,16 @@ export class FileSystem {
 
   /**
    * Get or create a workspace
-   * @param workspacePath - Workspace identifier (defaults to 'default')
+   * @param workspaceName - Workspace name identifier (defaults to 'default')
    * @returns Promise resolving to Workspace instance
    */
-  async getWorkspace(workspacePath = 'default'): Promise<Workspace> {
-    return this.backend.getWorkspace(workspacePath)
+  async getWorkspace(workspaceName = 'default'): Promise<Workspace> {
+    return this.backend.getWorkspace(workspaceName)
   }
 
   /**
    * List all workspaces for this user
-   * @returns Promise resolving to array of workspace paths
+   * @returns Promise resolving to array of workspace names
    */
   async listWorkspaces(): Promise<string[]> {
     return this.backend.listWorkspaces()

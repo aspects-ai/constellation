@@ -96,21 +96,21 @@ export class LocalBackend implements FileSystemBackend {
 
   /**
    * Get or create a workspace for this user
-   * @param workspacePath - Workspace path (defaults to 'default')
+   * @param workspaceName - Workspace name (defaults to 'default')
    * @returns Promise resolving to Workspace instance
    */
-  async getWorkspace(workspacePath = 'default'): Promise<Workspace> {
-    if (this.workspaceCache.has(workspacePath)) {
-      return this.workspaceCache.get(workspacePath)!
+  async getWorkspace(workspaceName = 'default'): Promise<Workspace> {
+    if (this.workspaceCache.has(workspaceName)) {
+      return this.workspaceCache.get(workspaceName)!
     }
 
     // Create workspace directory for this user
-    const fullPath = LocalWorkspaceUtils.ensureUserWorkspace(join(this.userId, workspacePath))
+    const fullPath = LocalWorkspaceUtils.ensureUserWorkspace(join(this.userId, workspaceName))
 
-    const workspace = new LocalWorkspace(this, this.userId, workspacePath, fullPath)
-    this.workspaceCache.set(workspacePath, workspace)
+    const workspace = new LocalWorkspace(this, this.userId, workspaceName, fullPath)
+    this.workspaceCache.set(workspaceName, workspace)
 
-    getLogger().debug(`Created workspace for user ${this.userId}: ${workspacePath}`)
+    getLogger().debug(`Created workspace for user ${this.userId}: ${workspaceName}`)
 
     return workspace
   }
