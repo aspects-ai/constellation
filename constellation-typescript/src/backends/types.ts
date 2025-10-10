@@ -1,10 +1,12 @@
 import { z } from 'zod'
 import { AUTH_TYPES, DEFAULTS, SHELL_TYPES } from '../constants.js'
+import type { Workspace } from '../workspace/Workspace.js'
 
 /**
  * Base configuration schema shared by all backends
  */
 const BaseBackendConfigSchema = z.object({
+  userId: z.string().min(1, 'userId is required for all backends'),
   preventDangerous: z.boolean().default(DEFAULTS.PREVENT_DANGEROUS),
   onDangerousOperation: z
     .function({
@@ -22,18 +24,16 @@ const LocalBackendConfigSchema = BaseBackendConfigSchema.extend({
   type: z.literal('local').default('local'),
   shell: z.enum(SHELL_TYPES).default(DEFAULTS.SHELL),
   validateUtils: z.boolean().default(DEFAULTS.VALIDATE_UTILS),
-  userId: z.string().min(1, 'userId is required for local backend'),
-  workspacePath: z.string().optional(),
 })
 
 const RemoteBackendConfigSchema = BaseBackendConfigSchema.extend({
   type: z.literal('remote'),
-  userId: z.string().min(1, 'userId is required for remote backend'),
-  workspacePath: z.string().optional(),
   auth: z.object({
     type: z.enum(AUTH_TYPES),
     credentials: z.record(z.string(), z.unknown()),
   }),
+  host: z.string().optional(),
+  port: z.number().optional(),
 })
 
 export const BackendConfigSchema = z.discriminatedUnion('type', [
@@ -57,56 +57,48 @@ export function validateLocalBackendConfig(config: LocalBackendConfig): void {
 /**
  * Backend interface that all filesystem implementations must satisfy
  * Provides the low-level operations for different execution environments
+ *
+ * Backends are keyed by userId and can manage multiple workspaces for that user
  */
 export interface FileSystemBackend {
-  /** The resolved absolute path to the workspace directory */
-  readonly workspace: string
+  /** Backend type identifier */
+  readonly type: 'local' | 'remote' | 'docker'
+
+  /** User identifier this backend is associated with */
+  readonly userId: string
+
   /** The configuration options for this backend */
   readonly options: BackendConfig
+
   /** Whether backend connection was successfully established */
   readonly connected: boolean
-  
-  /**
-   * Execute a shell command in the backend environment
-   * @param command - The shell command to execute
-   * @returns Promise resolving to the command output
-   * @throws {FileSystemError} When command execution fails
-   * @throws {DangerousOperationError} When dangerous operations are blocked
-   */
-  exec(command: string): Promise<string>
-  
-  /**
-   * Read the contents of a file from the backend storage
-   * @param path - Relative path to the file within the workspace
-   * @returns Promise resolving to the file contents as UTF-8 string
-   * @throws {FileSystemError} When file cannot be read or doesn't exist
-   */
-  read(path: string): Promise<string>
-  
-  /**
-   * Write content to a file in the backend storage
-   * @param path - Relative path to the file within the workspace
-   * @param content - Content to write to the file as UTF-8 string
-   * @returns Promise that resolves when the write is complete
-   * @throws {FileSystemError} When file cannot be written
-   */
-  write(path: string, content: string): Promise<void>
 
   /**
-   * Create a directory in the backend storage
-   * @param path - Relative path to the directory within the workspace
-   * @param recursive - Create parent directories if they don't exist (default: true)
-   * @returns Promise that resolves when the directory is created
-   * @throws {FileSystemError} When directory cannot be created
+   * Get or create a workspace for this user
+   * @param workspacePath - Optional workspace path (defaults to 'default')
+   * @returns Promise resolving to a Workspace instance
+   * @throws {FileSystemError} When workspace cannot be created
    */
-  mkdir(path: string, recursive?: boolean): Promise<void>
+  getWorkspace(workspacePath?: string): Promise<Workspace>
 
   /**
-   * Create an empty file in the backend storage
-   * @param path - Relative path to the file within the workspace
-   * @returns Promise that resolves when the file is created
-   * @throws {FileSystemError} When file cannot be created
+   * List all workspaces for this user
+   * @returns Promise resolving to array of workspace paths
    */
-  touch(path: string): Promise<void>
+  listWorkspaces(): Promise<string[]>
 
+  /**
+   * Execute command in a specific workspace path (internal use by Workspace)
+   * @param workspacePath - Absolute path to workspace directory
+   * @param command - Command to execute
+   * @returns Promise resolving to command output
+   * @internal
+   */
+  execInWorkspace(workspacePath: string, command: string): Promise<string>
+
+  /**
+   * Clean up backend resources
+   * @returns Promise that resolves when cleanup is complete
+   */
+  destroy(): Promise<void>
 }

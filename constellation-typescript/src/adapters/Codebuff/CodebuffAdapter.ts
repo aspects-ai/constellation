@@ -1,4 +1,4 @@
-import type { CodebuffClientOptions } from 'node_modules/@codebuff/sdk/dist/sdk/src/client'
+import type { CodebuffClientOptions } from '@codebuff/sdk'
 import type { FileSystem } from '../../FileSystem.js'
 import { BaseSDKAdapter } from '../BaseAdapter.js'
 

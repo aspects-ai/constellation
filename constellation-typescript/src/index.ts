@@ -2,13 +2,27 @@
 export { FileSystem } from './FileSystem.js'
 export { ConstellationFS } from './config/Config.js'
 
+// Backend Management
+export { BackendPool } from './backends/BackendPool.js'
+export { BackendFactory } from './backends/BackendFactory.js'
+
+// Workspace Classes
+export type { Workspace } from './workspace/Workspace.js'
+export { BaseWorkspace } from './workspace/Workspace.js'
+export { LocalWorkspace } from './workspace/LocalWorkspace.js'
+export { RemoteWorkspace } from './workspace/RemoteWorkspace.js'
+
+// Backend Classes
+export { LocalBackend } from './backends/LocalBackend.js'
+export { RemoteBackend } from './backends/RemoteBackend.js'
+
 // SDK Adapters
-export { 
-  BaseSDKAdapter, 
-  ClaudeCodeAdapter, 
+export {
+  BaseSDKAdapter,
+  ClaudeCodeAdapter,
   CodebuffAdapter,
   type SDKAdapter,
-  type CodebuffToolHandlers 
+  type CodebuffToolHandlers
 } from './adapters/index.js'
 
 // Error Classes
@@ -27,6 +41,7 @@ export {
 // Public Types
 export type {
   BackendConfig,
+  FileSystemBackend,
   FileInfo,
   FileSystemInterface,
   LocalBackendConfig,

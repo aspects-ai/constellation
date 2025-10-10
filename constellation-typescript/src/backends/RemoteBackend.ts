@@ -6,39 +6,40 @@ import { isCommandSafe, isDangerous } from '../safety.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
 import { getLogger } from '../utils/logger.js'
 import { getPlatformGuidance, getRemoteBackendLibrary } from '../utils/nativeLibrary.js'
-import { RemoteWorkspaceManager } from '../utils/RemoteWorkspaceManager.js'
+import { RemoteWorkspaceUtils } from '../utils/RemoteWorkspaceUtils.js'
+import { RemoteWorkspace } from '../workspace/RemoteWorkspace.js'
+import type { Workspace } from '../workspace/Workspace.js'
 import type { FileSystemBackend, RemoteBackendConfig } from './types.js'
 
 /**
- * Remote filesystem backend implementation using LD_PRELOAD SSH interception
- * Provides transparent remote command execution by intercepting execve calls
+ * Remote filesystem backend implementation using SSH
+ * Provides remote command execution via SSH connection
+ *
+ * Manages multiple workspaces for a single user
  */
 export class RemoteBackend implements FileSystemBackend {
-  public workspace: string
+  public readonly type = 'remote' as const
+  public readonly userId: string
   public readonly options: RemoteBackendConfig
-  public readonly connected: boolean
+  public connected: boolean
   private sshClient: Client | null = null
   private interceptLibPath: string | null = null
-  private remoteWorkspaceManager: RemoteWorkspaceManager | null = null
-  private workspaceInitialized = false
   private isConnected = false
   private connectionPromise: Promise<void> | null = null
+  private workspaceCache = new Map<string, RemoteWorkspace>()
 
   /**
    * Create a new RemoteBackend instance
    * @param options - Configuration for remote backend
-   * @throws {FileSystemError} When SSH connection cannot be established
+   * @throws {FileSystemError} When platform is not supported
    */
   constructor(options: RemoteBackendConfig) {
     this.options = options
-    
+    this.userId = options.userId
+
     // Validate userId for security
-    RemoteWorkspaceManager.validateUserId(options.userId)
-    const fullWorkspacePath = options.workspacePath 
-      ? join(options.userId, options.workspacePath)
-      : options.userId
-    this.workspace = RemoteWorkspaceManager.getUserWorkspacePath(fullWorkspacePath)
-    
+    RemoteWorkspaceUtils.validateUserId(options.userId)
+
     // Check platform support and locate native library
     const guidance = getPlatformGuidance('remote')
     if (!guidance.supported) {
@@ -49,7 +50,7 @@ export class RemoteBackend implements FileSystemBackend {
         `Suggestions:\n  ${suggestions}`
       )
     }
-    
+
     // Locate the LD_PRELOAD intercept library using platform detection
     if (process.env.USE_LD_PRELOAD === 'true') {
       this.interceptLibPath = getRemoteBackendLibrary()
@@ -62,14 +63,14 @@ export class RemoteBackend implements FileSystemBackend {
         )
       }
     }
-    
+
     // Initialize SSH client
     this.initSSHClient()
-    
+
     // Connection will be established on first use
     this.connected = false
 
-    getLogger().debug('RemoteBackend initialized with workspace:', this.workspace)
+    getLogger().debug('RemoteBackend initialized for user:', this.userId)
   }
   
   /**
@@ -95,49 +96,6 @@ export class RemoteBackend implements FileSystemBackend {
     }
     // Default to current user
     return process.env.USER || 'root'
-  }
-  
-  /**
-   * Validate path for security
-   */
-  private validatePath(path: string): void {
-    if (!path || typeof path !== 'string') {
-      throw new FileSystemError(
-        'Path cannot be empty',
-        ERROR_CODES.EMPTY_PATH,
-        path
-      )
-    }
-    
-    // Check for absolute paths
-    if (path.startsWith('/')) {
-      throw new FileSystemError(
-        'Absolute paths are not allowed',
-        ERROR_CODES.ABSOLUTE_PATH_REJECTED,
-        path
-      )
-    }
-    
-    // Check for directory traversal
-    if (path.includes('../') || path === '..' || path.startsWith('../')) {
-      throw new FileSystemError(
-        'Path escapes workspace boundary', 
-        ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-        path
-      )
-    }
-  }
-  
-  /**
-   * Resolve relative path to remote absolute path
-   */
-  private resolveRemotePath(path: string): string {
-    // Join workspace and relative path
-    if (this.workspace.endsWith('/')) {
-      return `${this.workspace}${path}`
-    } else {
-      return `${this.workspace}/${path}`
-    }
   }
   
   /**
@@ -184,7 +142,13 @@ export class RemoteBackend implements FileSystemBackend {
     return this.parseHostPort(hostPart)
   }
 
-  async exec(command: string): Promise<string> {
+  /**
+   * Execute command in a specific workspace path (internal use by Workspace)
+   * @param workspacePath - Absolute path to workspace directory
+   * @param command - Command to execute
+   * @returns Promise resolving to command output
+   */
+  async execInWorkspace(workspacePath: string, command: string): Promise<string> {
     // Safety check
     const safetyCheck = isCommandSafe(command)
     if (!safetyCheck.safe) {
@@ -196,83 +160,74 @@ export class RemoteBackend implements FileSystemBackend {
           throw new DangerousOperationError(command)
         }
       }
-      
+
       throw new FileSystemError(
         safetyCheck.reason || 'Command failed safety check',
         ERROR_CODES.DANGEROUS_OPERATION,
         command
       )
     }
-    
-    // Execute via SSH
-    return this.execViaSSH(command)
-  }
-  
-  /**
-   * Execute command via SSH
-   */
-  private async execViaSSH(command: string): Promise<string> {
+
     if (!this.sshClient) {
       throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
     }
-    
+
     // Ensure SSH connection is established
     await this.ensureSSHConnection()
-    
+
     return new Promise((resolve, reject) => {
       if (!this.sshClient) {
         throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
       }
       // Build full command with workspace change
-      const fullCommand = this.workspace && this.workspace !== '/' 
-        ? `cd "${this.workspace}" && ${command}`
-        : command
-      
+      const fullCommand =
+        workspacePath && workspacePath !== '/' ? `cd "${workspacePath}" && ${command}` : command
+
       getLogger().debug(`[SSH exec] Executing command: ${fullCommand}`)
-      
+
       this.sshClient.exec(fullCommand, (err, stream) => {
         if (err) {
           getLogger().error(`[SSH exec] Command failed: ${err.message}`)
-          reject(new FileSystemError(
-            `SSH command failed: ${err.message}`,
-            ERROR_CODES.EXEC_FAILED,
-            command
-          ))
+          reject(
+            new FileSystemError(`SSH command failed: ${err.message}`, ERROR_CODES.EXEC_FAILED, command)
+          )
           return
         }
-        
+
         let stdout = ''
         let stderr = ''
-        
+
         stream.on('data', (data: Buffer) => {
           const chunk = data.toString()
           getLogger().debug(`[SSH stdout] ${chunk.trim()}`)
           stdout += chunk
         })
-        
+
         stream.stderr.on('data', (data: Buffer) => {
           const chunk = data.toString()
           getLogger().debug(`[SSH stderr] ${chunk.trim()}`)
           stderr += chunk
         })
-        
+
         stream.on('close', (code: number) => {
           if (code === 0) {
             let output = stdout.trim()
-            
+
             // Apply output length limit if configured
             if (this.options.maxOutputLength && output.length > this.options.maxOutputLength) {
               const truncatedLength = this.options.maxOutputLength - 50
               output = `${output.substring(0, truncatedLength)}\n\n... [Output truncated. Full output was ${output.length} characters, showing first ${truncatedLength}]`
             }
-            
+
             resolve(output)
           } else {
-            reject(new FileSystemError(
-              `Command failed with exit code ${code}: ${stderr.trim() || stdout.trim()}`,
-              ERROR_CODES.EXEC_FAILED,
-              command
-            ))
+            reject(
+              new FileSystemError(
+                `Command failed with exit code ${code}: ${stderr.trim() || stdout.trim()}`,
+                ERROR_CODES.EXEC_FAILED,
+                command
+              )
+            )
           }
         })
       })
@@ -328,19 +283,11 @@ export class RemoteBackend implements FileSystemBackend {
         }
       }
       
-      this.sshClient.on('ready', async () => {
-        try {
-          this.isConnected = true
-          this.connectionPromise = null
-          // Initialize remote workspace manager after SSH connection
-          await this.initializeRemoteWorkspace()
-          resolve()
-        } catch (error) {
-          getLogger().error('[ConstellationFS] Error in SSH ready handler:', error)
-          this.isConnected = false
-          this.connectionPromise = null
-          reject(error)
-        }
+      this.sshClient.on('ready', () => {
+        this.isConnected = true
+        this.connectionPromise = null
+        getLogger().debug('[ConstellationFS] SSH connection ready')
+        resolve()
       })
       
       this.sshClient.on('close', () => {
@@ -360,54 +307,73 @@ export class RemoteBackend implements FileSystemBackend {
   }
 
   /**
-   * Initialize the remote workspace after SSH connection is established
+   * Get or create a workspace for this user
+   * @param workspacePath - Workspace path (defaults to 'default')
+   * @returns Promise resolving to Workspace instance
    */
-  private async initializeRemoteWorkspace(): Promise<void> {
+  async getWorkspace(workspacePath = 'default'): Promise<Workspace> {
+    // Ensure SSH connection
+    await this.ensureSSHConnection()
+
+    if (this.workspaceCache.has(workspacePath)) {
+      return this.workspaceCache.get(workspacePath)!
+    }
+
     if (!this.sshClient) {
       throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
     }
 
-    if (this.workspaceInitialized) {
-      return
-    }
+    // Create workspace directory for this user on remote system using static utility
+    const fullPath = await RemoteWorkspaceUtils.ensureUserWorkspace(
+      this.sshClient,
+      join(this.userId, workspacePath)
+    )
 
-    // Create remote workspace manager
-    this.remoteWorkspaceManager = new RemoteWorkspaceManager(this.sshClient)
-    // Ensure the remote workspace exists and get the actual path
-    const remoteWorkspacePath = await this.remoteWorkspaceManager.ensureUserWorkspace(this.options.userId)
-    // Update the workspace to the remote path (this is where the magic happens!)
-    this.workspace = remoteWorkspacePath
+    const workspace = new RemoteWorkspace(this, this.userId, workspacePath, fullPath)
+    this.workspaceCache.set(workspacePath, workspace)
 
-    this.workspaceInitialized = true
-    getLogger().debug('[ConstellationFS] Remote workspace initialization complete:', this.workspace)
+    getLogger().debug(`Created remote workspace for user ${this.userId}: ${workspacePath}`)
+
+    return workspace
   }
 
-  async read(path: string): Promise<string> {
-    // Validate path
-    this.validatePath(path)
-    
+  /**
+   * List all workspaces for this user
+   * @returns Promise resolving to array of workspace paths
+   */
+  async listWorkspaces(): Promise<string[]> {
+    await this.ensureSSHConnection()
+
+    const userRoot = RemoteWorkspaceUtils.getUserWorkspacePath(this.userId)
+
+    // List directories via SSH
+    return this.listDirectory(userRoot)
+  }
+
+  /**
+   * Public helper methods for RemoteWorkspace
+   */
+
+  async readFile(remotePath: string): Promise<string> {
+    await this.ensureSSHConnection()
+
     if (!this.sshClient) {
       throw new FileSystemError('SSH client not initialized', ERROR_CODES.READ_FAILED)
     }
-    
-    // Ensure SSH connection
-    await this.ensureSSHConnection()
-    
+
     return new Promise((resolve, reject) => {
       if (!this.sshClient) {
-        throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+        throw new FileSystemError('SSH client not initialized', ERROR_CODES.READ_FAILED)
       }
       this.sshClient.sftp((err, sftp) => {
         if (err) {
-          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.READ_FAILED, `read ${path}`))
+          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.READ_FAILED, `read ${remotePath}`))
           return
         }
-        
-        const remotePath = this.resolveRemotePath(path)
-        
+
         sftp.readFile(remotePath, 'utf8', (err, data) => {
           if (err) {
-            reject(this.wrapError(err, 'Read file', ERROR_CODES.READ_FAILED, `read ${path}`))
+            reject(this.wrapError(err, 'Read file', ERROR_CODES.READ_FAILED, `read ${remotePath}`))
           } else {
             resolve(Buffer.isBuffer(data) ? data.toString('utf8') : data)
           }
@@ -416,32 +382,26 @@ export class RemoteBackend implements FileSystemBackend {
     })
   }
 
-  async write(path: string, content: string): Promise<void> {
-    // Validate path
-    this.validatePath(path)
-    
+  async writeFile(remotePath: string, content: string): Promise<void> {
+    await this.ensureSSHConnection()
+
     if (!this.sshClient) {
       throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
     }
-    
-    // Ensure SSH connection
-    await this.ensureSSHConnection()
-    
+
     return new Promise((resolve, reject) => {
       if (!this.sshClient) {
         throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
       }
       this.sshClient.sftp((err, sftp) => {
         if (err) {
-          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.WRITE_FAILED, `write ${path}`))
+          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`))
           return
         }
-        
-        const remotePath = this.resolveRemotePath(path)
-        
+
         sftp.writeFile(remotePath, content, 'utf8', (err) => {
           if (err) {
-            reject(this.wrapError(err, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${path}`))
+            reject(this.wrapError(err, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`))
           } else {
             resolve()
           }
@@ -450,108 +410,204 @@ export class RemoteBackend implements FileSystemBackend {
     })
   }
 
-  async mkdir(path: string, recursive = true): Promise<void> {
-    // Validate path
-    this.validatePath(path)
-    
+  async createDirectory(remotePath: string, recursive: boolean): Promise<void> {
+    await this.ensureSSHConnection()
+
     if (!this.sshClient) {
       throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
     }
-    
-    // Ensure SSH connection
-    await this.ensureSSHConnection()
-    
-    return new Promise((resolve, reject) => {
-      if (!this.sshClient) {
-        throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
-      }
-      this.sshClient.sftp((err, sftp) => {
-        if (err) {
-          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.WRITE_FAILED, `mkdir ${path}`))
-          return
+
+    if (recursive) {
+      // Use mkdir -p for recursive directory creation
+      return new Promise((resolve, reject) => {
+        if (!this.sshClient) {
+          throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
         }
-        
-        const remotePath = this.resolveRemotePath(path)
-        
-        if (recursive) {
-          if (!this.sshClient) {
-            throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+        this.sshClient.exec(`mkdir -p "${remotePath}"`, (err, stream) => {
+          if (err) {
+            reject(this.wrapError(err, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${remotePath}`))
+            return
           }
-          // Use mkdir -p for recursive directory creation
-          this.sshClient.exec(`mkdir -p "${remotePath}"`, (err, stream) => {
-            if (err) {
-              reject(this.wrapError(err, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${path}`))
-              return
-            }
-            
-            stream.on('close', (code: number) => {
+
+          stream
+            .on('close', (code: number) => {
               if (code === 0) {
                 resolve()
               } else {
-                reject(new FileSystemError(
-                  `Failed to create directory: ${path}`,
-                  ERROR_CODES.WRITE_FAILED,
-                  `mkdir ${path}`
-                ))
+                reject(
+                  new FileSystemError(
+                    `Failed to create directory: ${remotePath}`,
+                    ERROR_CODES.WRITE_FAILED,
+                    `mkdir ${remotePath}`
+                  )
+                )
               }
-            }).on('data', () => {
+            })
+            .on('data', () => {
               // Consume stdout
-            }).stderr.on('data', () => {
+            })
+            .stderr.on('data', () => {
               // Consume stderr
             })
-          })
-        } else {
+        })
+      })
+    } else {
+      return new Promise((resolve, reject) => {
+        if (!this.sshClient) {
+          throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+        }
+        this.sshClient.sftp((err, sftp) => {
+          if (err) {
+            reject(this.wrapError(err, 'SFTP session', ERROR_CODES.WRITE_FAILED, `mkdir ${remotePath}`))
+            return
+          }
+
           sftp.mkdir(remotePath, (err) => {
             if (err) {
-              reject(this.wrapError(err, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${path}`))
+              reject(this.wrapError(err, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${remotePath}`))
             } else {
               resolve()
             }
           })
-        }
+        })
       })
-    })
+    }
   }
 
-  async touch(path: string): Promise<void> {
-    // Validate path
-    this.validatePath(path)
-    
+  async touchFile(remotePath: string): Promise<void> {
+    await this.ensureSSHConnection()
+
     if (!this.sshClient) {
       throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
     }
-    
-    // Ensure SSH connection
-    await this.ensureSSHConnection()
-    
+
     return new Promise((resolve, reject) => {
       if (!this.sshClient) {
         throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
       }
-      
-      const remotePath = this.resolveRemotePath(path)
-      
+
       // Use touch command for creating empty files
       this.sshClient.exec(`touch "${remotePath}"`, (err, stream) => {
         if (err) {
-          reject(this.wrapError(err, 'Create file', ERROR_CODES.WRITE_FAILED, `touch ${path}`))
+          reject(this.wrapError(err, 'Create file', ERROR_CODES.WRITE_FAILED, `touch ${remotePath}`))
           return
         }
-        
+
+        stream
+          .on('close', (code: number) => {
+            if (code === 0) {
+              resolve()
+            } else {
+              reject(
+                new FileSystemError(
+                  `Failed to create file: ${remotePath}`,
+                  ERROR_CODES.WRITE_FAILED,
+                  `touch ${remotePath}`
+                )
+              )
+            }
+          })
+          .on('data', () => {
+            // Consume stdout
+          })
+          .stderr.on('data', () => {
+            // Consume stderr
+          })
+      })
+    })
+  }
+
+  async directoryExists(remotePath: string): Promise<boolean> {
+    await this.ensureSSHConnection()
+
+    if (!this.sshClient) {
+      return false
+    }
+
+    return new Promise((resolve) => {
+      if (!this.sshClient) {
+        resolve(false)
+        return
+      }
+      this.sshClient.exec(`test -d "${remotePath}"`, (err, stream) => {
+        if (err) {
+          resolve(false)
+          return
+        }
+
+        stream.on('close', (code: number) => {
+          // test command returns 0 if directory exists, 1 if it doesn't
+          resolve(code === 0)
+        })
+      })
+    })
+  }
+
+  async deleteDirectory(remotePath: string): Promise<void> {
+    await this.ensureSSHConnection()
+
+    if (!this.sshClient) {
+      throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+    }
+
+    return new Promise((resolve, reject) => {
+      if (!this.sshClient) {
+        throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+      }
+
+      this.sshClient.exec(`rm -rf "${remotePath}"`, (err, stream) => {
+        if (err) {
+          reject(this.wrapError(err, 'Delete directory', ERROR_CODES.WRITE_FAILED, `rm -rf ${remotePath}`))
+          return
+        }
+
         stream.on('close', (code: number) => {
           if (code === 0) {
             resolve()
           } else {
-            reject(new FileSystemError(
-              `Failed to create file: ${path}`,
-              ERROR_CODES.WRITE_FAILED,
-              `touch ${path}`
-            ))
+            reject(
+              new FileSystemError(
+                `Failed to delete directory: ${remotePath}`,
+                ERROR_CODES.WRITE_FAILED,
+                `rm -rf ${remotePath}`
+              )
+            )
           }
-        }).on('data', () => {
-          // Consume stdout
-        }).stderr.on('data', () => {
-          // Consume stderr
+        })
+      })
+    })
+  }
+
+  async listDirectory(remotePath: string): Promise<string[]> {
+    await this.ensureSSHConnection()
+
+    if (!this.sshClient) {
+      return []
+    }
+
+    return new Promise((resolve, reject) => {
+      if (!this.sshClient) {
+        resolve([])
+        return
+      }
+      this.sshClient.exec(`ls -1 "${remotePath}"`, (err, stream) => {
+        if (err) {
+          reject(this.wrapError(err, 'List directory', ERROR_CODES.READ_FAILED, `ls ${remotePath}`))
+          return
+        }
+
+        let stdout = ''
+        stream.on('data', (data: Buffer) => {
+          stdout += data.toString()
+        })
+
+        stream.on('close', (code: number) => {
+          if (code === 0) {
+            resolve(stdout.trim().split('\n').filter(Boolean))
+          } else {
+            // Directory doesn't exist or is empty
+            resolve([])
+          }
         })
       })
     })
@@ -585,6 +641,9 @@ export class RemoteBackend implements FileSystemBackend {
    * Clean up resources on destruction
    */
   async destroy(): Promise<void> {
+    // Clear workspace cache
+    this.workspaceCache.clear()
+
     // Close SSH connection
     if (this.sshClient) {
       this.sshClient.end()
@@ -592,5 +651,7 @@ export class RemoteBackend implements FileSystemBackend {
       this.isConnected = false
       this.connectionPromise = null
     }
+
+    getLogger().debug(`RemoteBackend destroyed for user: ${this.userId}`)
   }
 }

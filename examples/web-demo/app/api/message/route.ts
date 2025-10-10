@@ -140,7 +140,8 @@ export async function POST(request: NextRequest) {
 async function initializeWorkspace(fs: FileSystem) {
   console.log("[WORKSPACE] 📂 Checking workspace contents...");
   try {
-    const result = await fs.exec("ls");
+    const workspace = await fs.getWorkspace();
+    const result = await workspace.exec("ls");
     const files = result ? result.split("\n").filter(Boolean) : [];
     console.log(
       "[WORKSPACE] 📋 Found",
@@ -151,7 +152,7 @@ async function initializeWorkspace(fs: FileSystem) {
 
     // If workspace is empty, create cyberpunk SF map app
     if (files.length === 0) {
-      fs.write("README.md", "Hello, world!");
+      workspace.write("README.md", "Hello, world!");
       // console.log(
       //   "[WORKSPACE] 🌃 Creating cyberpunk SF map app for empty workspace...",
       // );
@@ -236,7 +237,8 @@ async function processWithCodebuff(
     sessionId,
   );
   try {
-    console.log("[CODEBUFF] 🗂️ Workspace path:", fs.workspace);
+    const workspace = await fs.getWorkspace();
+    console.log("[CODEBUFF] 🗂️ Workspace path:", workspace.path);
 
     // Get Codebuff client - it will use the ConstellationFS workspace directly
     const apiKey = process.env.NEXT_PUBLIC_CODEBUFF_API_KEY;

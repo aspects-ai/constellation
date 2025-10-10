@@ -1,5 +1,6 @@
 import type { FileSystem } from '../FileSystem.js'
 import type { BackendConfig } from '../types.js'
+import type { Workspace } from '../workspace/Workspace.js'
 
 /**
  * Base interface that all Agent SDK adapters should implement
@@ -12,9 +13,14 @@ export interface AgentSDKAdapter {
   readonly fileSystem: FileSystem
 
   /**
+   * Get the workspace instance
+   */
+  readonly workspace: Workspace
+
+  /**
    * Get the workspace path
    */
-  readonly workspace: string
+  readonly workspacePath: string
 
   /**
    * Get the backend configuration
@@ -25,23 +31,52 @@ export interface AgentSDKAdapter {
 /**
  * Abstract base class for SDK adapters
  * Provides common functionality that all adapters can use to interact with different AI frameworks
- * 
+ *
+ * Adapters work with a specific workspace obtained from the FileSystem
  * New adapters should extend this class. General shell commands can be routed through the `exec` method, while specific shell commands
  * should be implemented in the adapter via POSIXCommands.
  */
 export abstract class BaseSDKAdapter implements AgentSDKAdapter {
-  constructor(protected readonly fs: FileSystem) {}
+  private workspaceInstance?: Workspace
+  private readonly defaultWorkspacePath: string
+
+  constructor(
+    protected readonly fs: FileSystem,
+    workspacePath = 'default'
+  ) {
+    this.defaultWorkspacePath = workspacePath
+  }
+
+  /**
+   * Lazily initialize and get the workspace instance
+   */
+  private async getWorkspaceInstance(): Promise<Workspace> {
+    if (!this.workspaceInstance) {
+      this.workspaceInstance = await this.fs.getWorkspace(this.defaultWorkspacePath)
+    }
+    return this.workspaceInstance
+  }
 
   get fileSystem(): FileSystem {
     return this.fs
   }
 
-  get workspace(): string {
-    return this.fs.workspace
+  get workspace(): Workspace {
+    if (!this.workspaceInstance) {
+      throw new Error('Workspace not initialized. Call an async method first.')
+    }
+    return this.workspaceInstance
+  }
+
+  get workspacePath(): string {
+    if (!this.workspaceInstance) {
+      throw new Error('Workspace not initialized. Call an async method first.')
+    }
+    return this.workspaceInstance.path
   }
 
   get backendConfig(): BackendConfig {
-    return this.fs.backendConfig
+    return this.fs.config
   }
 
   /**
@@ -50,16 +85,18 @@ export abstract class BaseSDKAdapter implements AgentSDKAdapter {
    * @returns Promise resolving to command output
    */
   protected async exec(command: string): Promise<string> {
-    return this.fs.exec(command)
+    const ws = await this.getWorkspaceInstance()
+    return ws.exec(command)
   }
 
   /**
-   * Read a file (common across most SDKs)  
+   * Read a file (common across most SDKs)
    * @param path - Path to file to read
    * @returns Promise resolving to file contents
    */
   protected async read(path: string): Promise<string> {
-    return this.fs.read(path)
+    const ws = await this.getWorkspaceInstance()
+    return ws.read(path)
   }
 
   /**
@@ -69,7 +106,7 @@ export abstract class BaseSDKAdapter implements AgentSDKAdapter {
    * @returns Promise that resolves when write is complete
    */
   protected async write(path: string, content: string): Promise<void> {
-    return this.fs.write(path, content)
+    const ws = await this.getWorkspaceInstance()
+    return ws.write(path, content)
   }
-
 }

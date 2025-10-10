@@ -40,13 +40,14 @@ export async function GET(request: NextRequest) {
       console.log('Using local backend config')
     }
 
-    const fs = new FileSystem({ 
+    const fs = new FileSystem({
       userId: sessionId,
       ...backendConfig
     })
 
     try {
-      const componentCode = await fs.read(filePath)
+      const workspace = await fs.getWorkspace()
+      const componentCode = await workspace.read(filePath)
       const html = generateEnhancedSandboxHTML(componentCode, filePath)
       
       return new NextResponse(html, {

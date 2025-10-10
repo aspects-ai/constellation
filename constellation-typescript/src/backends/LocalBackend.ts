@@ -1,12 +1,13 @@
 import { getLogger } from '@/utils/logger.js'
 import { execSync, spawn } from 'child_process'
-import { mkdir as fsMkdir, readFile, writeFile } from 'fs/promises'
-import { isAbsolute, join, relative, resolve } from 'path'
+import { readdir } from 'fs/promises'
+import { join } from 'path'
 import { ERROR_CODES } from '../constants.js'
 import { isCommandSafe, isDangerous } from '../safety.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
-import { LocalWorkspaceManager } from '../utils/LocalWorkspaceManager.js'
-import { checkSymlinkSafety } from '../utils/pathValidator.js'
+import { LocalWorkspaceUtils } from '../utils/LocalWorkspaceUtils.js'
+import { LocalWorkspace } from '../workspace/LocalWorkspace.js'
+import type { Workspace } from '../workspace/Workspace.js'
 import type { FileSystemBackend, LocalBackendConfig } from './types.js'
 import { validateLocalBackendConfig } from './types.js'
 
@@ -14,37 +15,37 @@ import { validateLocalBackendConfig } from './types.js'
  * Local filesystem backend implementation
  * Executes commands and file operations on the local machine using Node.js APIs
  * and POSIX-compliant shell commands for cross-platform compatibility
+ *
+ * Manages multiple workspaces for a single user
  */
 export class LocalBackend implements FileSystemBackend {
-
-  public readonly workspace: string
+  public readonly type = 'local' as const
+  public readonly userId: string
   public readonly options: LocalBackendConfig
   public readonly connected: boolean
   private readonly shell: string
+  private workspaceCache = new Map<string, LocalWorkspace>()
 
   /**
    * Create a new LocalBackend instance
    * @param options - Configuration options for the local backend
-   * @throws {FileSystemError} When workspace doesn't exist or utilities are missing
+   * @throws {FileSystemError} When utilities are missing
    */
   constructor(options: LocalBackendConfig) {
     validateLocalBackendConfig(options)
     this.options = options
-    
-    // Use userId-based workspace management with optional workspace path
-    LocalWorkspaceManager.validateWorkspacePath(options.userId)
-    const fullWorkspacePath = options.workspacePath 
-      ? join(options.userId, options.workspacePath)
-      : options.userId
-    this.workspace = LocalWorkspaceManager.ensureUserWorkspace(fullWorkspacePath)
+    this.userId = options.userId
+
+    // Validate userId
+    LocalWorkspaceUtils.validateWorkspacePath(options.userId)
+
     this.connected = true
-    
     this.shell = this.detectShell()
 
     if (options.validateUtils) {
       this.validateEnvironment()
     }
-    getLogger().debug('LocalBackend initialized with workspace:', this.workspace)
+    getLogger().debug('LocalBackend initialized for user:', this.userId)
   }
   
   /**
@@ -93,7 +94,53 @@ export class LocalBackend implements FileSystemBackend {
     }
   }
 
-  async exec(command: string): Promise<string> {
+  /**
+   * Get or create a workspace for this user
+   * @param workspacePath - Workspace path (defaults to 'default')
+   * @returns Promise resolving to Workspace instance
+   */
+  async getWorkspace(workspacePath = 'default'): Promise<Workspace> {
+    if (this.workspaceCache.has(workspacePath)) {
+      return this.workspaceCache.get(workspacePath)!
+    }
+
+    // Create workspace directory for this user
+    const fullPath = LocalWorkspaceUtils.ensureUserWorkspace(join(this.userId, workspacePath))
+
+    const workspace = new LocalWorkspace(this, this.userId, workspacePath, fullPath)
+    this.workspaceCache.set(workspacePath, workspace)
+
+    getLogger().debug(`Created workspace for user ${this.userId}: ${workspacePath}`)
+
+    return workspace
+  }
+
+  /**
+   * List all workspaces for this user
+   * @returns Promise resolving to array of workspace paths
+   */
+  async listWorkspaces(): Promise<string[]> {
+    const userRoot = LocalWorkspaceUtils.getUserWorkspacePath(this.userId)
+
+    try {
+      const entries = await readdir(userRoot, { withFileTypes: true })
+      return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name)
+    } catch (error) {
+      // If user root doesn't exist yet, return empty array
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return []
+      }
+      throw this.wrapError(error, 'List workspaces', ERROR_CODES.READ_FAILED)
+    }
+  }
+
+  /**
+   * Execute command in a specific workspace path (internal use by Workspace)
+   * @param workspacePath - Absolute path to workspace directory
+   * @param command - Command to execute
+   * @returns Promise resolving to command output
+   */
+  async execInWorkspace(workspacePath: string, command: string): Promise<string> {
     // Comprehensive safety check
     const safetyCheck = isCommandSafe(command)
     if (!safetyCheck.safe) {
@@ -106,7 +153,7 @@ export class LocalBackend implements FileSystemBackend {
           throw new DangerousOperationError(command)
         }
       }
-      
+
       // For other safety violations, always throw
       throw new FileSystemError(
         safetyCheck.reason || 'Command failed safety check',
@@ -114,13 +161,13 @@ export class LocalBackend implements FileSystemBackend {
         command
       )
     }
-    
+
     // Note: Path validation is already handled by safety checks above
     // The command will run in the workspace directory via cwd option
 
     return new Promise((resolve, reject) => {
       const child = spawn(this.shell, ['-c', command], {
-        cwd: this.workspace,
+        cwd: workspacePath,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: {
           // Start with minimal environment, including common npm/node locations
@@ -128,9 +175,9 @@ export class LocalBackend implements FileSystemBackend {
           USER: process.env.USER,
           SHELL: this.shell,
           // Force working directory
-          PWD: this.workspace,
-          HOME: this.workspace,
-          TMPDIR: join(this.workspace, '.tmp'),
+          PWD: workspacePath,
+          HOME: workspacePath,
+          TMPDIR: join(workspacePath, '.tmp'),
           // Locale settings
           LANG: 'C',
           LC_ALL: 'C',
@@ -145,130 +192,47 @@ export class LocalBackend implements FileSystemBackend {
       let stdout = ''
       let stderr = ''
 
-      child.stdout?.on('data', data => {
+      child.stdout?.on('data', (data) => {
         stdout += data.toString()
       })
 
-      child.stderr?.on('data', data => {
+      child.stderr?.on('data', (data) => {
         stderr += data.toString()
       })
 
-      child.on('close', code => {
+      child.on('close', (code) => {
         if (code === 0) {
           let output = stdout.trim()
-          
+
           if (this.options.maxOutputLength && output.length > this.options.maxOutputLength) {
             const truncatedLength = this.options.maxOutputLength - 50
-            output = `${output.substring(0, truncatedLength)  
-              }\n\n... [Output truncated. Full output was ${output.length} characters, showing first ${truncatedLength}]`
+            output = `${output.substring(0, truncatedLength)}\n\n... [Output truncated. Full output was ${output.length} characters, showing first ${truncatedLength}]`
           }
-          
+
           resolve(output)
         } else {
           reject(
             new FileSystemError(
               `Command execution failed with exit code ${code}: ${stderr.trim() || stdout.trim()}`,
               ERROR_CODES.EXEC_FAILED,
-              command,
-            ),
+              command
+            )
           )
         }
       })
 
-      child.on('error', err => {
+      child.on('error', (err) => {
         reject(this.wrapError(err, 'Execute command', ERROR_CODES.EXEC_ERROR, command))
       })
     })
   }
 
-  async read(path: string): Promise<string> {
-    const fullPath = this.resolvePath(path)
-    
-    // Check symlink safety
-    const symlinkCheck = checkSymlinkSafety(this.workspace, path)
-    if (!symlinkCheck.safe) {
-      throw new FileSystemError(
-        `Cannot read file: ${symlinkCheck.reason}`,
-        ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-        `read ${path}`
-      )
-    }
-    
-    try {
-      return await readFile(fullPath, 'utf-8')
-    } catch (error) {
-      throw this.wrapError(error, 'Read file', ERROR_CODES.READ_FAILED, `read ${path}`)
-    }
-  }
-
-  async write(path: string, content: string): Promise<void> {
-    const fullPath = this.resolvePath(path)
-
-    // Check symlink safety for parent directories
-    const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
-    if (parentPath !== '.') {
-      const symlinkCheck = checkSymlinkSafety(this.workspace, parentPath)
-      if (!symlinkCheck.safe) {
-        throw new FileSystemError(
-          `Cannot write file: ${symlinkCheck.reason}`,
-          ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-          `write ${path}`
-        )
-      }
-    }
-
-    try {
-      await writeFile(fullPath, content, 'utf-8')
-    } catch (error) {
-      throw this.wrapError(error, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${path}`)
-    }
-  }
-
-  async mkdir(path: string, recursive = true): Promise<void> {
-    const fullPath = this.resolvePath(path)
-
-    // Check symlink safety for parent directories
-    const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
-    if (parentPath !== '.') {
-      const symlinkCheck = checkSymlinkSafety(this.workspace, parentPath)
-      if (!symlinkCheck.safe) {
-        throw new FileSystemError(
-          `Cannot create directory: ${symlinkCheck.reason}`,
-          ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-          `mkdir ${path}`
-        )
-      }
-    }
-
-    try {
-      await fsMkdir(fullPath, { recursive })
-    } catch (error) {
-      throw this.wrapError(error, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${path}`)
-    }
-  }
-
-  async touch(path: string): Promise<void> {
-    const fullPath = this.resolvePath(path)
-
-    // Check symlink safety for parent directories
-    const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
-    if (parentPath !== '.') {
-      const symlinkCheck = checkSymlinkSafety(this.workspace, parentPath)
-      if (!symlinkCheck.safe) {
-        throw new FileSystemError(
-          `Cannot create file: ${symlinkCheck.reason}`,
-          ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-          `touch ${path}`
-        )
-      }
-    }
-
-    try {
-      // Create empty file or update timestamp if it exists
-      await writeFile(fullPath, '', { flag: 'a' })
-    } catch (error) {
-      throw this.wrapError(error, 'Create file', ERROR_CODES.WRITE_FAILED, `touch ${path}`)
-    }
+  /**
+   * Clean up backend resources
+   */
+  async destroy(): Promise<void> {
+    this.workspaceCache.clear()
+    getLogger().debug(`LocalBackend destroyed for user: ${this.userId}`)
   }
 
   /**
@@ -278,48 +242,16 @@ export class LocalBackend implements FileSystemBackend {
     error: unknown,
     operation: string,
     errorCode: string,
-    command?: string,
+    command?: string
   ): FileSystemError {
     // If it's already our error type, re-throw as-is
     if (error instanceof FileSystemError) {
       return error
     }
-    
+
     // Get error message from Error objects or fallback
-    const message = error instanceof Error 
-      ? error.message 
-      : 'Unknown error occurred'
-    
-    return new FileSystemError(
-      `${operation} failed: ${message}`,
-      errorCode,
-      command,
-    )
-  }
+    const message = error instanceof Error ? error.message : 'Unknown error occurred'
 
-  /**
-   * Resolve a relative path within the workspace and validate it's safe
-   */
-  private resolvePath(path: string): string {
-    if (isAbsolute(path)) {
-      throw new FileSystemError(
-        'Absolute paths are not allowed',
-        ERROR_CODES.ABSOLUTE_PATH_REJECTED,
-        path,
-      )
-    }
-
-    const fullPath = resolve(join(this.workspace, path))
-    
-    const relativePath = relative(this.workspace, fullPath)
-    if (relativePath.startsWith('..') || isAbsolute(relativePath)) {
-      throw new FileSystemError(
-        'Path escapes workspace boundary',
-        ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-        path,
-      )
-    }
-
-    return fullPath
+    return new FileSystemError(`${operation} failed: ${message}`, errorCode, command)
   }
 }

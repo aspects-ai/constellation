@@ -76,9 +76,10 @@ export async function GET(request: NextRequest) {
 
     console.log(`[API] Reading file: ${filePath} (cached: ${wasCached})`)
     const readStartTime = Date.now()
-    
+
     try {
-      const content = await fs.read(filePath)
+      const workspace = await fs.getWorkspace()
+      const content = await workspace.read(filePath)
       
       const readTime = Date.now() - readStartTime
       const totalTime = Date.now() - startTime

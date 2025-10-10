@@ -1,6 +1,6 @@
+// import { type CodebuffToolOutput } from '@codebuff/sdk'
 import { applyPatch } from 'diff'
 import fs from 'fs'
-import { type CodebuffToolOutput } from 'node_modules/@codebuff/sdk/dist/common/src/tools/list'
 import path from 'path'
 import z from 'zod/v4'
 
@@ -13,7 +13,8 @@ const FileChangeSchema = z.object({
 export function changeFile(
   parameters: unknown,
   cwd: string,
-): CodebuffToolOutput<'str_replace'> {
+// ): CodebuffToolOutput<'str_replace'> {
+): any {
   if (cwd.includes('../')) {
     throw new Error('cwd cannot include ../')
   }
@@ -24,7 +25,8 @@ export function changeFile(
     fileChange,
   ])
 
-  const results: CodebuffToolOutput<'str_replace'>[0]['value'][] = []
+  // const results: CodebuffToolOutput<'str_replace'>[0]['value'][] = []
+  const results: any[] = []
 
   for (const file of created) {
     results.push({

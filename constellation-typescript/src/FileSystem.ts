@@ -1,56 +1,56 @@
+import { BackendPool } from './backends/BackendPool.js'
 import { BackendFactory } from './backends/index.js'
-import { ERROR_CODES } from './constants.js'
-import type {
-  BackendConfig,
-  FileSystemBackend,
-  FileSystemInterface,
-  LocalBackendConfig,
-} from './types.js'
-import {
-  FileSystemError,
-} from './types.js'
+import type { BackendConfig, FileSystemBackend, LocalBackendConfig } from './types.js'
 import { getLogger } from './utils/logger.js'
+import type { Workspace } from './workspace/Workspace.js'
 
 /**
- * Main FileSystem class providing a unified interface for file operations
- * Supports multiple backend types (local, remote, docker) with automatic backend selection
- * and configuration validation
- * 
+ * FileSystem class - Frontend abstraction for backend management
+ *
+ * This class:
+ * - Manages backend configuration and pooling
+ * - Provides workspace access via getWorkspace()
+ * - Hides backend pool complexity from users
+ *
+ * FileSystem is 1:1 with a backend (keyed by userId + backend type)
+ * Workspaces are obtained from the FileSystem as needed
+ *
  * @example
  * ```typescript
- * // Simple userId-based workspace (recommended)
+ * // Create a filesystem (gets/creates backend from pool)
  * const fs = new FileSystem({ userId: 'user123' })
- * 
- * // Default workspace for single-user apps
- * const fs = new FileSystem({ userId: 'default' })
- * 
- * // Full backend configuration
- * const fs = new FileSystem({
- *   type: 'local',
- *   userId: 'user123',
- *   shell: 'bash',
- *   preventDangerous: true
- * })
+ *
+ * // Get workspaces and use them
+ * const ws1 = await fs.getWorkspace('project-a')
+ * const ws2 = await fs.getWorkspace('project-b')
+ *
+ * await ws1.exec('npm install')
+ * await ws2.exec('npm test')
+ *
+ * // Cleanup when done
+ * await fs.destroy()
  * ```
  */
-export class FileSystem implements FileSystemInterface {
+export class FileSystem {
   private readonly backend: FileSystemBackend
+  private readonly backendConfig: BackendConfig
+  private readonly shouldReleaseBackend: boolean
 
   /**
    * Create a new FileSystem instance
    * @param input - Backend configuration object with userId
+   * @param useBackendPool - Whether to use backend pooling (default: true)
    * @throws {FileSystemError} When configuration is invalid
    */
-  constructor(input: Partial<BackendConfig>) {
-    let backendConfig: BackendConfig
-    
+  constructor(input: Partial<BackendConfig>, useBackendPool = true) {
+    // Normalize config
     if (input.type) {
       // Full backend config - use as-is with defaults for missing fields
-      backendConfig = input as BackendConfig
+      this.backendConfig = input as BackendConfig
     } else {
       getLogger().debug('No backend config provided, assuming local backend: %s', input)
       // Partial config - assume local backend and fill in defaults
-      backendConfig = {
+      this.backendConfig = {
         type: 'local',
         shell: 'auto',
         validateUtils: false,
@@ -58,97 +58,57 @@ export class FileSystem implements FileSystemInterface {
         ...input,
       } as LocalBackendConfig
     }
-    
-    this.backend = BackendFactory.create(backendConfig)
+
+    // Get backend from pool or create new one
+    this.backend = useBackendPool
+      ? BackendPool.getBackend(this.backendConfig)
+      : BackendFactory.create(this.backendConfig)
+
+    this.shouldReleaseBackend = useBackendPool
   }
 
   /**
-   * Get the workspace directory path
-   * @returns Absolute path to the workspace directory
+   * Get or create a workspace
+   * @param workspacePath - Workspace identifier (defaults to 'default')
+   * @returns Promise resolving to Workspace instance
    */
-  get workspace(): string {
-    return this.backend.workspace
+  async getWorkspace(workspacePath = 'default'): Promise<Workspace> {
+    return this.backend.getWorkspace(workspacePath)
   }
 
   /**
-   * Get the full backend configuration
-   * @returns Complete backend configuration object
+   * List all workspaces for this user
+   * @returns Promise resolving to array of workspace paths
    */
-  get backendConfig(): BackendConfig {
-    return this.backend.options
+  async listWorkspaces(): Promise<string[]> {
+    return this.backend.listWorkspaces()
   }
 
   /**
-   * Execute a shell command in the workspace
-   * @param command - The shell command to execute
-   * @returns Promise resolving to the command output
-   * @throws {FileSystemError} When command is empty or execution fails
-   * @throws {DangerousOperationError} When dangerous operations are blocked
+   * Get the backend configuration
+   * @returns Backend configuration object
    */
-  async exec(command: string): Promise<string> {
-    if (!command.trim()) {
-      throw new FileSystemError('Command cannot be empty', ERROR_CODES.EMPTY_COMMAND)
+  get config(): BackendConfig {
+    return this.backendConfig
+  }
+
+  /**
+   * Get the user ID this filesystem is associated with
+   * @returns User identifier
+   */
+  get userId(): string {
+    return this.backendConfig.userId
+  }
+
+  /**
+   * Clean up resources
+   * Releases backend reference if using backend pooling
+   */
+  async destroy(): Promise<void> {
+    if (this.shouldReleaseBackend) {
+      await BackendPool.releaseBackend(this.backend)
+    } else {
+      await this.backend.destroy()
     }
-    
-    return this.backend.exec(command)
   }
-
-  /**
-   * Read the contents of a file
-   * @param path - Relative path to the file within the workspace
-   * @returns Promise resolving to the file contents as UTF-8 string
-   * @throws {FileSystemError} When path is empty, file doesn't exist, or read fails
-   */
-  async read(path: string): Promise<string> {
-    if (!path.trim()) {
-      throw new FileSystemError('Path cannot be empty', ERROR_CODES.EMPTY_PATH)
-    }
-    
-    return this.backend.read(path)
-  }
-
-  /**
-   * Write content to a file
-   * @param path - Relative path to the file within the workspace
-   * @param content - Content to write to the file as UTF-8 string
-   * @returns Promise that resolves when the write is complete
-   * @throws {FileSystemError} When path is empty or write fails
-   */
-  async write(path: string, content: string): Promise<void> {
-    if (!path.trim()) {
-      throw new FileSystemError('Path cannot be empty', ERROR_CODES.EMPTY_PATH)
-    }
-
-    return this.backend.write(path, content)
-  }
-
-  /**
-   * Create a directory
-   * @param path - Relative path to the directory within the workspace
-   * @param recursive - Create parent directories if they don't exist (default: true)
-   * @returns Promise that resolves when the directory is created
-   * @throws {FileSystemError} When path is empty or directory creation fails
-   */
-  async mkdir(path: string, recursive = true): Promise<void> {
-    if (!path.trim()) {
-      throw new FileSystemError('Path cannot be empty', ERROR_CODES.EMPTY_PATH)
-    }
-
-    return this.backend.mkdir(path, recursive)
-  }
-
-  /**
-   * Create an empty file
-   * @param path - Relative path to the file within the workspace
-   * @returns Promise that resolves when the file is created
-   * @throws {FileSystemError} When path is empty or file creation fails
-   */
-  async touch(path: string): Promise<void> {
-    if (!path.trim()) {
-      throw new FileSystemError('Path cannot be empty', ERROR_CODES.EMPTY_PATH)
-    }
-
-    return this.backend.touch(path)
-  }
-
 }

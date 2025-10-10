@@ -1,50 +1,19 @@
 import { CodebuffClient } from '@codebuff/sdk'
 import { CodebuffAdapter, type FileSystem } from 'constellationfs'
 
-// Client pool to maintain persistent connections per workspace
-const clientPool = new Map<string, CodebuffClient>()
-
 /**
- * Initialize Codebuff client with ConstellationFS workspace
+ * Create a new Codebuff client with ConstellationFS workspace
+ * Clients are stateless, so we create a new instance for each request
  */
 export async function getCodebuffClient(fs: FileSystem, apiKey: string) {
-  const workspaceKey = `${fs.workspace}-${apiKey.slice(-8)}`
-  let client = clientPool.get(workspaceKey)
+  const workspace = await fs.getWorkspace()
+  const adapter = new CodebuffAdapter(fs)
 
-  if (!client) {
-    const adapter = new CodebuffAdapter(fs)
-    console.log('Creating new Codebuff client for workspace:', fs.workspace)
-    client = new CodebuffClient({
-      apiKey,
-      cwd: fs.workspace,
-      overrideTools: adapter.getToolHandlers(),
-      onError: (e: { message: string }) => {
-        clientPool.delete(workspaceKey)
-      }
-    })
-    clientPool.set(workspaceKey, client)
-  }
+  console.log('Creating new Codebuff client for workspace:', workspace.path)
 
-  return client
-}
-
-/**
- * Get current client pool size for monitoring
- */
-export function getClientPoolSize() {
-  return clientPool.size
-}
-
-/**
- * Cleanup all clients (useful for server shutdown)
- */
-export function closeAllClients() {
-  for (const [_, client] of clientPool.entries()) {
-    try {
-      client.closeConnection()
-    } catch {
-      // silently ignore errors
-    }
-  }
-  clientPool.clear()
+  return new CodebuffClient({
+    apiKey,
+    cwd: workspace.path,
+    overrideTools: adapter.getToolHandlers()
+  })
 }

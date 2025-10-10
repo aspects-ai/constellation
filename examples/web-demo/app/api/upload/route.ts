@@ -50,8 +50,9 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const content = Buffer.from(arrayBuffer).toString('utf8')
 
-    // Write file to workspace
-    await fs.write(file.name, content)
+    // Get workspace and write file
+    const workspace = await fs.getWorkspace()
+    await workspace.write(file.name, content)
 
     return NextResponse.json({ 
       success: true, 

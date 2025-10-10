@@ -2,7 +2,7 @@ import { EventEmitter } from 'events'
 import type { Client, ClientChannel } from 'ssh2'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConstellationFS } from '../src/config/Config.js'
-import { RemoteWorkspaceManager } from '../src/utils/RemoteWorkspaceManager.js'
+import { RemoteWorkspaceUtils } from '../src/utils/RemoteWorkspaceUtils.js'
 
 // Mock SSH stream that extends EventEmitter
 class MockSSHStream extends EventEmitter {
@@ -60,9 +60,8 @@ class MockSSHClient extends EventEmitter {
   }
 }
 
-describe('RemoteWorkspaceManager', () => {
+describe('RemoteWorkspaceUtils', () => {
   let mockClient: MockSSHClient
-  let manager: RemoteWorkspaceManager
 
   beforeEach(() => {
     // Reset ConstellationFS singleton
@@ -70,7 +69,6 @@ describe('RemoteWorkspaceManager', () => {
 
     // Create mock SSH client
     mockClient = new MockSSHClient()
-    manager = new RemoteWorkspaceManager(mockClient as unknown as Client)
   })
 
   afterEach(() => {
@@ -81,7 +79,7 @@ describe('RemoteWorkspaceManager', () => {
   describe('getUserWorkspacePath', () => {
     it('should return correct workspace path for user', () => {
       const userPath = 'test-remote-user'
-      const workspacePath = RemoteWorkspaceManager.getUserWorkspacePath(userPath)
+      const workspacePath = RemoteWorkspaceUtils.getUserWorkspacePath(userPath)
 
       expect(workspacePath).toContain('test-remote-user')
       expect(workspacePath).toContain('constellation-fs')
@@ -89,7 +87,7 @@ describe('RemoteWorkspaceManager', () => {
 
     it('should use POSIX path separator for remote paths', () => {
       const userPath = 'test-remote-user'
-      const workspacePath = RemoteWorkspaceManager.getUserWorkspacePath(userPath)
+      const workspacePath = RemoteWorkspaceUtils.getUserWorkspacePath(userPath)
 
       // Should use forward slashes for remote POSIX paths
       expect(workspacePath).toMatch(/\//)
@@ -97,7 +95,7 @@ describe('RemoteWorkspaceManager', () => {
 
     it('should include app ID in workspace path', () => {
       const userPath = 'test-remote-user'
-      const workspacePath = RemoteWorkspaceManager.getUserWorkspacePath(userPath)
+      const workspacePath = RemoteWorkspaceUtils.getUserWorkspacePath(userPath)
 
       // Should include the test app ID from vitest config
       expect(workspacePath).toContain('test-app')
@@ -116,7 +114,7 @@ describe('RemoteWorkspaceManager', () => {
       })
 
       const userPath = 'test-remote-user'
-      await manager.ensureUserWorkspace(userPath)
+      await RemoteWorkspaceUtils.ensureUserWorkspace(mockClient as unknown as Client, userPath)
 
       expect(executedCommand).toContain('mkdir -p')
       expect(executedCommand).toContain('test-remote-user')
@@ -130,7 +128,7 @@ describe('RemoteWorkspaceManager', () => {
       })
 
       const userPath = 'test-remote-user'
-      const workspacePath = await manager.ensureUserWorkspace(userPath)
+      const workspacePath = await RemoteWorkspaceUtils.ensureUserWorkspace(mockClient as unknown as Client, userPath)
 
       expect(workspacePath).toContain('test-remote-user')
       expect(workspacePath).toContain('constellation-fs')
@@ -171,7 +169,7 @@ describe('RemoteWorkspaceManager', () => {
       const userPath = 'test-remote-user'
 
       // Should resolve due to timeout fallback
-      const workspacePath = await manager.ensureUserWorkspace(userPath)
+      const workspacePath = await RemoteWorkspaceUtils.ensureUserWorkspace(mockClient as unknown as Client, userPath)
       expect(workspacePath).toBeDefined()
     }, 10000) // Increase test timeout
   })
@@ -188,7 +186,7 @@ describe('RemoteWorkspaceManager', () => {
       })
 
       const userPath = 'test-remote-user'
-      await manager.workspaceExists(userPath)
+      await RemoteWorkspaceUtils.workspaceExists(mockClient as unknown as Client, userPath)
 
       expect(executedCommand).toContain('test -d')
       expect(executedCommand).toContain('test-remote-user')
@@ -202,7 +200,7 @@ describe('RemoteWorkspaceManager', () => {
       })
 
       const userPath = 'test-remote-user'
-      const exists = await manager.workspaceExists(userPath)
+      const exists = await RemoteWorkspaceUtils.workspaceExists(mockClient as unknown as Client, userPath)
 
       expect(exists).toBe(true)
     })
@@ -215,7 +213,7 @@ describe('RemoteWorkspaceManager', () => {
       })
 
       const userPath = 'test-remote-user'
-      const exists = await manager.workspaceExists(userPath)
+      const exists = await RemoteWorkspaceUtils.workspaceExists(mockClient as unknown as Client, userPath)
 
       expect(exists).toBe(false)
     })
@@ -245,7 +243,7 @@ describe('RemoteWorkspaceManager', () => {
       ]
 
       for (const path of validPaths) {
-        expect(() => RemoteWorkspaceManager.validateWorkspacePath(path)).not.toThrow()
+        expect(() => RemoteWorkspaceUtils.validateWorkspacePath(path)).not.toThrow()
       }
     })
 
@@ -253,7 +251,7 @@ describe('RemoteWorkspaceManager', () => {
       const invalidPaths = ['', ' ', '  ', '\t', '\n']
 
       for (const path of invalidPaths) {
-        expect(() => RemoteWorkspaceManager.validateWorkspacePath(path)).toThrow(
+        expect(() => RemoteWorkspaceUtils.validateWorkspacePath(path)).toThrow(
           'Workspace path cannot be empty'
         )
       }
@@ -268,7 +266,7 @@ describe('RemoteWorkspaceManager', () => {
       ]
 
       for (const path of invalidPaths) {
-        expect(() => RemoteWorkspaceManager.validateWorkspacePath(path)).toThrow(
+        expect(() => RemoteWorkspaceUtils.validateWorkspacePath(path)).toThrow(
           /can only contain letters, numbers, hyphens, underscores, and periods/
         )
       }
@@ -287,7 +285,7 @@ describe('RemoteWorkspaceManager', () => {
 
       for (const path of traversalPaths) {
         // Should throw an error (either for invalid chars or path traversal)
-        expect(() => RemoteWorkspaceManager.validateWorkspacePath(path)).toThrow()
+        expect(() => RemoteWorkspaceUtils.validateWorkspacePath(path)).toThrow()
       }
     })
   })
@@ -304,7 +302,7 @@ describe('RemoteWorkspaceManager', () => {
       ]
 
       for (const userId of validIds) {
-        expect(() => RemoteWorkspaceManager.validateUserId(userId)).not.toThrow()
+        expect(() => RemoteWorkspaceUtils.validateUserId(userId)).not.toThrow()
       }
     })
 
@@ -312,7 +310,7 @@ describe('RemoteWorkspaceManager', () => {
       const invalidIds = ['', ' ', '  ', '\t']
 
       for (const userId of invalidIds) {
-        expect(() => RemoteWorkspaceManager.validateUserId(userId)).toThrow(
+        expect(() => RemoteWorkspaceUtils.validateUserId(userId)).toThrow(
           'User ID cannot be empty'
         )
       }
@@ -327,7 +325,7 @@ describe('RemoteWorkspaceManager', () => {
       ]
 
       for (const userId of invalidIds) {
-        expect(() => RemoteWorkspaceManager.validateUserId(userId)).toThrow(
+        expect(() => RemoteWorkspaceUtils.validateUserId(userId)).toThrow(
           /can only contain letters, numbers, hyphens, underscores, and periods/
         )
       }
@@ -346,7 +344,7 @@ describe('RemoteWorkspaceManager', () => {
 
       for (const userId of traversalIds) {
         // Should throw an error (either for invalid chars or path traversal)
-        expect(() => RemoteWorkspaceManager.validateUserId(userId)).toThrow()
+        expect(() => RemoteWorkspaceUtils.validateUserId(userId)).toThrow()
       }
     })
   })
@@ -356,7 +354,7 @@ describe('RemoteWorkspaceManager', () => {
       const config = ConstellationFS.getInstance()
       const userPath = 'test-remote-user'
 
-      const workspacePath = RemoteWorkspaceManager.getUserWorkspacePath(userPath)
+      const workspacePath = RemoteWorkspaceUtils.getUserWorkspacePath(userPath)
 
       expect(workspacePath).toContain(config.workspaceRoot)
     })
@@ -372,7 +370,7 @@ describe('RemoteWorkspaceManager', () => {
       })
 
       const userPath = 'test-remote-user'
-      await manager.ensureUserWorkspace(userPath)
+      await RemoteWorkspaceUtils.ensureUserWorkspace(mockClient as unknown as Client, userPath)
 
       // Path structure should be: workspaceRoot/appId/userId
       expect(executedCommand).toContain('test-app')

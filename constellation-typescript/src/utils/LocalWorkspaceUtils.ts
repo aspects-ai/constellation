@@ -5,7 +5,7 @@ import { ConstellationFS } from '../config/Config.js'
 /**
  * Manages user workspace directories for local filesystem operations
  */
-export class LocalWorkspaceManager {
+export class LocalWorkspaceUtils {
   /**
    * Get the workspace path for a specific user
    * @param path - The path to the workspace

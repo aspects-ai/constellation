@@ -44,23 +44,26 @@ export async function GET(request: NextRequest) {
       ...backendConfig,
     });
 
+    // Get workspace
+    const workspace = await fs.getWorkspace();
+
     // Log workspace path for debugging
-    console.log('[sandbox-files] Workspace path:', fs.workspace);
+    console.log('[sandbox-files] Workspace path:', workspace.path);
 
     // Get all files from the workspace
     const files: any[] = [];
-    
+
     // Since we can't use cd or quotes, we'll use a simpler approach
     // First get all files and directories recursively
     async function getAllFiles() {
       // Helper function to process a single path
       async function processPath(filePath: string) {
         try {
-          const statResult = await fs.exec(`stat -c '%F' "${filePath}" || stat -f '%HT' "${filePath}"`);
+          const statResult = await workspace.exec(`stat -c '%F' "${filePath}" || stat -f '%HT' "${filePath}"`);
           const fileType = statResult.trim().toLowerCase();
 
           if (fileType.includes('regular file')) {
-            const content = await fs.read(filePath);
+            const content = await workspace.read(filePath);
             const normalizedPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
             files.push({ path: normalizedPath, content });
             console.log('[sandbox-files] Added file:', normalizedPath);
@@ -76,11 +79,11 @@ export async function GET(request: NextRequest) {
         // Try using ls -R to get recursive listing
         let lsResult = '';
         try {
-          lsResult = await fs.exec('ls -R');
+          lsResult = await workspace.exec('ls -R');
         } catch (err) {
           console.log('[sandbox-files] ls -R failed, falling back to simple ls:', err);
           // Fall back to simple ls if recursive doesn't work
-          lsResult = await fs.exec('ls');
+          lsResult = await workspace.exec('ls');
         }
         
         if (!lsResult || !lsResult.trim()) {

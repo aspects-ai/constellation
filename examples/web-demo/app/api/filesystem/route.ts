@@ -53,13 +53,16 @@ export async function GET(request: NextRequest) {
       ...backendConfig
     })
 
+    // Get workspace
+    const workspace = await fs.getWorkspace()
+
     let files: FileItem[]
 
     if (backendType === 'remote') {
       // For remote backend, use ConstellationFS exec to list files
       try {
         console.log('Attempting to connect to remote backend and execute find command...')
-        const output = await fs.exec('find . -type f -o -type d | head -100')
+        const output = await workspace.exec('find . -type f -o -type d | head -100')
         console.log('Remote command executed successfully, output:', output.substring(0, 200))
         files = parseRemoteFileTree(output)
       } catch (error) {
@@ -72,7 +75,7 @@ export async function GET(request: NextRequest) {
       }
     } else {
       // For local backend, use direct filesystem access
-      files = await getFileTree(fs)
+      files = await getFileTree(workspace)
     }
 
     return NextResponse.json({ files, backend: backendType })
@@ -112,7 +115,7 @@ function parseRemoteFileTree(output: string): FileItem[] {
   return files
 }
 
-async function getFileTree(fs: FileSystem, currentPath: string = '', files: FileItem[] = [], depth: number = 0): Promise<FileItem[]> {
+async function getFileTree(workspace: any, currentPath: string = '', files: FileItem[] = [], depth: number = 0): Promise<FileItem[]> {
   // Limit recursion depth to prevent deep traversal
   if (depth > 3) return files
   
@@ -134,8 +137,8 @@ async function getFileTree(fs: FileSystem, currentPath: string = '', files: File
   
   try {
     const searchPath = currentPath || '.'
-    const output = await fs.exec(`find "${searchPath}" -maxdepth 1 -type f -o -type d`)
-    const lines = output.split('\n').filter(line => line.trim())
+    const output = await workspace.exec(`find "${searchPath}" -maxdepth 1 -type f -o -type d`)
+    const lines = output.split('\n').filter((line: string) => line.trim())
 
     for (const line of lines) {
       const path = line.replace(/^\.\//, '') // Remove leading ./
@@ -154,10 +157,10 @@ async function getFileTree(fs: FileSystem, currentPath: string = '', files: File
       }
       
       const relativePath = currentPath ? `${currentPath}/${name}` : name
-      
+
       // Check if it's a directory using find command
-      const isDir = await fs.exec(`find "${path}" -maxdepth 0 -type d`).then(result => result.trim() !== '').catch(() => false)
-      
+      const isDir = await workspace.exec(`find "${path}" -maxdepth 0 -type d`).then((result: string) => result.trim() !== '').catch(() => false)
+
       if (isDir) {
         files.push({
           path: relativePath,
@@ -165,7 +168,7 @@ async function getFileTree(fs: FileSystem, currentPath: string = '', files: File
           name
         })
         // Recursively get subdirectory contents
-        await getFileTree(fs, relativePath, files, depth + 1)
+        await getFileTree(workspace, relativePath, files, depth + 1)
       } else {
         files.push({
           path: relativePath,
