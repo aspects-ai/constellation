@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     })
 
     try {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       const componentCode = await workspace.read(filePath)
       const html = generateEnhancedSandboxHTML(componentCode, filePath)
       

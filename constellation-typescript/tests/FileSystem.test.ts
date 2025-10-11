@@ -1,5 +1,5 @@
 import { existsSync } from 'fs'
-import { mkdir, rmdir, writeFile } from 'fs/promises'
+import { mkdir, rmdir } from 'fs/promises'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DangerousOperationError, FileSystem } from '../src/index.js'
@@ -30,14 +30,14 @@ describe('FileSystem', () => {
 
     it('should execute simple commands', async () => {
       const fs = new FileSystem({ userId: 'testuser' })
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       const result = await workspace.exec('echo "hello world"')
       expect(result).toBe('hello world')
     })
 
     it('should read and write files', async () => {
       const fs = new FileSystem({ userId: 'testuser' })
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       const testContent = 'Hello, ConstellationFS!'
 
       await workspace.write('test.txt', testContent)
@@ -48,7 +48,7 @@ describe('FileSystem', () => {
 
     it('should list files', async () => {
       const fs = new FileSystem({ userId: 'testuser' })
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
 
       // Create some test files using the workspace API
       await workspace.write('file1.txt', 'content1')
@@ -64,7 +64,7 @@ describe('FileSystem', () => {
   describe('Safety Features', () => {
     it('should block dangerous operations by default', async () => {
       const fs = new FileSystem({ userId: 'testuser' })
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
 
       await expect(workspace.exec('rm -rf /')).rejects.toThrow(DangerousOperationError)
     })
@@ -83,7 +83,7 @@ describe('FileSystem', () => {
         }
       })
 
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       const result = await workspace.exec('sudo something')
       expect(result).toBe('')
       expect(calledWith).toBe('sudo something')
@@ -142,7 +142,7 @@ describe('FileSystem', () => {
 
     it('should work with default workspace', async () => {
       const fs = new FileSystem({ userId: 'testuser' })
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
 
       // Should use default workspace name
       expect(workspace.workspaceName).toBe('default')

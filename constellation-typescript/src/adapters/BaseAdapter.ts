@@ -37,76 +37,25 @@ export interface AgentSDKAdapter {
  * should be implemented in the adapter via POSIXCommands.
  */
 export abstract class BaseSDKAdapter implements AgentSDKAdapter {
-  private workspaceInstance?: Workspace
-  private readonly defaultWorkspacePath: string
+  readonly workspace: Workspace
 
   constructor(
     protected readonly fs: FileSystem,
-    workspaceName = 'default'
+    workspace: Workspace
   ) {
-    this.defaultWorkspacePath = workspaceName
-  }
-
-  /**
-   * Lazily initialize and get the workspace instance
-   */
-  private async getWorkspaceInstance(): Promise<Workspace> {
-    if (!this.workspaceInstance) {
-      this.workspaceInstance = await this.fs.getWorkspace(this.defaultWorkspacePath)
-    }
-    return this.workspaceInstance
+    this.workspace = workspace
   }
 
   get fileSystem(): FileSystem {
     return this.fs
   }
 
-  get workspace(): Workspace {
-    if (!this.workspaceInstance) {
-      throw new Error('Workspace not initialized. Call an async method first.')
-    }
-    return this.workspaceInstance
-  }
-
   get workspacePath(): string {
-    if (!this.workspaceInstance) {
-      throw new Error('Workspace not initialized. Call an async method first.')
-    }
-    return this.workspaceInstance.workspacePath
+    return this.workspace.workspacePath
   }
 
   get backendConfig(): BackendConfig {
     return this.fs.config
   }
 
-  /**
-   * Execute a shell command (common across most SDKs)
-   * @param command - The shell command to execute
-   * @returns Promise resolving to command output
-   */
-  protected async exec(command: string): Promise<string> {
-    const ws = await this.getWorkspaceInstance()
-    return ws.exec(command)
-  }
-
-  /**
-   * Read a file (common across most SDKs)
-   * @param path - Path to file to read
-   * @returns Promise resolving to file contents
-   */
-  protected async read(path: string): Promise<string> {
-    const ws = await this.getWorkspaceInstance()
-    return ws.read(path)
-  }
-
-  /**
-   * Write a file (common across most SDKs)
-   * @param path - Path to file to write
-   * @param content - Content to write
-   * @returns Promise that resolves when write is complete
-   */
-  protected async write(path: string, content: string): Promise<void> {
-    const ws = await this.getWorkspaceInstance()
-    return ws.write(path, content)
-  }
 }

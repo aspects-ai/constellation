@@ -45,10 +45,10 @@ export async function GET(request: NextRequest) {
     });
 
     // Get workspace
-    const workspace = await fs.getWorkspace();
+    const workspace = await fs.getWorkspace('default');
 
     // Log workspace path for debugging
-    console.log('[sandbox-files] Workspace path:', workspace.path);
+    console.log('[sandbox-files] Workspace path:', workspace.workspacePath);
 
     // Get all files from the workspace
     const files: any[] = [];

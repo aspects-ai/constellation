@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll, afterAll } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { FileSystem } from '../src/index.js'
 
 describe('Security Integration Tests', () => {
@@ -7,14 +7,14 @@ describe('Security Integration Tests', () => {
   beforeAll(async () => {
     fs = new FileSystem({ userId: 'security-integration-test' })
     // Create a test file for safe operations
-    const workspace = await fs.getWorkspace()
+    const workspace = await fs.getWorkspace('default')
     await workspace.write('safe-file.txt', 'This is a safe file in the workspace')
   })
 
   afterAll(async () => {
     // Clean up test files
     try {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       await workspace.exec('rm -f safe-file.txt test.txt')
       await workspace.exec('rmdir subdir || true')
     } catch {
@@ -59,12 +59,12 @@ describe('Security Integration Tests', () => {
     ]
 
     it.each(securityAttacks)('should block $name', async ({ command }) => {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       await expect(workspace.exec(command)).rejects.toThrow()
     })
 
     it('should prevent multiple attack vectors in one test', async () => {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       // Test that all attacks are blocked
       const results = await Promise.allSettled(
         securityAttacks.map(attack => workspace.exec(attack.command))
@@ -85,12 +85,12 @@ describe('Security Integration Tests', () => {
     ]
 
     it.each(safeOperations)('should allow $desc', async ({ cmd }) => {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       await expect(workspace.exec(cmd)).resolves.not.toThrow()
     })
 
     it('should allow file operations within workspace', async () => {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       // Test a sequence of safe operations
       await workspace.exec('mkdir -p safe-subdir')
       await workspace.write('safe-subdir/nested-file.txt', 'nested content')
@@ -105,19 +105,19 @@ describe('Security Integration Tests', () => {
 
   describe('File Operations Security', () => {
     it('should block reading files outside workspace', async () => {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       await expect(workspace.read('/etc/passwd')).rejects.toThrow('Absolute paths are not allowed')
       await expect(workspace.read('../../../etc/passwd')).rejects.toThrow('Path escapes workspace')
     })
 
     it('should block writing files outside workspace', async () => {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       await expect(workspace.write('/tmp/malicious.txt', 'bad')).rejects.toThrow('Absolute paths are not allowed')
       await expect(workspace.write('../../../tmp/escape.txt', 'bad')).rejects.toThrow('Path escapes workspace')
     })
 
     it('should allow safe file operations', async () => {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       await expect(workspace.write('safe-test.txt', 'safe content')).resolves.not.toThrow()
       await expect(workspace.read('safe-test.txt')).resolves.toBe('safe content')
 
@@ -128,19 +128,19 @@ describe('Security Integration Tests', () => {
 
   describe('Command Context Security', () => {
     it('should execute commands in correct workspace', async () => {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       const pwd = await workspace.exec('pwd')
       expect(pwd).toBe(workspace.workspacePath)
     })
 
     it('should block environment variable access for security', async () => {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       // Our security blocks $HOME access to prevent escapes
       await expect(workspace.exec('echo $HOME')).rejects.toThrow('escape workspace')
     })
 
     it('should prevent changing working directory', async () => {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       await expect(workspace.exec('cd /')).rejects.toThrow()
 
       // Verify we're still in workspace after failed cd attempt
@@ -151,7 +151,7 @@ describe('Security Integration Tests', () => {
 
   describe('Error Messages', () => {
     it('should provide informative error messages for security violations', async () => {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       try {
         await workspace.exec('cat /etc/passwd')
         expect.fail('Should have thrown an error')

@@ -1,5 +1,5 @@
+import { FileSystem } from 'constellationfs'
 import { NextRequest, NextResponse } from 'next/server'
-import { FileSystem, BackendConfig } from 'constellationfs'
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Get workspace and read file content
-    const workspace = await fs.getWorkspace()
+    const workspace = await fs.getWorkspace('default')
     const content = await workspace.read(filePath)
 
     // Get filename from path

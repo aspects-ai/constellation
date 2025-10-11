@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Get workspace
-    const workspace = await fs.getWorkspace()
+    const workspace = await fs.getWorkspace('default')
 
     let files: FileItem[]
 

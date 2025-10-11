@@ -65,7 +65,7 @@ export class FileSystem {
    * @param workspaceName - Workspace name identifier (defaults to 'default')
    * @returns Promise resolving to Workspace instance
    */
-  async getWorkspace(workspaceName = 'default'): Promise<Workspace> {
+  async getWorkspace(workspaceName: string): Promise<Workspace> {
     return this.backend.getWorkspace(workspaceName)
   }
 

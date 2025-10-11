@@ -1,5 +1,5 @@
+import { FileSystem } from 'constellationfs'
 import { NextRequest, NextResponse } from 'next/server'
-import { FileSystem, BackendConfig } from 'constellationfs'
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const content = Buffer.from(arrayBuffer).toString('utf8')
 
     // Get workspace and write file
-    const workspace = await fs.getWorkspace()
+    const workspace = await fs.getWorkspace('default')
     await workspace.write(file.name, content)
 
     return NextResponse.json({ 

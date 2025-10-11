@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
 async function initializeWorkspace(fs: FileSystem) {
   console.log("[WORKSPACE] 📂 Checking workspace contents...");
   try {
-    const workspace = await fs.getWorkspace();
+    const workspace = await fs.getWorkspace('default');
     const result = await workspace.exec("ls");
     const files = result ? result.split("\n").filter(Boolean) : [];
     console.log(
@@ -237,8 +237,8 @@ async function processWithCodebuff(
     sessionId,
   );
   try {
-    const workspace = await fs.getWorkspace();
-    console.log("[CODEBUFF] 🗂️ Workspace path:", workspace.path);
+    const workspace = await fs.getWorkspace('default');
+    console.log("[CODEBUFF] 🗂️ Workspace path:", workspace.workspacePath);
 
     // Get Codebuff client - it will use the ConstellationFS workspace directly
     const apiKey = process.env.NEXT_PUBLIC_CODEBUFF_API_KEY;

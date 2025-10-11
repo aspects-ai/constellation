@@ -1,3 +1,4 @@
+import type { Workspace } from '@/workspace/Workspace.js'
 import type { ExecOptions, SpawnOptions } from 'child_process'
 import type { FileSystem } from '../FileSystem.js'
 import { BaseSDKAdapter } from './BaseAdapter.js'
@@ -18,8 +19,8 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
   private static currentInstance: ClaudeCodeAdapter | null = null
   private static interceptedCalls = { exec: 0, spawn: 0, execSync: 0 }
 
-  constructor(fs: FileSystem) {
-    super(fs)
+  constructor(fs: FileSystem, workspace: Workspace) {
+    super(fs, workspace)
     ClaudeCodeAdapter.currentInstance = this
   }
 
@@ -251,7 +252,7 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
    * @returns Promise resolving to command output
    */
   async Bash(command: string): Promise<string> {
-    return this.exec(command)
+    return this.workspace.exec(command)
   }
 
   /**

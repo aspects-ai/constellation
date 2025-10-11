@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     const readStartTime = Date.now()
 
     try {
-      const workspace = await fs.getWorkspace()
+      const workspace = await fs.getWorkspace('default')
       const content = await workspace.read(filePath)
       
       const readTime = Date.now() - readStartTime

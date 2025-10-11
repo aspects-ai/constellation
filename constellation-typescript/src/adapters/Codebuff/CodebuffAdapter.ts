@@ -1,3 +1,4 @@
+import type { Workspace } from '@/workspace/Workspace.js'
 import type { CodebuffClientOptions } from '@codebuff/sdk'
 import type { FileSystem } from '../../FileSystem.js'
 import { BaseSDKAdapter } from '../BaseAdapter.js'
@@ -15,8 +16,8 @@ export class CodebuffAdapter extends BaseSDKAdapter {
   
   private handlers: CodebuffToolHandlers
 
-  constructor(fs: FileSystem) {
-    super(fs)
+  constructor(fs: FileSystem, workspace: Workspace) {
+    super(fs, workspace)
     this.handlers = this.getDefaultHandlers()
   }
 
@@ -31,7 +32,7 @@ export class CodebuffAdapter extends BaseSDKAdapter {
         try {
           // If cwd is provided, prepend cd command
           const fullCommand = input.cwd ? `cd "${input.cwd}" && ${input.command}` : input.command
-          const output = await this.exec(fullCommand)
+          const output = await this.workspace.exec(fullCommand)
           
           return [{
             type: 'json',
@@ -67,7 +68,7 @@ export class CodebuffAdapter extends BaseSDKAdapter {
         for (const path of input.filePaths) {
           try {
             console.log(`📖 [ConstellationFS/Codebuff] Reading file: ${path}`)
-            const content = await this.read(path)
+            const content = await this.workspace.read(path)
             results[path] = content
           } catch (error) {
             console.error(`[ConstellationFS/Codebuff] Failed to read ${path}:`, error)
@@ -81,7 +82,7 @@ export class CodebuffAdapter extends BaseSDKAdapter {
       write_file: async (input: { type: 'file' | 'patch'; path: string; content: string; } & Record<string, unknown>) => {
         console.log(`✍️ [ConstellationFS/Codebuff] Writing file: ${input.path}`)
         try {
-          await this.write(input.path, input.content)
+          await this.workspace.write(input.path, input.content)
           return [{
             type: 'json',
             value: {
@@ -110,12 +111,12 @@ export class CodebuffAdapter extends BaseSDKAdapter {
         try {
           // Apply patch diff for both 'file' and 'patch' types since content is in diff format
           const tempPatchFile = `/tmp/patch_${Date.now()}.patch`
-          await this.write(tempPatchFile, input.content)
+          await this.workspace.write(tempPatchFile, input.content)
           
           try {
-            await this.exec(`patch -p1 < ${tempPatchFile}`)
+            await this.workspace.exec(`patch -p1 < ${tempPatchFile}`)
             // Clean up temp file
-            await this.exec(`rm -f ${tempPatchFile}`)
+            await this.workspace.exec(`rm -f ${tempPatchFile}`)
             
             return [{
               type: 'json',
@@ -127,7 +128,7 @@ export class CodebuffAdapter extends BaseSDKAdapter {
             }]
           } catch (patchError) {
             // Clean up temp file on error
-            await this.exec(`rm -f ${tempPatchFile}`).catch(() => {})
+            await this.workspace.exec(`rm -f ${tempPatchFile}`).catch(() => {})
             throw patchError
           }
         } catch (error) {
@@ -157,7 +158,7 @@ export class CodebuffAdapter extends BaseSDKAdapter {
         command += ' 2>/dev/null || true'
         
         try {
-          const output = await this.exec(command)
+          const output = await this.workspace.exec(command)
           const lines = output.split('\n').filter(line => line.trim())
           
           // Limit results based on maxResults

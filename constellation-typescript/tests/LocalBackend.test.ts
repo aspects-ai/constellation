@@ -1,7 +1,7 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LocalBackend } from '../src/backends/LocalBackend.js'
-import { DangerousOperationError, FileSystemError } from '../src/types.js'
 import type { LocalBackendConfig } from '../src/types.js'
+import { DangerousOperationError, FileSystemError } from '../src/types.js'
 
 describe('LocalBackend', () => {
   let backend: LocalBackend
@@ -70,7 +70,7 @@ describe('LocalBackend', () => {
 
   describe('getWorkspace', () => {
     it('should create default workspace', async () => {
-      const workspace = await backend.getWorkspace()
+      const workspace = await backend.getWorkspace('default')default')
 
       expect(workspace).toBeDefined()
       expect(workspace.workspaceName).toBe('default')
@@ -190,7 +190,7 @@ describe('LocalBackend', () => {
         }
       })
 
-      const workspace = await callbackBackend.getWorkspace()
+      const workspace = await callbackBackend.getWorkspace('default')
       const result = await callbackBackend.execInWorkspace(workspace.workspacePath, 'sudo something')
 
       expect(result).toBe('')
@@ -217,7 +217,7 @@ describe('LocalBackend', () => {
         maxOutputLength: 100
       })
 
-      const workspace = await truncateBackend.getWorkspace()
+      const workspace = await truncateBackend.getWorkspace('default')
       // Generate long output
       const result = await truncateBackend.execInWorkspace(
         workspace.workspacePath,
