@@ -23,9 +23,10 @@ export interface Workspace {
   /**
    * Execute a shell command in the workspace
    * @param command - The shell command to execute
-   * @returns Promise resolving to the command output
+   * @param encoding - Output encoding: 'utf8' for text (default) or 'buffer' for binary data
+   * @returns Promise resolving to the command output as string or Buffer
    */
-  exec(command: string): Promise<string>
+  exec(command: string, encoding?: 'utf8' | 'buffer'): Promise<string | Buffer>
 
   /**
    * Read the contents of a file
@@ -137,7 +138,7 @@ export abstract class BaseWorkspace implements Workspace {
   }
 
   // Abstract methods that must be implemented by concrete workspace types
-  abstract exec(command: string): Promise<string>
+  abstract exec(command: string, encoding?: 'utf8' | 'buffer'): Promise<string | Buffer>
   abstract read(path: string): Promise<string>
   abstract write(path: string, content: string): Promise<void>
   abstract mkdir(path: string, recursive?: boolean): Promise<void>

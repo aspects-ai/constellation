@@ -138,9 +138,10 @@ export class LocalBackend implements FileSystemBackend {
    * Execute command in a specific workspace path (internal use by Workspace)
    * @param workspacePath - Absolute path to workspace directory
    * @param command - Command to execute
-   * @returns Promise resolving to command output
+   * @param encoding - Output encoding: 'utf8' for text (default) or 'buffer' for binary data
+   * @returns Promise resolving to command output as string or Buffer
    */
-  async execInWorkspace(workspacePath: string, command: string): Promise<string> {
+  async execInWorkspace(workspacePath: string, command: string, encoding: 'utf8' | 'buffer' = 'utf8'): Promise<string | Buffer> {
     // Comprehensive safety check
     const safetyCheck = isCommandSafe(command)
     if (!safetyCheck.safe) {
@@ -189,31 +190,44 @@ export class LocalBackend implements FileSystemBackend {
         },
       })
 
-      let stdout = ''
-      let stderr = ''
+      // Collect output based on encoding mode
+      const stdoutChunks: Buffer[] = []
+      const stderrChunks: Buffer[] = []
 
       child.stdout?.on('data', (data) => {
-        stdout += data.toString()
+        stdoutChunks.push(data)
       })
 
       child.stderr?.on('data', (data) => {
-        stderr += data.toString()
+        stderrChunks.push(data)
       })
 
       child.on('close', (code) => {
         if (code === 0) {
-          let output = stdout.trim()
+          const stdoutBuffer = Buffer.concat(stdoutChunks)
 
-          if (this.options.maxOutputLength && output.length > this.options.maxOutputLength) {
-            const truncatedLength = this.options.maxOutputLength - 50
-            output = `${output.substring(0, truncatedLength)}\n\n... [Output truncated. Full output was ${output.length} characters, showing first ${truncatedLength}]`
+          if (encoding === 'buffer') {
+            // Return raw binary data as Buffer
+            resolve(stdoutBuffer)
+          } else {
+            // Return as UTF-8 string (default behavior)
+            let output = stdoutBuffer.toString('utf-8').trim()
+
+            if (this.options.maxOutputLength && output.length > this.options.maxOutputLength) {
+              const truncatedLength = this.options.maxOutputLength - 50
+              output = `${output.substring(0, truncatedLength)}\n\n... [Output truncated. Full output was ${output.length} characters, showing first ${truncatedLength}]`
+            }
+
+            resolve(output)
           }
-
-          resolve(output)
         } else {
+          const stderrBuffer = Buffer.concat(stderrChunks)
+          const stdoutBuffer = Buffer.concat(stdoutChunks)
+          const errorMessage = stderrBuffer.toString('utf-8').trim() || stdoutBuffer.toString('utf-8').trim()
+
           reject(
             new FileSystemError(
-              `Command execution failed with exit code ${code}: ${stderr.trim() || stdout.trim()}`,
+              `Command execution failed with exit code ${code}: ${errorMessage}`,
               ERROR_CODES.EXEC_FAILED,
               command
             )

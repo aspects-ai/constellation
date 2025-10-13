@@ -28,19 +28,22 @@ export class CodebuffAdapter extends BaseSDKAdapter {
     return {
       run_terminal_command: async (input: { command: string, cwd?: string }) => {
         console.log(`🔍 [ConstellationFS/Codebuff] Executing command: ${input.command}`)
-        
+
         try {
           // If cwd is provided, prepend cd command
           const fullCommand = input.cwd ? `cd "${input.cwd}" && ${input.command}` : input.command
           const output = await this.workspace.exec(fullCommand)
-          
+
+          // Convert Buffer to string if needed
+          const stdoutStr = output instanceof Buffer ? output.toString('utf-8') : output
+
           return [{
-            type: 'json',
+            type: 'json' as const,
             value: {
               command: input.command,
               startingCwd: input.cwd,
               message: 'Command executed successfully',
-              stdout: output,
+              stdout: stdoutStr as string,
               stderr: '',
               exitCode: 0
             }
@@ -146,24 +149,26 @@ export class CodebuffAdapter extends BaseSDKAdapter {
 
       code_search: async (input: { pattern: string; maxResults: number; flags?: string; cwd?: string }) => {
         console.log(`🔎 [ConstellationFS/Codebuff] Searching for pattern: ${input.pattern}`)
-        
+
         const basePath = input.cwd || '.'
         let command = `grep -rn "${input.pattern}" ${basePath}`
-        
+
         // Add flags if specified
         if (input.flags) {
           command += ` ${input.flags}`
         }
-        
+
         command += ' 2>/dev/null || true'
-        
+
         try {
           const output = await this.workspace.exec(command)
-          const lines = output.split('\n').filter(line => line.trim())
-          
+          // Convert Buffer to string if needed
+          const outputStr: string = (output instanceof Buffer) ? output.toString('utf-8') : output as string
+          const lines = outputStr.split('\n').filter((line: string) => line.trim())
+
           // Limit results based on maxResults
           const limitedLines = lines.slice(0, input.maxResults)
-          
+
           return [{
             type: 'json',
             value: {

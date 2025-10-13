@@ -70,7 +70,7 @@ describe('LocalBackend', () => {
 
   describe('getWorkspace', () => {
     it('should create default workspace', async () => {
-      const workspace = await backend.getWorkspace('default')default')
+      const workspace = await backend.getWorkspace('default')
 
       expect(workspace).toBeDefined()
       expect(workspace.workspaceName).toBe('default')
@@ -309,7 +309,7 @@ describe('LocalBackend', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(FileSystemError)
         // Check that it has an error code (may vary)
-        expect((error as FileSystemError).errorCode).toBeDefined()
+        expect((error as FileSystemError).code).toBeDefined()
       }
     })
 
@@ -323,6 +323,95 @@ describe('LocalBackend', () => {
         // Error should provide context about the command
         expect(error).toBeDefined()
       }
+    })
+  })
+
+  describe('binary data handling', () => {
+    it('should return string output by default (utf8 encoding)', async () => {
+      const workspace = await backend.getWorkspace('binary-default-test')
+      const result = await backend.execInWorkspace(workspace.workspacePath, 'echo "hello world"')
+
+      expect(typeof result).toBe('string')
+      expect(result).toBe('hello world')
+    })
+
+    it('should return Buffer when encoding is "buffer"', async () => {
+      const workspace = await backend.getWorkspace('binary-buffer-test')
+      const result = await backend.execInWorkspace(workspace.workspacePath, 'echo -n "test"', 'buffer')
+
+      expect(result).toBeInstanceOf(Buffer)
+      expect((result as Buffer).toString('utf-8')).toBe('test')
+    })
+
+    it('should handle binary data without corruption using buffer encoding', async () => {
+      const workspace = await backend.getWorkspace('binary-gzip-test')
+
+      // Create a test file with binary content (simple gzip magic bytes)
+      await workspace.write('test.txt', 'Hello, World!')
+
+      // Create a tar.gz archive and output to stdout
+      const result = await backend.execInWorkspace(
+        workspace.workspacePath,
+        'tar -czf - test.txt',
+        'buffer'
+      )
+
+      expect(result).toBeInstanceOf(Buffer)
+      const buffer = result as Buffer
+
+      // Verify gzip magic bytes (0x1f, 0x8b) are preserved
+      expect(buffer[0]).toBe(0x1f)
+      expect(buffer[1]).toBe(0x8b)
+
+      // Verify we can decompress it
+      const decompressed = await backend.execInWorkspace(
+        workspace.workspacePath,
+        `echo '${buffer.toString('base64')}' | base64 -d | tar -tzf -`
+      )
+
+      expect(decompressed).toContain('test.txt')
+    })
+
+    it('should handle large binary data with buffer encoding', async () => {
+      const workspace = await backend.getWorkspace('binary-large-test')
+
+      // Generate some binary data (1KB of random bytes)
+      const result = await backend.execInWorkspace(
+        workspace.workspacePath,
+        'dd if=/dev/urandom bs=1024 count=1 2>/dev/null',
+        'buffer'
+      )
+
+      expect(result).toBeInstanceOf(Buffer)
+      const buffer = result as Buffer
+      expect(buffer.length).toBe(1024)
+    })
+
+    it('should handle empty binary output', async () => {
+      const workspace = await backend.getWorkspace('binary-empty-test')
+      const result = await backend.execInWorkspace(workspace.workspacePath, 'true', 'buffer')
+
+      expect(result).toBeInstanceOf(Buffer)
+      expect((result as Buffer).length).toBe(0)
+    })
+
+    it('should preserve binary data integrity', async () => {
+      const workspace = await backend.getWorkspace('binary-integrity-test')
+
+      // Create test data with specific byte sequence
+      const testBytes = Buffer.from([0x00, 0x01, 0x02, 0x03, 0xff, 0xfe, 0xfd, 0xfc])
+      await workspace.write('binary.dat', testBytes.toString('base64'))
+
+      // Read it back as binary via base64 decode (macOS uses -D flag for decode)
+      const result = await backend.execInWorkspace(
+        workspace.workspacePath,
+        'base64 -D < binary.dat',
+        'buffer'
+      )
+
+      expect(result).toBeInstanceOf(Buffer)
+      const buffer = result as Buffer
+      expect(buffer).toEqual(testBytes)
     })
   })
 })

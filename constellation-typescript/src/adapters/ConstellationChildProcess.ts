@@ -10,6 +10,7 @@ export interface ConstellationChildProcessOptions {
   args?: readonly string[]
   shell?: boolean | string
   isExec?: boolean
+  encoding?: 'utf8' | 'buffer'
 }
 
 /**
@@ -36,14 +37,16 @@ export class ConstellationChildProcess extends EventEmitter implements ChildProc
   private _adapter: BaseSDKAdapter
   private _fullCommand: string
   private _isExec: boolean
+  private _encoding: 'utf8' | 'buffer'
   private _outputBuffer: string = ''
   private _errorBuffer: string = ''
 
   constructor(options: ConstellationChildProcessOptions) {
     super()
-    
+
     this._adapter = options.adapter
     this._isExec = options.isExec || false
+    this._encoding = options.encoding || 'utf8'
     this.spawnfile = options.command
     this.spawnargs = options.args ? [...options.args] : []
     this.pid = Math.floor(Math.random() * 100000) + 1000
@@ -90,54 +93,58 @@ export class ConstellationChildProcess extends EventEmitter implements ChildProc
     process.nextTick(() => {
       this.emit('spawn')
     })
-    
+
     try {
       console.log(`🚀 [ConstellationChildProcess] Executing command: "${this._fullCommand}"`)
       console.log(`📍 [ConstellationChildProcess] Workspace: ${(this._adapter as any).fs.workspace}`)
-      
-      // Execute command through adapter
-      const output = await (this._adapter as any).exec(this._fullCommand)
-      
+
+      // Execute command through adapter workspace with encoding
+      const output = await this._adapter.workspace.exec(this._fullCommand, this._encoding)
+
       // Handle output
       if (this._isExec) {
-        // For exec, buffer the output
-        this._outputBuffer = output
+        // For exec, buffer the output (always convert to string for exec compatibility)
+        this._outputBuffer = (output instanceof Buffer) ? output.toString('utf-8') : output as string
       }
-      
-      // Write output to stdout stream
+
+      // Write output to stdout stream (PassThrough accepts both string and Buffer)
       if (output && this._stdoutStream) {
-        this._stdoutStream.write(output)
+        if (output instanceof Buffer) {
+          this._stdoutStream.write(output)
+        } else {
+          this._stdoutStream.write(output)
+        }
       }
-      
+
       // Success - emit exit and close events
       this.exitCode = 0
       this._stdoutStream.end()
       this._stderrStream.end()
-      
+
       process.nextTick(() => {
         this.emit('exit', 0, null)
         this.emit('close', 0, null)
       })
-      
+
     } catch (error) {
       // Handle errors
       const errorMessage = error instanceof Error ? error.message : String(error)
-      
+
       if (this._isExec) {
         // For exec, buffer the error
         this._errorBuffer = errorMessage
       }
-      
+
       // Write error to stderr stream
       if (this._stderrStream) {
         this._stderrStream.write(errorMessage)
       }
-      
+
       // Error - emit exit and close events
       this.exitCode = 1
       this._stdoutStream.end()
       this._stderrStream.end()
-      
+
       process.nextTick(() => {
         this.emit('error', error instanceof Error ? error : new Error(errorMessage))
         this.emit('exit', 1, null)

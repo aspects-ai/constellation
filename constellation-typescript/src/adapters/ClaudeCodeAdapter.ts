@@ -249,10 +249,11 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
   /**
    * Execute shell commands - maps to Claude's Bash tool
    * @param command - The shell command to execute
-   * @returns Promise resolving to command output
+   * @param encoding - Output encoding: 'utf8' for text (default) or 'buffer' for binary data
+   * @returns Promise resolving to command output as string or Buffer
    */
-  async Bash(command: string): Promise<string> {
-    return this.workspace.exec(command)
+  async Bash(command: string, encoding?: 'utf8' | 'buffer'): Promise<string | Buffer> {
+    return this.workspace.exec(command, encoding)
   }
 
   /**

@@ -23,13 +23,13 @@ export class LocalWorkspace extends BaseWorkspace {
     super(backend, userId, workspaceName, workspacePath)
   }
 
-  async exec(command: string): Promise<string> {
+  async exec(command: string, encoding: 'utf8' | 'buffer' = 'utf8'): Promise<string | Buffer> {
     if (!command.trim()) {
       throw new FileSystemError('Command cannot be empty', ERROR_CODES.EMPTY_COMMAND)
     }
 
     // Delegate to backend with this workspace's path
-    return this.backend.execInWorkspace(this.workspacePath, command)
+    return this.backend.execInWorkspace(this.workspacePath, command, encoding)
   }
 
   async read(path: string): Promise<string> {

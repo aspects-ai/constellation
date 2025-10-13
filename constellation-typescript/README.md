@@ -150,12 +150,20 @@ const fs = new FileSystem({
 
 ### Methods
 
-#### `exec(command: string): Promise<string>`
+#### `exec(command: string, encoding?: 'utf8' | 'buffer'): Promise<string | Buffer>`
 Execute a shell command in the workspace.
 
 ```typescript
+// Default: returns string (UTF-8 encoded)
 const output = await fs.exec('ls -la')
 const wordCount = await fs.exec('wc -l *.txt')
+
+// Binary mode: returns Buffer for binary data
+const tarball = await fs.exec('tar -czf - .', 'buffer')
+await fs.write('archive.tar.gz', tarball)
+
+// Use buffer encoding to preserve binary data integrity
+const gzipData = await fs.exec('gzip -c file.txt', 'buffer')
 ```
 
 #### `read(path: string): Promise<string>`

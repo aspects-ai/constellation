@@ -91,10 +91,11 @@ export interface FileSystemBackend {
    * Execute command in a specific workspace (internal use by Workspace)
    * @param workspacePath - Absolute path to workspace directory
    * @param command - Command to execute
-   * @returns Promise resolving to command output
+   * @param encoding - Output encoding: 'utf8' for text (default) or 'buffer' for binary data
+   * @returns Promise resolving to command output as string or Buffer
    * @internal
    */
-  execInWorkspace(workspacePath: string, command: string): Promise<string>
+  execInWorkspace(workspacePath: string, command: string, encoding?: 'utf8' | 'buffer'): Promise<string | Buffer>
 
   /**
    * Clean up backend resources
