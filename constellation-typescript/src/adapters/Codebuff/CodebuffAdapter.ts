@@ -27,8 +27,6 @@ export class CodebuffAdapter extends BaseSDKAdapter {
   private getDefaultHandlers(): CodebuffToolHandlers {
     return {
       run_terminal_command: async (input: { command: string, cwd?: string }) => {
-        console.log(`🔍 [ConstellationFS/Codebuff] Executing command: ${input.command}`)
-
         try {
           // If cwd is provided, prepend cd command
           const fullCommand = input.cwd ? `cd "${input.cwd}" && ${input.command}` : input.command
@@ -70,12 +68,11 @@ export class CodebuffAdapter extends BaseSDKAdapter {
         
         for (const path of input.filePaths) {
           try {
-            console.log(`📖 [ConstellationFS/Codebuff] Reading file: ${path}`)
+            console.debug(`📖 [ConstellationFS/Codebuff] Reading file: ${path}`)
             const content = await this.workspace.read(path)
             results[path] = content
           } catch (error) {
-            console.error(`[ConstellationFS/Codebuff] Failed to read ${path}:`, error)
-            results[path] = `ERROR: Could not read file - ${error instanceof Error ? error.message : String(error)}`
+            results[path] = `ERROR: ${error instanceof Error ? error.message : String(error)}`
           }
         }
         
@@ -83,7 +80,7 @@ export class CodebuffAdapter extends BaseSDKAdapter {
       },
 
       write_file: async (input: { type: 'file' | 'patch'; path: string; content: string; } & Record<string, unknown>) => {
-        console.log(`✍️ [ConstellationFS/Codebuff] Writing file: ${input.path}`)
+        console.debug(`✍️ [ConstellationFS/Codebuff] Writing file: ${input.path}`)
         try {
           await this.workspace.write(input.path, input.content)
           return [{
@@ -109,8 +106,6 @@ export class CodebuffAdapter extends BaseSDKAdapter {
       },
 
       str_replace: async (input: { type: 'file' | 'patch'; path: string; content: string; } & Record<string, unknown>) => {
-        console.log(`🔄 [ConstellationFS/Codebuff] Applying patch to ${input.path}`)
-        
         try {
           // Apply patch diff for both 'file' and 'patch' types since content is in diff format
           const tempPatchFile = `/tmp/patch_${Date.now()}.patch`
@@ -148,8 +143,6 @@ export class CodebuffAdapter extends BaseSDKAdapter {
       },
 
       code_search: async (input: { pattern: string; maxResults: number; flags?: string; cwd?: string }) => {
-        console.log(`🔎 [ConstellationFS/Codebuff] Searching for pattern: ${input.pattern}`)
-
         const basePath = input.cwd || '.'
         let command = `grep -rn "${input.pattern}" ${basePath}`
 
