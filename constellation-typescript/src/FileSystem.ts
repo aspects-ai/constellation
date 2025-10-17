@@ -1,7 +1,7 @@
 import { BackendFactory } from './backends/index.js'
 import type { BackendConfig, FileSystemBackend, LocalBackendConfig } from './types.js'
 import { getLogger } from './utils/logger.js'
-import type { Workspace } from './workspace/Workspace.js'
+import type { Workspace, WorkspaceConfig } from './workspace/Workspace.js'
 
 /**
  * FileSystem class - Frontend abstraction for backend management
@@ -63,10 +63,26 @@ export class FileSystem {
   /**
    * Get or create a workspace
    * @param workspaceName - Workspace name identifier (defaults to 'default')
+   * @param config - Optional workspace configuration including custom environment variables
    * @returns Promise resolving to Workspace instance
+   *
+   * @example
+   * ```typescript
+   * // Create workspace with custom environment variables
+   * const workspace = await fs.getWorkspace('my-project', {
+   *   env: {
+   *     NODE_ENV: 'development',
+   *     API_KEY: 'secret-key',
+   *     DATABASE_URL: 'postgres://localhost:5432/db'
+   *   }
+   * })
+   *
+   * // Environment variables are available in all commands
+   * await workspace.exec('echo $NODE_ENV')
+   * ```
    */
-  async getWorkspace(workspaceName: string): Promise<Workspace> {
-    return this.backend.getWorkspace(workspaceName)
+  async getWorkspace(workspaceName: string, config?: WorkspaceConfig): Promise<Workspace> {
+    return this.backend.getWorkspace(workspaceName, config)
   }
 
   /**

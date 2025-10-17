@@ -177,5 +177,44 @@ describe('FileSystem', () => {
       expect(pwd).toContain('testuser')
       expect(pwd).toContain('execution-test')
     })
+
+    it('should support custom environment variables via FileSystem API', async () => {
+      const fs = new FileSystem({ userId: 'testuser' })
+      const workspace = await fs.getWorkspace('env-workspace', {
+        env: {
+          MY_VAR: 'my-value',
+          NODE_ENV: 'production',
+        },
+      })
+
+      const result = await workspace.exec('echo "$MY_VAR $NODE_ENV"')
+      expect(result).toBe('my-value production')
+    })
+
+    it('should isolate environment variables between workspaces', async () => {
+      const fs = new FileSystem({ userId: 'testuser' })
+
+      const ws1 = await fs.getWorkspace('ws-env-1', {
+        env: { ENV_VAR: 'value1' },
+      })
+
+      const ws2 = await fs.getWorkspace('ws-env-2', {
+        env: { ENV_VAR: 'value2' },
+      })
+
+      const result1 = await ws1.exec('echo $ENV_VAR')
+      const result2 = await ws2.exec('echo $ENV_VAR')
+
+      expect(result1).toBe('value1')
+      expect(result2).toBe('value2')
+    })
+
+    it('should work without custom environment variables', async () => {
+      const fs = new FileSystem({ userId: 'testuser' })
+      const workspace = await fs.getWorkspace('no-env-workspace')
+
+      const result = await workspace.exec('echo "test"')
+      expect(result).toBe('test')
+    })
   })
 })
