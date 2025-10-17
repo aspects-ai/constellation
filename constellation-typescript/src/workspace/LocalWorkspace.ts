@@ -1,8 +1,12 @@
-import { existsSync } from 'fs'
+import { spawn } from 'child_process'
+import type { Dirent, Stats } from 'fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { mkdir as fsMkdir, readdir, readFile, rm, writeFile } from 'fs/promises'
+import { join } from 'path'
 import type { LocalBackend } from '../backends/LocalBackend.js'
 import { ERROR_CODES } from '../constants.js'
-import { FileSystemError } from '../types.js'
+import { isCommandSafe, isDangerous } from '../safety.js'
+import { DangerousOperationError, FileSystemError } from '../types.js'
 import { checkSymlinkSafety } from '../utils/pathValidator.js'
 import { BaseWorkspace, type WorkspaceConfig } from './Workspace.js'
 
@@ -28,8 +32,187 @@ export class LocalWorkspace extends BaseWorkspace {
       throw new FileSystemError('Command cannot be empty', ERROR_CODES.EMPTY_COMMAND)
     }
 
-    // Delegate to backend with this workspace's path and custom environment
-    return this.backend.execInWorkspace(this.workspacePath, command, encoding, this.customEnv)
+    // Comprehensive safety check
+    const safetyCheck = isCommandSafe(command)
+    if (!safetyCheck.safe) {
+      // Special handling for preventDangerous option
+      if (this.backend.options.preventDangerous && isDangerous(command)) {
+        if (this.backend.options.onDangerousOperation) {
+          this.backend.options.onDangerousOperation(command)
+          return ''
+        } else {
+          throw new DangerousOperationError(command)
+        }
+      }
+
+      // For other safety violations, always throw
+      throw new FileSystemError(
+        safetyCheck.reason || 'Command failed safety check',
+        ERROR_CODES.DANGEROUS_OPERATION,
+        command
+      )
+    }
+
+    const shell = this.detectShell()
+    const env = this.buildEnvironment()
+
+    return new Promise((resolve, reject) => {
+      const child = spawn(shell, ['-c', command], {
+        cwd: this.workspacePath,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env,
+      })
+
+      // Collect output based on encoding mode
+      const stdoutChunks: Buffer[] = []
+      const stderrChunks: Buffer[] = []
+
+      child.stdout?.on('data', (data) => {
+        stdoutChunks.push(data)
+      })
+
+      child.stderr?.on('data', (data) => {
+        stderrChunks.push(data)
+      })
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          const stdoutBuffer = Buffer.concat(stdoutChunks)
+
+          if (encoding === 'buffer') {
+            // Return raw binary data as Buffer
+            resolve(stdoutBuffer)
+          } else {
+            // Return as UTF-8 string (default behavior)
+            let output = stdoutBuffer.toString('utf-8').trim()
+
+            if (this.backend.options.maxOutputLength && output.length > this.backend.options.maxOutputLength) {
+              const truncatedLength = this.backend.options.maxOutputLength - 50
+              output = `${output.substring(0, truncatedLength)}\n\n... [Output truncated. Full output was ${output.length} characters, showing first ${truncatedLength}]`
+            }
+
+            resolve(output)
+          }
+        } else {
+          const stderrBuffer = Buffer.concat(stderrChunks)
+          const stdoutBuffer = Buffer.concat(stdoutChunks)
+          const errorMessage = stderrBuffer.toString('utf-8').trim() || stdoutBuffer.toString('utf-8').trim()
+
+          reject(
+            new FileSystemError(
+              `Command execution failed with exit code ${code}: ${errorMessage}`,
+              ERROR_CODES.EXEC_FAILED,
+              command
+            )
+          )
+        }
+      })
+
+      child.on('error', (err) => {
+        reject(this.wrapError(err, 'Execute command', ERROR_CODES.EXEC_ERROR, command))
+      })
+    })
+  }
+
+  /**
+   * Detect the best available shell for command execution
+   */
+  private detectShell(): string {
+    if (this.backend.options.shell === 'bash') {
+      return 'bash'
+    } else if (this.backend.options.shell === 'sh') {
+      return 'sh'
+    } else if (this.backend.options.shell === 'auto') {
+      // Auto-detection: prefer bash if available, fall back to sh
+      try {
+        const { execSync } = require('child_process')
+        execSync('command -v bash', { stdio: 'ignore' })
+        return 'bash'
+      } catch {
+        return 'sh'
+      }
+    }
+
+    // Fallback for any unexpected shell value
+    return 'sh'
+  }
+
+  /**
+   * Build environment variables for command execution
+   * Merges safe defaults with validated custom environment variables
+   */
+  private buildEnvironment(): Record<string, string | undefined> {
+    // Start with safe base environment
+    const safeEnv: Record<string, string | undefined> = {
+      // Start with minimal environment, including common npm/node locations
+      PATH: '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/opt/homebrew/opt/node/bin:/usr/local/opt/node/bin',
+      USER: process.env.USER,
+      SHELL: this.detectShell(),
+      // Force working directory
+      PWD: this.workspacePath,
+      HOME: this.workspacePath,
+      TMPDIR: join(this.workspacePath, '.tmp'),
+      // Locale settings
+      LANG: 'C',
+      LC_ALL: 'C',
+      // Block dangerous variables
+      LD_PRELOAD: undefined,
+      LD_LIBRARY_PATH: undefined,
+      DYLD_INSERT_LIBRARIES: undefined,
+      DYLD_LIBRARY_PATH: undefined,
+    }
+
+    // Validate and merge custom environment variables
+    if (this.customEnv && Object.keys(this.customEnv).length > 0) {
+      const validatedCustomEnv = this.validateCustomEnv(this.customEnv)
+      // Custom env vars override safe defaults (except blocked ones)
+      Object.assign(safeEnv, validatedCustomEnv)
+    }
+
+    return safeEnv
+  }
+
+  /**
+   * Validate custom environment variables for security
+   */
+  private validateCustomEnv(customEnv: Record<string, string>): Record<string, string> {
+    const BLOCKED_VARS = [
+      'LD_PRELOAD',
+      'LD_LIBRARY_PATH',
+      'DYLD_INSERT_LIBRARIES',
+      'DYLD_LIBRARY_PATH',
+      'IFS',
+      'BASH_ENV',
+      'ENV',
+    ]
+
+    const PROTECTED_VARS = ['PATH', 'HOME', 'PWD', 'TMPDIR', 'TMP', 'SHELL', 'USER']
+
+    const validated: Record<string, string> = {}
+
+    for (const [key, value] of Object.entries(customEnv)) {
+      // Block dangerous variables that could lead to code injection
+      if (BLOCKED_VARS.includes(key)) {
+        continue
+      }
+
+      // Warn about protected variables (allow but log)
+      if (PROTECTED_VARS.includes(key)) {
+        // Could add logging here if needed
+      }
+
+      // Validate value doesn't contain null bytes or other dangerous chars
+      if (value.includes('\0')) {
+        throw new FileSystemError(
+          `Environment variable ${key} contains null byte`,
+          ERROR_CODES.INVALID_CONFIGURATION
+        )
+      }
+
+      validated[key] = value
+    }
+
+    return validated
   }
 
   async read(path: string): Promise<string> {
@@ -163,6 +346,133 @@ export class LocalWorkspace extends BaseWorkspace {
         ERROR_CODES.READ_FAILED,
         `list ${this.workspaceName}`
       )
+    }
+  }
+
+  // Synchronous filesystem methods for Codebuff compatibility
+  existsSync(path: string): boolean {
+    this.validatePath(path)
+    const fullPath = this.resolvePath(path)
+    return existsSync(fullPath)
+  }
+
+  mkdirSync(path: string, options?: { recursive?: boolean }): void {
+    this.validatePath(path)
+
+    // Check symlink safety for parent directories
+    const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
+    if (parentPath !== '.') {
+      const symlinkCheck = checkSymlinkSafety(this.workspacePath, parentPath)
+      if (!symlinkCheck.safe) {
+        throw new FileSystemError(
+          `Cannot create directory: ${symlinkCheck.reason}`,
+          ERROR_CODES.PATH_ESCAPE_ATTEMPT,
+          `mkdir ${path}`
+        )
+      }
+    }
+
+    const fullPath = this.resolvePath(path)
+
+    try {
+      mkdirSync(fullPath, { recursive: options?.recursive ?? true })
+    } catch (error) {
+      throw this.wrapError(error, 'Create directory (sync)', ERROR_CODES.WRITE_FAILED, `mkdir ${path}`)
+    }
+  }
+
+  readdirSync(path: string, options?: { withFileTypes?: boolean }): string[] | Dirent[] {
+    this.validatePath(path)
+    const fullPath = this.resolvePath(path)
+
+    try {
+      if (options?.withFileTypes) {
+        return readdirSync(fullPath, { withFileTypes: true })
+      }
+      return readdirSync(fullPath)
+    } catch (error) {
+      throw this.wrapError(error, 'Read directory (sync)', ERROR_CODES.READ_FAILED, `readdir ${path}`)
+    }
+  }
+
+  readFileSync(path: string, encoding: NodeJS.BufferEncoding = 'utf-8'): string {
+    this.validatePath(path)
+
+    // Check symlink safety
+    const symlinkCheck = checkSymlinkSafety(this.workspacePath, path)
+    if (!symlinkCheck.safe) {
+      throw new FileSystemError(
+        `Cannot read file: ${symlinkCheck.reason}`,
+        ERROR_CODES.PATH_ESCAPE_ATTEMPT,
+        `read ${path}`
+      )
+    }
+
+    const fullPath = this.resolvePath(path)
+
+    try {
+      return readFileSync(fullPath, encoding)
+    } catch (error) {
+      throw this.wrapError(error, 'Read file (sync)', ERROR_CODES.READ_FAILED, `read ${path}`)
+    }
+  }
+
+  statSync(path: string): Stats {
+    this.validatePath(path)
+    const fullPath = this.resolvePath(path)
+
+    try {
+      return statSync(fullPath)
+    } catch (error) {
+      throw this.wrapError(error, 'Stat file (sync)', ERROR_CODES.READ_FAILED, `stat ${path}`)
+    }
+  }
+
+  writeFileSync(path: string, content: string, encoding: NodeJS.BufferEncoding = 'utf-8'): void {
+    this.validatePath(path)
+
+    // Check symlink safety for parent directories
+    const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
+    if (parentPath !== '.') {
+      const symlinkCheck = checkSymlinkSafety(this.workspacePath, parentPath)
+      if (!symlinkCheck.safe) {
+        throw new FileSystemError(
+          `Cannot write file: ${symlinkCheck.reason}`,
+          ERROR_CODES.PATH_ESCAPE_ATTEMPT,
+          `write ${path}`
+        )
+      }
+    }
+
+    const fullPath = this.resolvePath(path)
+
+    try {
+      // Create parent directories if they don't exist
+      if (parentPath !== '.') {
+        const fullParentPath = this.resolvePath(parentPath)
+        mkdirSync(fullParentPath, { recursive: true })
+      }
+
+      writeFileSync(fullPath, content, encoding)
+    } catch (error) {
+      throw this.wrapError(error, 'Write file (sync)', ERROR_CODES.WRITE_FAILED, `write ${path}`)
+    }
+  }
+
+  // Promises API for Codebuff compatibility
+  promises = {
+    readdir: async (path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]> => {
+      this.validatePath(path)
+      const fullPath = this.resolvePath(path)
+
+      try {
+        if (options?.withFileTypes) {
+          return await readdir(fullPath, { withFileTypes: true })
+        }
+        return await readdir(fullPath)
+      } catch (error) {
+        throw this.wrapError(error, 'Read directory (async)', ERROR_CODES.READ_FAILED, `readdir ${path}`)
+      }
     }
   }
 

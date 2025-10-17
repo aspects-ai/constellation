@@ -7,10 +7,32 @@ export type CodebuffToolHandlers = CodebuffClientOptions['overrideTools']
 
 /**
  * Adapter for Codebuff SDK that provides direct tool override capabilities.
- * 
+ *
  * Unlike the ClaudeCodeAdapter which uses monkey-patching, this adapter
  * allows direct override of tool handlers in the Codebuff SDK, providing
  * cleaner integration with ConstellationFS backends.
+ *
+ * Note: ConstellationFS Workspace instances are now directly compatible with
+ * Codebuff's filesystem API. You can pass a Workspace directly as the `filesystem`
+ * option when creating a CodebuffClient, or use this adapter for custom tool
+ * handling.
+ *
+ * @example
+ * ```typescript
+ * // Direct filesystem usage (recommended for most cases)
+ * const workspace = await fs.getWorkspace('my-project')
+ * const client = new CodebuffClient({
+ *   apiKey: 'your-key',
+ *   filesystem: workspace
+ * })
+ *
+ * // Using the adapter for custom tool handling
+ * const adapter = new CodebuffAdapter(fs, workspace)
+ * const client = new CodebuffClient({
+ *   apiKey: 'your-key',
+ *   overrideTools: adapter.getToolHandlers()
+ * })
+ * ```
  */
 export class CodebuffAdapter extends BaseSDKAdapter {
   
@@ -142,36 +164,4 @@ export class CodebuffAdapter extends BaseSDKAdapter {
     }
   }
 
-  /**
-   * Get statistics about tool usage (for debugging/verification)
-   */
-  private toolStats = {
-    run_terminal_command: 0,
-    read_files: 0,
-    write_file: 0,
-    str_replace: 0,
-    find_files: 0,
-    code_search: 0
-  }
-
-  /**
-   * Get tool usage statistics
-   */
-  getToolStats() {
-    return { ...this.toolStats }
-  }
-
-  /**
-   * Reset tool usage statistics
-   */
-  resetToolStats() {
-    this.toolStats = {
-      run_terminal_command: 0,
-      read_files: 0,
-      write_file: 0,
-      str_replace: 0,
-      find_files: 0,
-      code_search: 0
-    }
-  }
 }

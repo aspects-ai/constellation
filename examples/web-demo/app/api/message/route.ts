@@ -142,6 +142,9 @@ async function initializeWorkspace(fs: FileSystem) {
   try {
     const workspace = await fs.getWorkspace('default');
     const result = await workspace.exec("ls");
+    if (typeof result !== 'string') {
+      throw new Error('Output is not a string')
+    }
     const files = result ? result.split("\n").filter(Boolean) : [];
     console.log(
       "[WORKSPACE] 📋 Found",

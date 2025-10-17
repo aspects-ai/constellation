@@ -14,6 +14,7 @@ export async function getCodebuffClient(fs: FileSystem, apiKey: string) {
   return new CodebuffClient({
     apiKey,
     cwd: workspace.workspacePath,
-    overrideTools: adapter.getToolHandlers()
+    overrideTools: adapter.getToolHandlers(),
+    fsSource: workspace
   })
 }

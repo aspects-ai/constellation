@@ -6,7 +6,7 @@ export { ConstellationFS } from './config/Config.js'
 export { BackendFactory } from './backends/BackendFactory.js'
 
 // Workspace Classes
-export type { Workspace } from './workspace/Workspace.js'
+export type { Workspace, WorkspaceConfig } from './workspace/Workspace.js'
 export { BaseWorkspace } from './workspace/Workspace.js'
 export { LocalWorkspace } from './workspace/LocalWorkspace.js'
 export { RemoteWorkspace } from './workspace/RemoteWorkspace.js'

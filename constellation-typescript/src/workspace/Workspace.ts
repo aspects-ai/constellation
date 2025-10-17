@@ -1,7 +1,8 @@
+import type { Dirent, Stats } from 'fs'
 import { isAbsolute, join, relative, resolve } from 'path'
+import type { FileSystemBackend } from '../backends/types.js'
 import { ERROR_CODES } from '../constants.js'
 import { FileSystemError } from '../types.js'
-import type { FileSystemBackend } from '../backends/types.js'
 
 /**
  * Configuration options for creating a workspace
@@ -86,6 +87,64 @@ export interface Workspace {
    * @returns Promise resolving to array of file paths
    */
   list(): Promise<string[]>
+
+  /**
+   * Check if a file or directory exists (sync)
+   * @param path - Relative path to check within the workspace
+   * @returns true if the path exists
+   */
+  existsSync(path: string): boolean
+
+  /**
+   * Create a directory synchronously
+   * @param path - Relative path to the directory within the workspace
+   * @param options - Options including recursive flag
+   */
+  mkdirSync(path: string, options?: { recursive?: boolean }): void
+
+  /**
+   * Read directory contents synchronously
+   * @param path - Relative path to the directory within the workspace
+   * @param options - Options for reading directory
+   * @returns Array of directory entries
+   */
+  readdirSync(path: string, options?: { withFileTypes?: boolean }): string[] | Dirent[]
+
+  /**
+   * Read file contents synchronously
+   * @param path - Relative path to the file within the workspace
+   * @param encoding - File encoding (defaults to 'utf-8')
+   * @returns File contents as string
+   */
+  readFileSync(path: string, encoding?: NodeJS.BufferEncoding): string
+
+  /**
+   * Get file stats synchronously
+   * @param path - Relative path to the file within the workspace
+   * @returns File stats
+   */
+  statSync(path: string): Stats
+
+  /**
+   * Write file contents synchronously
+   * @param path - Relative path to the file within the workspace
+   * @param content - Content to write
+   * @param encoding - File encoding (defaults to 'utf-8')
+   */
+  writeFileSync(path: string, content: string, encoding?: NodeJS.BufferEncoding): void
+
+  /**
+   * Promises API for compatibility with Node.js fs.promises
+   */
+  promises: {
+    /**
+     * Read directory contents
+     * @param path - Relative path to the directory within the workspace
+     * @param options - Options for reading directory
+     * @returns Promise resolving to array of directory entries
+     */
+    readdir(path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]>
+  }
 }
 
 /**
@@ -161,4 +220,15 @@ export abstract class BaseWorkspace implements Workspace {
   abstract exists(): Promise<boolean>
   abstract delete(): Promise<void>
   abstract list(): Promise<string[]>
+
+  // Sync methods for Codebuff compatibility
+  abstract existsSync(path: string): boolean
+  abstract mkdirSync(path: string, options?: { recursive?: boolean }): void
+  abstract readdirSync(path: string, options?: { withFileTypes?: boolean }): string[] | Dirent[]
+  abstract readFileSync(path: string, encoding?: NodeJS.BufferEncoding): string
+  abstract statSync(path: string): Stats
+  abstract writeFileSync(path: string, content: string, encoding?: NodeJS.BufferEncoding): void
+  abstract promises: {
+    readdir(path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]>
+  }
 }

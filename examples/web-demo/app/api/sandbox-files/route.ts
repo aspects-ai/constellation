@@ -60,6 +60,9 @@ export async function GET(request: NextRequest) {
       async function processPath(filePath: string) {
         try {
           const statResult = await workspace.exec(`stat -c '%F' "${filePath}" || stat -f '%HT' "${filePath}"`);
+          if (typeof statResult !== 'string') {
+            throw new Error('Output is not a string')
+          }
           const fileType = statResult.trim().toLowerCase();
 
           if (fileType.includes('regular file')) {
@@ -77,7 +80,7 @@ export async function GET(request: NextRequest) {
 
       try {
         // Try using ls -R to get recursive listing
-        let lsResult = '';
+        let lsResult: string | Buffer = '';
         try {
           lsResult = await workspace.exec('ls -R');
         } catch (err) {
@@ -86,7 +89,7 @@ export async function GET(request: NextRequest) {
           lsResult = await workspace.exec('ls');
         }
         
-        if (!lsResult || !lsResult.trim()) {
+        if (typeof lsResult !== 'string' || !lsResult.trim()) {
           console.log('[sandbox-files] No files found');
           return;
         }

@@ -10,7 +10,7 @@
     "postinstall": "echo 'Using Codebuff SDK for AI agent integration'"
   },
   "dependencies": {
-    "@codebuff/sdk": "^0.4.0",
+    "@codebuff/sdk": "^0.4.4",
     "@codesandbox/sandpack-react": "^2.19.9",
     "@emotion/react": "^11.14.0",
     "@mantine/code-highlight": "^8.2.7",

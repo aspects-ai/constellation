@@ -56,7 +56,11 @@ export function validateLocalBackendConfig(config: LocalBackendConfig): void {
 
 /**
  * Backend interface that all filesystem implementations must satisfy
- * Provides the low-level operations for different execution environments
+ * Provides workspace lifecycle management for different execution environments
+ *
+ * Backends are responsible for creating and managing workspaces, not for
+ * individual file operations. Each workspace implementation handles its own
+ * file operations and command execution appropriate to its environment.
  *
  * Backends are keyed by userId and can manage multiple workspaces for that user
  */
@@ -87,17 +91,6 @@ export interface FileSystemBackend {
    * @returns Promise resolving to array of workspace names
    */
   listWorkspaces(): Promise<string[]>
-
-  /**
-   * Execute command in a specific workspace (internal use by Workspace)
-   * @param workspacePath - Absolute path to workspace directory
-   * @param command - Command to execute
-   * @param encoding - Output encoding: 'utf8' for text (default) or 'buffer' for binary data
-   * @param customEnv - Optional custom environment variables for this workspace
-   * @returns Promise resolving to command output as string or Buffer
-   * @internal
-   */
-  execInWorkspace(workspacePath: string, command: string, encoding?: 'utf8' | 'buffer', customEnv?: Record<string, string>): Promise<string | Buffer>
 
   /**
    * Clean up backend resources

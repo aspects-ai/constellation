@@ -1,3 +1,4 @@
+import type { Dirent, Stats } from 'fs'
 import type { RemoteBackend } from '../backends/RemoteBackend.js'
 import { ERROR_CODES } from '../constants.js'
 import { FileSystemError } from '../types.js'
@@ -25,7 +26,8 @@ export class RemoteWorkspace extends BaseWorkspace {
       throw new FileSystemError('Command cannot be empty', ERROR_CODES.EMPTY_COMMAND)
     }
 
-    // Delegate to backend with this workspace's path and custom environment
+    // Use RemoteBackend's SSH execution method
+    // (This is a RemoteBackend-specific method, not part of the FileSystemBackend interface)
     return this.backend.execInWorkspace(this.workspacePath, command, encoding, this.customEnv)
   }
 
@@ -136,6 +138,70 @@ export class RemoteWorkspace extends BaseWorkspace {
       return `${this.workspacePath}${path}`
     } else {
       return `${this.workspacePath}/${path}`
+    }
+  }
+
+  // Synchronous methods are not supported for remote workspaces
+  // These are required by the Workspace interface for Codebuff compatibility
+  // but remote operations are inherently asynchronous
+  existsSync(_path: string): boolean {
+    throw new FileSystemError(
+      'Synchronous operations are not supported for remote workspaces',
+      ERROR_CODES.INVALID_CONFIGURATION
+    )
+  }
+
+  mkdirSync(_path: string, _options?: { recursive?: boolean }): void {
+    throw new FileSystemError(
+      'Synchronous operations are not supported for remote workspaces',
+      ERROR_CODES.INVALID_CONFIGURATION
+    )
+  }
+
+  readdirSync(_path: string, _options?: { withFileTypes?: boolean }): string[] | Dirent[] {
+    throw new FileSystemError(
+      'Synchronous operations are not supported for remote workspaces',
+      ERROR_CODES.INVALID_CONFIGURATION
+    )
+  }
+
+  readFileSync(_path: string, _encoding?: NodeJS.BufferEncoding): string {
+    throw new FileSystemError(
+      'Synchronous operations are not supported for remote workspaces',
+      ERROR_CODES.INVALID_CONFIGURATION
+    )
+  }
+
+  statSync(_path: string): Stats {
+    throw new FileSystemError(
+      'Synchronous operations are not supported for remote workspaces',
+      ERROR_CODES.INVALID_CONFIGURATION
+    )
+  }
+
+  writeFileSync(_path: string, _content: string, _encoding?: NodeJS.BufferEncoding): void {
+    throw new FileSystemError(
+      'Synchronous operations are not supported for remote workspaces',
+      ERROR_CODES.INVALID_CONFIGURATION
+    )
+  }
+
+  // Promises API for Codebuff compatibility
+  promises = {
+    readdir: async (path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]> => {
+      this.validatePath(path)
+      this.validateRemotePath(path)
+      const remotePath = this.resolveRemotePath(path)
+
+      if (options?.withFileTypes) {
+        // Remote backend doesn't support withFileTypes, so we need to throw
+        throw new FileSystemError(
+          'withFileTypes option is not supported for remote workspaces',
+          ERROR_CODES.INVALID_CONFIGURATION
+        )
+      }
+
+      return this.backend.listDirectory(remotePath)
     }
   }
 }

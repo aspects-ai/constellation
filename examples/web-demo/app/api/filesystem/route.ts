@@ -63,6 +63,9 @@ export async function GET(request: NextRequest) {
       try {
         console.log('Attempting to connect to remote backend and execute find command...')
         const output = await workspace.exec('find . -type f -o -type d | head -100')
+        if (typeof output !== 'string') {
+          throw new Error('Output is not a string')
+        }
         console.log('Remote command executed successfully, output:', output.substring(0, 200))
         files = parseRemoteFileTree(output)
       } catch (error) {
