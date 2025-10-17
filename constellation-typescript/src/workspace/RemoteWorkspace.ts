@@ -33,11 +33,7 @@ export class RemoteWorkspace extends BaseWorkspace {
 
   async read(path: string): Promise<string> {
     this.validatePath(path)
-
-    // Validate path for security
-    this.validateRemotePath(path)
-
-    const remotePath = this.resolveRemotePath(path)
+    const remotePath = this.resolvePath(path)
 
     // Use SFTP to read file
     return this.backend.readFile(remotePath)
@@ -45,11 +41,7 @@ export class RemoteWorkspace extends BaseWorkspace {
 
   async write(path: string, content: string): Promise<void> {
     this.validatePath(path)
-
-    // Validate path for security
-    this.validateRemotePath(path)
-
-    const remotePath = this.resolveRemotePath(path)
+    const remotePath = this.resolvePath(path)
 
     // Use SFTP to write file
     return this.backend.writeFile(remotePath, content)
@@ -57,11 +49,7 @@ export class RemoteWorkspace extends BaseWorkspace {
 
   async mkdir(path: string, recursive = true): Promise<void> {
     this.validatePath(path)
-
-    // Validate path for security
-    this.validateRemotePath(path)
-
-    const remotePath = this.resolveRemotePath(path)
+    const remotePath = this.resolvePath(path)
 
     // Use SSH exec to create directory
     return this.backend.createDirectory(remotePath, recursive)
@@ -69,11 +57,7 @@ export class RemoteWorkspace extends BaseWorkspace {
 
   async touch(path: string): Promise<void> {
     this.validatePath(path)
-
-    // Validate path for security
-    this.validateRemotePath(path)
-
-    const remotePath = this.resolveRemotePath(path)
+    const remotePath = this.resolvePath(path)
 
     // Use SSH exec to touch file
     return this.backend.touchFile(remotePath)
@@ -90,55 +74,6 @@ export class RemoteWorkspace extends BaseWorkspace {
 
   async list(): Promise<string[]> {
     return this.backend.listDirectory(this.workspacePath)
-  }
-
-  /**
-   * Validate remote path for security
-   */
-  private validateRemotePath(path: string): void {
-    if (!path || typeof path !== 'string') {
-      throw new FileSystemError('Path cannot be empty', ERROR_CODES.EMPTY_PATH, path)
-    }
-
-    // Check for absolute paths
-    if (path.startsWith('/')) {
-      throw new FileSystemError(
-        'Absolute paths are not allowed',
-        ERROR_CODES.ABSOLUTE_PATH_REJECTED,
-        path
-      )
-    }
-
-    // Check for directory traversal
-    if (path.includes('../') || path === '..' || path.startsWith('../')) {
-      throw new FileSystemError(
-        'Path escapes workspace boundary',
-        ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-        path
-      )
-    }
-
-    // Validate that resolved path is within workspace
-    const resolvedPath = this.resolveRemotePath(path)
-    if (!resolvedPath.startsWith(this.workspacePath)) {
-      throw new FileSystemError(
-        'Path escapes workspace boundary',
-        ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-        path
-      )
-    }
-  }
-
-  /**
-   * Resolve relative path to remote absolute path
-   */
-  private resolveRemotePath(path: string): string {
-    // Join workspace and relative path
-    if (this.workspacePath.endsWith('/')) {
-      return `${this.workspacePath}${path}`
-    } else {
-      return `${this.workspacePath}/${path}`
-    }
   }
 
   // Synchronous methods are not supported for remote workspaces
@@ -190,8 +125,7 @@ export class RemoteWorkspace extends BaseWorkspace {
   promises = {
     readdir: async (path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]> => {
       this.validatePath(path)
-      this.validateRemotePath(path)
-      const remotePath = this.resolveRemotePath(path)
+      const remotePath = this.resolvePath(path)
 
       if (options?.withFileTypes) {
         // Remote backend doesn't support withFileTypes, so we need to throw

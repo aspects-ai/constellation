@@ -1,8 +1,8 @@
 import type { Dirent, Stats } from 'fs'
-import { isAbsolute, join, relative, resolve } from 'path'
 import type { FileSystemBackend } from '../backends/types.js'
 import { ERROR_CODES } from '../constants.js'
 import { FileSystemError } from '../types.js'
+import { resolvePathSafely } from '../utils/pathValidator.js'
 
 /**
  * Configuration options for creating a workspace
@@ -172,32 +172,23 @@ export abstract class BaseWorkspace implements Workspace {
   }
 
   /**
-   * Resolve a relative path within the workspace and validate it's safe
-   * @param relativePath - Path relative to workspace root
+   * Resolve a path within the workspace and validate it's safe
+   * Accepts both relative and absolute paths, as long as they resolve within the workspace
+   *
+   * @param path - Path to resolve (relative or absolute)
    * @returns Absolute path within workspace
-   * @throws {FileSystemError} When path is invalid or escapes workspace
+   * @throws {FileSystemError} When path escapes workspace boundary
    */
-  protected resolvePath(relativePath: string): string {
-    if (isAbsolute(relativePath)) {
+  protected resolvePath(path: string): string {
+    try {
+      return resolvePathSafely(this.workspacePath, path)
+    } catch (error) {
       throw new FileSystemError(
-        'Absolute paths are not allowed',
-        ERROR_CODES.ABSOLUTE_PATH_REJECTED,
-        relativePath
-      )
-    }
-
-    const fullPath = resolve(join(this.workspacePath, relativePath))
-
-    const rel = relative(this.workspacePath, fullPath)
-    if (rel.startsWith('..') || isAbsolute(rel)) {
-      throw new FileSystemError(
-        'Path escapes workspace boundary',
+        error instanceof Error ? error.message : 'Path validation failed',
         ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-        relativePath
+        path
       )
     }
-
-    return fullPath
   }
 
   /**

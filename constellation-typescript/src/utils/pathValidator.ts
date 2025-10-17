@@ -23,21 +23,30 @@ export function isPathEscaping(workspacePath: string, targetPath: string): boole
 /**
  * Resolve a path safely within workspace boundaries
  * Throws if the path would escape the workspace
+ *
+ * @param workspacePath - Absolute path to workspace root
+ * @param targetPath - Path to resolve (can be relative or absolute)
+ * @returns Resolved absolute path within workspace
+ * @throws Error if path escapes workspace boundaries
  */
 export function resolvePathSafely(workspacePath: string, targetPath: string): string {
-  // Don't allow absolute paths at all
-  if (isAbsolute(targetPath)) {
-    throw new Error(`Absolute paths are not allowed: ${targetPath}`)
-  }
-  
   // Resolve the full path
+  // If targetPath is absolute, resolve will use it as-is
+  // If targetPath is relative, resolve will join it with workspacePath
   const fullPath = resolve(workspacePath, targetPath)
-  
-  // Check if it escapes
-  if (isPathEscaping(workspacePath, targetPath)) {
-    throw new Error(`Path escapes workspace boundary: ${targetPath}`)
+
+  // Normalize both paths for comparison
+  const normalizedWorkspace = normalize(workspacePath)
+  const normalizedTarget = normalize(fullPath)
+
+  // Check if resolved path is within workspace
+  const relativePath = relative(normalizedWorkspace, normalizedTarget)
+
+  // If relative path starts with .. or is absolute, it's outside workspace
+  if (relativePath.startsWith('..') || isAbsolute(relativePath)) {
+    throw new Error(`Path escapes workspace boundary: ${targetPath} resolves to ${fullPath} which is outside ${workspacePath}`)
   }
-  
+
   return fullPath
 }
 
@@ -88,39 +97,33 @@ export function checkSymlinkSafety(workspacePath: string, targetPath: string): {
 
 /**
  * Validate multiple paths at once
+ * Checks if paths resolve to locations within the workspace
  */
-export function validatePaths(workspacePath: string, paths: string[]): { 
+export function validatePaths(workspacePath: string, paths: string[]): {
   valid: boolean
   invalidPaths: Array<{ path: string; reason: string }>
 } {
   const invalidPaths: Array<{ path: string; reason: string }> = []
-  
+
   for (const path of paths) {
-    // Check for absolute paths
-    if (isAbsolute(path)) {
-      invalidPaths.push({ path, reason: 'Absolute path not allowed' })
-      continue
-    }
-    
-    // Check for escape attempts
-    if (isPathEscaping(workspacePath, path)) {
-      invalidPaths.push({ path, reason: 'Path escapes workspace' })
-      continue
-    }
-    
-    // Check for dangerous patterns
-    if (path.includes('../')) {
-      invalidPaths.push({ path, reason: 'Parent directory traversal not allowed' })
-      continue
-    }
-    
-    // Check symlink safety
-    const symlinkCheck = checkSymlinkSafety(workspacePath, path)
-    if (!symlinkCheck.safe) {
-      invalidPaths.push({ path, reason: symlinkCheck.reason || 'Unsafe symlink' })
+    try {
+      // Try to resolve the path safely - throws if path escapes workspace
+      resolvePathSafely(workspacePath, path)
+
+      // Check symlink safety
+      const symlinkCheck = checkSymlinkSafety(workspacePath, path)
+      if (!symlinkCheck.safe) {
+        invalidPaths.push({ path, reason: symlinkCheck.reason || 'Unsafe symlink' })
+      }
+    } catch (error) {
+      // Path escapes workspace or is otherwise invalid
+      invalidPaths.push({
+        path,
+        reason: error instanceof Error ? error.message : 'Invalid path'
+      })
     }
   }
-  
+
   return {
     valid: invalidPaths.length === 0,
     invalidPaths
