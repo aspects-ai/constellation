@@ -1,5 +1,5 @@
 import type { Workspace } from '@/workspace/Workspace.js'
-import type { CodebuffClientOptions } from '@codebuff/sdk'
+import type { ClientToolCall, CodebuffClientOptions, CodebuffToolOutput } from '@codebuff/sdk'
 import type { FileSystem } from '../../FileSystem.js'
 import { BaseSDKAdapter } from '../BaseAdapter.js'
 
@@ -26,7 +26,7 @@ export class CodebuffAdapter extends BaseSDKAdapter {
    */
   private getDefaultHandlers(): CodebuffToolHandlers {
     return {
-      run_terminal_command: async (input: { command: string, cwd?: string }) => {
+      run_terminal_command: async (input: ClientToolCall<'run_terminal_command'>['input']): Promise<CodebuffToolOutput<'run_terminal_command'>> => {
         try {
           // If cwd is provided, prepend cd command
           const fullCommand = input.cwd ? `cd "${input.cwd}" && ${input.command}` : input.command
@@ -63,7 +63,7 @@ export class CodebuffAdapter extends BaseSDKAdapter {
         }
       },
 
-      read_files: async (input: { filePaths: string[] }) => {
+      read_files: async (input: { filePaths: string[] }): Promise<Record<string, string | null>> => {
         const results: Record<string, string | null> = {}
         
         for (const path of input.filePaths) {
@@ -79,70 +79,7 @@ export class CodebuffAdapter extends BaseSDKAdapter {
         return results
       },
 
-      write_file: async (input: { type: 'file' | 'patch'; path: string; content: string; } & Record<string, unknown>) => {
-        console.debug(`✍️ [ConstellationFS/Codebuff] Writing file: ${input.path}`)
-        try {
-          await this.workspace.write(input.path, input.content)
-          return [{
-            type: 'json',
-            value: {
-              file: input.path,
-              message: 'File written successfully',
-              unifiedDiff: `--- ${input.path}\n+++ ${input.path}\n@@ File written @@`
-            }
-          }]
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
-          console.error(`[ConstellationFS/Codebuff] Failed to write ${input.path}:`, error)
-          return [{
-            type: 'json',
-            value: {
-              file: input.path,
-              errorMessage,
-              patch: undefined
-            }
-          }]
-        }
-      },
-
-      str_replace: async (input: { type: 'file' | 'patch'; path: string; content: string; } & Record<string, unknown>) => {
-        try {
-          // Apply patch diff for both 'file' and 'patch' types since content is in diff format
-          const tempPatchFile = `/tmp/patch_${Date.now()}.patch`
-          await this.workspace.write(tempPatchFile, input.content)
-          
-          try {
-            await this.workspace.exec(`patch -p1 < ${tempPatchFile}`)
-            // Clean up temp file
-            await this.workspace.exec(`rm -f ${tempPatchFile}`)
-            
-            return [{
-              type: 'json',
-              value: {
-                file: input.path,
-                message: 'Patch applied successfully',
-                unifiedDiff: input.content
-              }
-            }]
-          } catch (patchError) {
-            // Clean up temp file on error
-            await this.workspace.exec(`rm -f ${tempPatchFile}`).catch(() => {})
-            throw patchError
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
-          return [{
-            type: 'json',
-            value: {
-              file: input.path,
-              errorMessage,
-              patch: input.content
-            }
-          }]
-        }
-      },
-
-      code_search: async (input: { pattern: string; maxResults: number; flags?: string; cwd?: string }) => {
+      code_search: async (input: ClientToolCall<'code_search'>['input']): Promise<CodebuffToolOutput<'code_search'>> => {
         const basePath = input.cwd || '.'
         let command = `grep -rn "${input.pattern}" ${basePath}`
 

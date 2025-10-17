@@ -1,10 +1,9 @@
 import { existsSync } from 'fs'
-import { readdir, readFile, rm, writeFile } from 'fs/promises'
-import { mkdir as fsMkdir } from 'fs/promises'
+import { mkdir as fsMkdir, readdir, readFile, rm, writeFile } from 'fs/promises'
+import type { LocalBackend } from '../backends/LocalBackend.js'
 import { ERROR_CODES } from '../constants.js'
 import { FileSystemError } from '../types.js'
 import { checkSymlinkSafety } from '../utils/pathValidator.js'
-import type { LocalBackend } from '../backends/LocalBackend.js'
 import { BaseWorkspace } from './Workspace.js'
 
 /**
@@ -73,6 +72,12 @@ export class LocalWorkspace extends BaseWorkspace {
     const fullPath = this.resolvePath(path)
 
     try {
+      // Create parent directories if they don't exist
+      if (parentPath !== '.') {
+        const fullParentPath = this.resolvePath(parentPath)
+        await fsMkdir(fullParentPath, { recursive: true })
+      }
+      
       await writeFile(fullPath, content, 'utf-8')
     } catch (error) {
       throw this.wrapError(error, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${path}`)
