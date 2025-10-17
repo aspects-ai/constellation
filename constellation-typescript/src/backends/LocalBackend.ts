@@ -7,7 +7,7 @@ import { isCommandSafe, isDangerous } from '../safety.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
 import { LocalWorkspaceUtils } from '../utils/LocalWorkspaceUtils.js'
 import { LocalWorkspace } from '../workspace/LocalWorkspace.js'
-import type { Workspace } from '../workspace/Workspace.js'
+import type { Workspace, WorkspaceConfig } from '../workspace/Workspace.js'
 import type { FileSystemBackend, LocalBackendConfig } from './types.js'
 import { validateLocalBackendConfig } from './types.js'
 
@@ -97,20 +97,24 @@ export class LocalBackend implements FileSystemBackend {
   /**
    * Get or create a workspace for this user
    * @param workspaceName - Workspace name (defaults to 'default')
+   * @param config - Optional workspace configuration including custom environment variables
    * @returns Promise resolving to Workspace instance
    */
-  async getWorkspace(workspaceName = 'default'): Promise<Workspace> {
-    if (this.workspaceCache.has(workspaceName)) {
-      return this.workspaceCache.get(workspaceName)!
+  async getWorkspace(workspaceName = 'default', config?: WorkspaceConfig): Promise<Workspace> {
+    // Generate cache key that includes env config to support different configs for same workspace name
+    const cacheKey = config?.env ? `${workspaceName}:${JSON.stringify(config.env)}` : workspaceName
+
+    if (this.workspaceCache.has(cacheKey)) {
+      return this.workspaceCache.get(cacheKey)!
     }
 
     // Create workspace directory for this user
     const fullPath = LocalWorkspaceUtils.ensureUserWorkspace(join(this.userId, workspaceName))
 
-    const workspace = new LocalWorkspace(this, this.userId, workspaceName, fullPath)
-    this.workspaceCache.set(workspaceName, workspace)
+    const workspace = new LocalWorkspace(this, this.userId, workspaceName, fullPath, config)
+    this.workspaceCache.set(cacheKey, workspace)
 
-    getLogger().debug(`Created workspace for user ${this.userId}: ${workspaceName}`)
+    getLogger().debug(`Created workspace for user ${this.userId}: ${workspaceName}`, config?.env ? 'with custom env' : '')
 
     return workspace
   }
@@ -135,13 +139,106 @@ export class LocalBackend implements FileSystemBackend {
   }
 
   /**
+   * Validate custom environment variables for security
+   * @param customEnv - Custom environment variables to validate
+   * @returns Validated environment variables
+   */
+  private validateCustomEnv(customEnv: Record<string, string>): Record<string, string> {
+    const BLOCKED_VARS = [
+      'LD_PRELOAD',
+      'LD_LIBRARY_PATH',
+      'DYLD_INSERT_LIBRARIES',
+      'DYLD_LIBRARY_PATH',
+      'IFS',
+      'BASH_ENV',
+      'ENV',
+    ]
+
+    const PROTECTED_VARS = ['PATH', 'HOME', 'PWD', 'TMPDIR', 'TMP', 'SHELL', 'USER']
+
+    const validated: Record<string, string> = {}
+
+    for (const [key, value] of Object.entries(customEnv)) {
+      // Block dangerous variables that could lead to code injection
+      if (BLOCKED_VARS.includes(key)) {
+        getLogger().warn(`Blocked dangerous environment variable: ${key}`)
+        continue
+      }
+
+      // Warn about protected variables (allow but log)
+      if (PROTECTED_VARS.includes(key)) {
+        getLogger().warn(`Overriding protected environment variable: ${key}`)
+      }
+
+      // Validate value doesn't contain null bytes or other dangerous chars
+      if (value.includes('\0')) {
+        throw new FileSystemError(
+          `Environment variable ${key} contains null byte`,
+          ERROR_CODES.INVALID_CONFIGURATION
+        )
+      }
+
+      validated[key] = value
+    }
+
+    return validated
+  }
+
+  /**
+   * Build environment variables for workspace execution
+   * Merges safe defaults with validated custom environment variables
+   * @param workspacePath - Absolute path to workspace directory
+   * @param customEnv - Optional custom environment variables
+   * @returns Merged environment variables
+   */
+  private buildEnvironment(
+    workspacePath: string,
+    customEnv?: Record<string, string>
+  ): Record<string, string | undefined> {
+    // Start with safe base environment
+    const safeEnv: Record<string, string | undefined> = {
+      // Start with minimal environment, including common npm/node locations
+      PATH: '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/opt/homebrew/opt/node/bin:/usr/local/opt/node/bin',
+      USER: process.env.USER,
+      SHELL: this.shell,
+      // Force working directory
+      PWD: workspacePath,
+      HOME: workspacePath,
+      TMPDIR: join(workspacePath, '.tmp'),
+      // Locale settings
+      LANG: 'C',
+      LC_ALL: 'C',
+      // Block dangerous variables
+      LD_PRELOAD: undefined,
+      LD_LIBRARY_PATH: undefined,
+      DYLD_INSERT_LIBRARIES: undefined,
+      DYLD_LIBRARY_PATH: undefined,
+    }
+
+    // Validate and merge custom environment variables
+    if (customEnv && Object.keys(customEnv).length > 0) {
+      const validatedCustomEnv = this.validateCustomEnv(customEnv)
+      // Custom env vars override safe defaults (except blocked ones)
+      Object.assign(safeEnv, validatedCustomEnv)
+    }
+
+    return safeEnv
+  }
+
+  /**
    * Execute command in a specific workspace path (internal use by Workspace)
    * @param workspacePath - Absolute path to workspace directory
    * @param command - Command to execute
    * @param encoding - Output encoding: 'utf8' for text (default) or 'buffer' for binary data
+   * @param customEnv - Optional custom environment variables for this workspace
    * @returns Promise resolving to command output as string or Buffer
    */
-  async execInWorkspace(workspacePath: string, command: string, encoding: 'utf8' | 'buffer' = 'utf8'): Promise<string | Buffer> {
+  async execInWorkspace(
+    workspacePath: string,
+    command: string,
+    encoding: 'utf8' | 'buffer' = 'utf8',
+    customEnv?: Record<string, string>
+  ): Promise<string | Buffer> {
     // Comprehensive safety check
     const safetyCheck = isCommandSafe(command)
     if (!safetyCheck.safe) {
@@ -170,24 +267,7 @@ export class LocalBackend implements FileSystemBackend {
       const child = spawn(this.shell, ['-c', command], {
         cwd: workspacePath,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: {
-          // Start with minimal environment, including common npm/node locations
-          PATH: '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/opt/homebrew/opt/node/bin:/usr/local/opt/node/bin',
-          USER: process.env.USER,
-          SHELL: this.shell,
-          // Force working directory
-          PWD: workspacePath,
-          HOME: workspacePath,
-          TMPDIR: join(workspacePath, '.tmp'),
-          // Locale settings
-          LANG: 'C',
-          LC_ALL: 'C',
-          // Block dangerous variables
-          LD_PRELOAD: undefined,
-          LD_LIBRARY_PATH: undefined,
-          DYLD_INSERT_LIBRARIES: undefined,
-          DYLD_LIBRARY_PATH: undefined,
-        },
+        env: this.buildEnvironment(workspacePath, customEnv),
       })
 
       // Collect output based on encoding mode

@@ -4,7 +4,7 @@ import type { LocalBackend } from '../backends/LocalBackend.js'
 import { ERROR_CODES } from '../constants.js'
 import { FileSystemError } from '../types.js'
 import { checkSymlinkSafety } from '../utils/pathValidator.js'
-import { BaseWorkspace } from './Workspace.js'
+import { BaseWorkspace, type WorkspaceConfig } from './Workspace.js'
 
 /**
  * Local filesystem workspace implementation
@@ -17,9 +17,10 @@ export class LocalWorkspace extends BaseWorkspace {
     backend: LocalBackend,
     userId: string,
     workspaceName: string,
-    workspacePath: string
+    workspacePath: string,
+    config?: WorkspaceConfig
   ) {
-    super(backend, userId, workspaceName, workspacePath)
+    super(backend, userId, workspaceName, workspacePath, config)
   }
 
   async exec(command: string, encoding: 'utf8' | 'buffer' = 'utf8'): Promise<string | Buffer> {
@@ -27,8 +28,8 @@ export class LocalWorkspace extends BaseWorkspace {
       throw new FileSystemError('Command cannot be empty', ERROR_CODES.EMPTY_COMMAND)
     }
 
-    // Delegate to backend with this workspace's path
-    return this.backend.execInWorkspace(this.workspacePath, command, encoding)
+    // Delegate to backend with this workspace's path and custom environment
+    return this.backend.execInWorkspace(this.workspacePath, command, encoding, this.customEnv)
   }
 
   async read(path: string): Promise<string> {

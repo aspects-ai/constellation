@@ -8,7 +8,7 @@ import { getLogger } from '../utils/logger.js'
 import { getPlatformGuidance, getRemoteBackendLibrary } from '../utils/nativeLibrary.js'
 import { RemoteWorkspaceUtils } from '../utils/RemoteWorkspaceUtils.js'
 import { RemoteWorkspace } from '../workspace/RemoteWorkspace.js'
-import type { Workspace } from '../workspace/Workspace.js'
+import type { Workspace, WorkspaceConfig } from '../workspace/Workspace.js'
 import type { FileSystemBackend, RemoteBackendConfig } from './types.js'
 
 /**
@@ -143,12 +143,87 @@ export class RemoteBackend implements FileSystemBackend {
   }
 
   /**
+   * Validate custom environment variables for security
+   * @param customEnv - Custom environment variables to validate
+   * @returns Validated environment variables
+   */
+  private validateCustomEnv(customEnv: Record<string, string>): Record<string, string> {
+    const BLOCKED_VARS = [
+      'LD_PRELOAD',
+      'LD_LIBRARY_PATH',
+      'DYLD_INSERT_LIBRARIES',
+      'DYLD_LIBRARY_PATH',
+      'IFS',
+      'BASH_ENV',
+      'ENV',
+    ]
+
+    const PROTECTED_VARS = ['PATH', 'HOME', 'PWD', 'TMPDIR', 'TMP', 'SHELL', 'USER']
+
+    const validated: Record<string, string> = {}
+
+    for (const [key, value] of Object.entries(customEnv)) {
+      // Block dangerous variables
+      if (BLOCKED_VARS.includes(key)) {
+        getLogger().warn(`Blocked dangerous environment variable: ${key}`)
+        continue
+      }
+
+      // Warn about protected variables (allow but log)
+      if (PROTECTED_VARS.includes(key)) {
+        getLogger().warn(`Overriding protected environment variable: ${key}`)
+      }
+
+      // Validate value doesn't contain null bytes or shell injection attempts
+      if (value.includes('\0') || value.includes('\n') || value.includes(';')) {
+        throw new FileSystemError(
+          `Environment variable ${key} contains dangerous characters`,
+          ERROR_CODES.INVALID_CONFIGURATION
+        )
+      }
+
+      validated[key] = value
+    }
+
+    return validated
+  }
+
+  /**
+   * Build environment variable prefix for SSH commands
+   * @param customEnv - Optional custom environment variables
+   * @returns Shell command prefix with environment variables
+   */
+  private buildEnvPrefix(customEnv?: Record<string, string>): string {
+    if (!customEnv || Object.keys(customEnv).length === 0) {
+      return ''
+    }
+
+    const validatedEnv = this.validateCustomEnv(customEnv)
+    const envPairs: string[] = []
+
+    for (const [key, value] of Object.entries(validatedEnv)) {
+      // Escape single quotes in values and wrap in single quotes
+      const escapedValue = value.replace(/'/g, "'\\''")
+      envPairs.push(`${key}='${escapedValue}'`)
+    }
+
+    return envPairs.length > 0 ? `${envPairs.join(' ')} ` : ''
+  }
+
+  /**
    * Execute command in a specific workspace path (internal use by Workspace)
    * @param workspacePath - Absolute path to workspace directory
    * @param command - Command to execute
+   * @param encoding - Output encoding (currently only 'utf8' supported for remote)
+   * @param customEnv - Optional custom environment variables
    * @returns Promise resolving to command output
    */
-  async execInWorkspace(workspacePath: string, command: string): Promise<string> {
+  async execInWorkspace(
+    workspacePath: string,
+    command: string,
+    _encoding: 'utf8' | 'buffer' = 'utf8',
+    customEnv?: Record<string, string>
+  ): Promise<string | Buffer> {
     // Safety check
     const safetyCheck = isCommandSafe(command)
     if (!safetyCheck.safe) {
@@ -179,9 +254,15 @@ export class RemoteBackend implements FileSystemBackend {
       if (!this.sshClient) {
         throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
       }
-      // Build full command with workspace change
+
+      // Build environment variable prefix
+      const envPrefix = this.buildEnvPrefix(customEnv)
+
+      // Build full command with environment variables and workspace change
       const fullCommand =
-        workspacePath && workspacePath !== '/' ? `cd "${workspacePath}" && ${command}` : command
+        workspacePath && workspacePath !== '/'
+          ? `${envPrefix}cd "${workspacePath}" && ${command}`
+          : `${envPrefix}${command}`
 
       getLogger().debug(`[SSH exec] Executing command: ${fullCommand}`)
 
@@ -309,14 +390,18 @@ export class RemoteBackend implements FileSystemBackend {
   /**
    * Get or create a workspace for this user
    * @param workspaceName - Workspace name (defaults to 'default')
+   * @param config - Optional workspace configuration including custom environment variables
    * @returns Promise resolving to Workspace instance
    */
-  async getWorkspace(workspaceName = 'default'): Promise<Workspace> {
+  async getWorkspace(workspaceName = 'default', config?: WorkspaceConfig): Promise<Workspace> {
     // Ensure SSH connection
     await this.ensureSSHConnection()
 
-    if (this.workspaceCache.has(workspaceName)) {
-      return this.workspaceCache.get(workspaceName)!
+    // Generate cache key that includes env config
+    const cacheKey = config?.env ? `${workspaceName}:${JSON.stringify(config.env)}` : workspaceName
+
+    if (this.workspaceCache.has(cacheKey)) {
+      return this.workspaceCache.get(cacheKey)!
     }
 
     if (!this.sshClient) {
@@ -329,10 +414,13 @@ export class RemoteBackend implements FileSystemBackend {
       join(this.userId, workspaceName)
     )
 
-    const workspace = new RemoteWorkspace(this, this.userId, workspaceName, fullPath)
-    this.workspaceCache.set(workspaceName, workspace)
+    const workspace = new RemoteWorkspace(this, this.userId, workspaceName, fullPath, config)
+    this.workspaceCache.set(cacheKey, workspace)
 
-    getLogger().debug(`Created remote workspace for user ${this.userId}: ${workspaceName}`)
+    getLogger().debug(
+      `Created remote workspace for user ${this.userId}: ${workspaceName}`,
+      config?.env ? 'with custom env' : ''
+    )
 
     return workspace
   }

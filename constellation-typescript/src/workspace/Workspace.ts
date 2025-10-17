@@ -4,6 +4,14 @@ import { FileSystemError } from '../types.js'
 import type { FileSystemBackend } from '../backends/types.js'
 
 /**
+ * Configuration options for creating a workspace
+ */
+export interface WorkspaceConfig {
+  /** Custom environment variables to be available throughout the workspace lifecycle */
+  env?: Record<string, string>
+}
+
+/**
  * Workspace interface representing an isolated directory environment
  * for executing commands and file operations
  */
@@ -19,6 +27,9 @@ export interface Workspace {
 
   /** Reference to the backend powering this workspace */
   readonly backend: FileSystemBackend
+
+  /** Custom environment variables for this workspace */
+  readonly customEnv?: Record<string, string>
 
   /**
    * Execute a shell command in the workspace
@@ -82,12 +93,16 @@ export interface Workspace {
  * Provides path validation and security checks
  */
 export abstract class BaseWorkspace implements Workspace {
+  public readonly customEnv?: Record<string, string>
+
   constructor(
     public readonly backend: FileSystemBackend,
     public readonly userId: string,
     public readonly workspaceName: string,
-    public readonly workspacePath: string
+    public readonly workspacePath: string,
+    config?: WorkspaceConfig
   ) {
+    this.customEnv = config?.env
     // Verify userId matches backend for security
     if (backend.userId !== userId) {
       throw new FileSystemError(

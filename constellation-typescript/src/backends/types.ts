@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { AUTH_TYPES, DEFAULTS, SHELL_TYPES } from '../constants.js'
-import type { Workspace } from '../workspace/Workspace.js'
+import type { Workspace, WorkspaceConfig } from '../workspace/Workspace.js'
 
 /**
  * Base configuration schema shared by all backends
@@ -76,10 +76,11 @@ export interface FileSystemBackend {
   /**
    * Get or create a workspace for this user
    * @param workspaceName - Optional workspace name (defaults to 'default')
+   * @param config - Optional workspace configuration including custom environment variables
    * @returns Promise resolving to a Workspace instance
    * @throws {FileSystemError} When workspace cannot be created
    */
-  getWorkspace(workspaceName?: string): Promise<Workspace>
+  getWorkspace(workspaceName?: string, config?: WorkspaceConfig): Promise<Workspace>
 
   /**
    * List all workspaces for this user
@@ -92,10 +93,11 @@ export interface FileSystemBackend {
    * @param workspacePath - Absolute path to workspace directory
    * @param command - Command to execute
    * @param encoding - Output encoding: 'utf8' for text (default) or 'buffer' for binary data
+   * @param customEnv - Optional custom environment variables for this workspace
    * @returns Promise resolving to command output as string or Buffer
    * @internal
    */
-  execInWorkspace(workspacePath: string, command: string, encoding?: 'utf8' | 'buffer'): Promise<string | Buffer>
+  execInWorkspace(workspacePath: string, command: string, encoding?: 'utf8' | 'buffer', customEnv?: Record<string, string>): Promise<string | Buffer>
 
   /**
    * Clean up backend resources

@@ -1,7 +1,7 @@
 import type { RemoteBackend } from '../backends/RemoteBackend.js'
 import { ERROR_CODES } from '../constants.js'
 import { FileSystemError } from '../types.js'
-import { BaseWorkspace } from './Workspace.js'
+import { BaseWorkspace, type WorkspaceConfig } from './Workspace.js'
 
 /**
  * Remote filesystem workspace implementation
@@ -14,18 +14,19 @@ export class RemoteWorkspace extends BaseWorkspace {
     backend: RemoteBackend,
     userId: string,
     workspaceName: string,
-    workspacePath: string
+    workspacePath: string,
+    config?: WorkspaceConfig
   ) {
-    super(backend, userId, workspaceName, workspacePath)
+    super(backend, userId, workspaceName, workspacePath, config)
   }
 
-  async exec(command: string): Promise<string> {
+  async exec(command: string, encoding: 'utf8' | 'buffer' = 'utf8'): Promise<string | Buffer> {
     if (!command.trim()) {
       throw new FileSystemError('Command cannot be empty', ERROR_CODES.EMPTY_COMMAND)
     }
 
-    // Delegate to backend with this workspace's path
-    return this.backend.execInWorkspace(this.workspacePath, command)
+    // Delegate to backend with this workspace's path and custom environment
+    return this.backend.execInWorkspace(this.workspacePath, command, encoding, this.customEnv)
   }
 
   async read(path: string): Promise<string> {
