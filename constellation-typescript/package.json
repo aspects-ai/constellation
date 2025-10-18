@@ -1,6 +1,6 @@
 {
   "name": "constellationfs",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "description": "A filesystem abstraction for AI agents that provides familiar bash commands instead of custom APIs",
   "type": "module",
   "main": "dist/index.js",
@@ -14,7 +14,8 @@
     "scripts",
     "cli",
     "bin",
-    "remote"
+    "remote",
+    "src"
   ],
   "scripts": {
     "build": "vite build",
