@@ -1,4 +1,4 @@
-import type { Workspace } from '@/workspace/Workspace.js'
+import type { Workspace } from '../workspace/Workspace.js'
 import type { ExecOptions, SpawnOptions } from 'child_process'
 import type { FileSystem } from '../FileSystem.js'
 import { BaseSDKAdapter } from './BaseAdapter.js'

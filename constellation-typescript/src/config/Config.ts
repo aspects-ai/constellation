@@ -1,4 +1,4 @@
-import { getLogger } from '@/utils/logger'
+import { getLogger } from '../utils/logger'
 import { existsSync, readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'

@@ -1,4 +1,4 @@
-import { getLogger } from '@/utils/logger.js'
+import { getLogger } from '../utils/logger.js'
 import { execSync } from 'child_process'
 import { readdir } from 'fs/promises'
 import { join } from 'path'

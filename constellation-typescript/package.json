@@ -1,6 +1,6 @@
 {
   "name": "constellationfs",
-  "version": "0.2.12",
+  "version": "0.2.13",
   "description": "A filesystem abstraction for AI agents that provides familiar bash commands instead of custom APIs",
   "type": "module",
   "main": "dist/index.js",
@@ -74,5 +74,13 @@
   "directories": {
     "example": "examples",
     "test": "tests"
+  },
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
   }
 }

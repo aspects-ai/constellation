@@ -27,11 +27,6 @@ export default defineConfig({
     target: 'node18',
     ssr: true
   },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src')
-    }
-  },
   define: {
     global: 'globalThis'
   }

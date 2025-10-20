@@ -1,4 +1,4 @@
-import type { Workspace } from '@/workspace/Workspace.js'
+import type { Workspace } from '../../workspace/Workspace.js'
 import type { ClientToolCall, CodebuffClientOptions, CodebuffToolOutput } from '@codebuff/sdk'
 import type { FileSystem } from '../../FileSystem.js'
 import { BaseSDKAdapter } from '../BaseAdapter.js'
