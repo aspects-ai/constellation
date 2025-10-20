@@ -2,7 +2,7 @@ import { existsSync } from 'fs'
 import { mkdir, rmdir } from 'fs/promises'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { DangerousOperationError, FileSystem } from '../src/index.js'
+import { DangerousOperationError, FileSystem, LocalBackend } from '../src/index.js'
 
 describe('FileSystem', () => {
   const testWorkspace = join(process.cwd(), 'test-workspace')
@@ -215,6 +215,185 @@ describe('FileSystem', () => {
 
       const result = await workspace.exec('echo "test"')
       expect(result).toBe('test')
+    })
+  })
+
+  describe('Backend Override', () => {
+    it('should accept a custom backend instance', async () => {
+      const customBackend = new LocalBackend({
+        userId: 'custom-user',
+        type: 'local',
+        preventDangerous: true,
+      })
+
+      const fs = new FileSystem(customBackend)
+
+      expect(fs.userId).toBe('custom-user')
+      expect(fs.config.type).toBe('local')
+      expect(fs.config.preventDangerous).toBe(true)
+
+      await fs.destroy()
+    })
+
+    it('should use the provided backend for workspace operations', async () => {
+      const customBackend = new LocalBackend({
+        userId: 'backend-test-user',
+        type: 'local',
+        shell: 'bash',
+        preventDangerous: true,
+      })
+
+      const fs = new FileSystem(customBackend)
+      const workspace = await fs.getWorkspace('backend-workspace')
+
+      await workspace.write('backend-test.txt', 'Testing backend override')
+      const content = await workspace.read('backend-test.txt')
+
+      expect(content).toBe('Testing backend override')
+      expect(workspace.userId).toBe('backend-test-user')
+
+      await fs.destroy()
+    })
+
+    it('should share backend state across multiple FileSystem instances', async () => {
+      const sharedBackend = new LocalBackend({
+        userId: 'shared-user',
+        type: 'local',
+        preventDangerous: true,
+      })
+
+      const fs1 = new FileSystem(sharedBackend)
+      const fs2 = new FileSystem(sharedBackend)
+
+      const ws1 = await fs1.getWorkspace('workspace-1')
+      const ws2 = await fs2.getWorkspace('workspace-2')
+
+      await ws1.write('file1.txt', 'From FileSystem 1')
+      await ws2.write('file2.txt', 'From FileSystem 2')
+
+      const content1 = await ws1.read('file1.txt')
+      const content2 = await ws2.read('file2.txt')
+
+      expect(content1).toBe('From FileSystem 1')
+      expect(content2).toBe('From FileSystem 2')
+
+      // Both should reference the same backend
+      expect(fs1.userId).toBe('shared-user')
+      expect(fs2.userId).toBe('shared-user')
+
+      await fs1.destroy()
+      // Note: fs2.destroy() would error since backend is already destroyed
+    })
+
+    it('should support backend with custom onDangerousOperation callback', async () => {
+      let dangerousCommandCalled = false
+      let capturedCommand = ''
+
+      const customBackend = new LocalBackend({
+        userId: 'callback-user',
+        type: 'local',
+        preventDangerous: true,
+        onDangerousOperation: (command: string) => {
+          dangerousCommandCalled = true
+          capturedCommand = command
+        },
+      })
+
+      const fs = new FileSystem(customBackend)
+      const workspace = await fs.getWorkspace('callback-test')
+
+      await workspace.exec('sudo echo test')
+
+      expect(dangerousCommandCalled).toBe(true)
+      expect(capturedCommand).toBe('sudo echo test')
+
+      await fs.destroy()
+    })
+
+    it('should maintain backend configuration through FileSystem', async () => {
+      const customBackend = new LocalBackend({
+        userId: 'config-user',
+        type: 'local',
+        shell: 'bash',
+        validateUtils: false,
+        preventDangerous: false,
+        maxOutputLength: 1000,
+      })
+
+      const fs = new FileSystem(customBackend)
+
+      expect(fs.config.type).toBe('local')
+      expect(fs.config.shell).toBe('bash')
+      expect(fs.config.validateUtils).toBe(false)
+      expect(fs.config.preventDangerous).toBe(false)
+      expect(fs.config.maxOutputLength).toBe(1000)
+
+      await fs.destroy()
+    })
+
+    it('should still support config-based construction after adding backend override', async () => {
+      // Ensure backward compatibility - config-based construction still works
+      const fs = new FileSystem({
+        userId: 'legacy-user',
+        type: 'local',
+        preventDangerous: true,
+      })
+
+      const workspace = await fs.getWorkspace('legacy-test')
+      await workspace.write('legacy.txt', 'Legacy config works')
+      const content = await workspace.read('legacy.txt')
+
+      expect(content).toBe('Legacy config works')
+      expect(fs.userId).toBe('legacy-user')
+
+      await fs.destroy()
+    })
+
+    it('should allow overriding filesystem operations in custom backend', async () => {
+      // Create a custom backend that tracks filesystem calls
+      const callLog: string[] = []
+
+      class CustomLocalBackend extends LocalBackend {
+        async readFileAsync(path: string, encoding: 'utf-8'): Promise<string> {
+          callLog.push(`readFileAsync: ${path}`)
+          return await super.readFileAsync(path, encoding)
+        }
+
+        async writeFileAsync(path: string, content: string, encoding: 'utf-8'): Promise<void>
+        async writeFileAsync(path: string, content: string, options: { flag: string }): Promise<void>
+        async writeFileAsync(path: string, content: string, encodingOrOptions: 'utf-8' | { flag: string }): Promise<void> {
+          callLog.push(`writeFileAsync: ${path}`)
+          await super.writeFileAsync(path, content, encodingOrOptions as any)
+        }
+
+        async mkdirAsync(path: string, options: { recursive?: boolean }): Promise<void> {
+          callLog.push(`mkdirAsync: ${path}`)
+          await super.mkdirAsync(path, options)
+        }
+      }
+
+      const customBackend = new CustomLocalBackend({
+        userId: 'custom-fs-user',
+        type: 'local',
+        preventDangerous: true,
+      })
+
+      const fs = new FileSystem(customBackend)
+      const workspace = await fs.getWorkspace('custom-fs-test')
+
+      // Perform operations
+      await workspace.write('test.txt', 'Custom backend test')
+      const content = await workspace.read('test.txt')
+
+      // Verify operations were tracked
+      expect(callLog.some((log) => log.includes('writeFileAsync') && log.includes('test.txt'))).toBe(true)
+      expect(callLog.some((log) => log.includes('readFileAsync') && log.includes('test.txt'))).toBe(true)
+      expect(content).toBe('Custom backend test')
+
+      // Verify that our custom backend methods were actually called
+      expect(callLog.length).toBeGreaterThan(0)
+
+      await fs.destroy()
     })
   })
 })

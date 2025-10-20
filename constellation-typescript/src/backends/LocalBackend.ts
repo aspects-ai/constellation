@@ -1,6 +1,7 @@
 import { getLogger } from '../utils/logger.js'
-import { execSync } from 'child_process'
-import { readdir } from 'fs/promises'
+import { execSync, spawn, type ChildProcess, type SpawnOptions } from 'child_process'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent, type Stats } from 'fs'
+import { mkdir as fsMkdir, readdir, readFile, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { ERROR_CODES } from '../constants.js'
 import { FileSystemError } from '../types.js'
@@ -120,6 +121,121 @@ export class LocalBackend implements FileSystemBackend {
   async destroy(): Promise<void> {
     this.workspaceCache.clear()
     getLogger().debug(`LocalBackend destroyed for user: ${this.userId}`)
+  }
+
+  // ========================================================================
+  // Filesystem Operation Methods
+  // These methods can be overridden in custom LocalBackend implementations
+  // to provide custom behavior for filesystem operations
+  // ========================================================================
+
+  /**
+   * Spawn a child process for command execution
+   * Override this method to customize process spawning behavior
+   */
+  spawnProcess(shell: string, args: string[], options: SpawnOptions): ChildProcess {
+    return spawn(shell, args, options)
+  }
+
+  /**
+   * Execute a synchronous command
+   * Override this method to customize synchronous command execution
+   */
+  execSyncCommand(command: string, options?: { stdio?: 'ignore' }): Buffer | string {
+    return execSync(command, options)
+  }
+
+  // Async filesystem operations
+
+  /**
+   * Read file asynchronously
+   */
+  async readFileAsync(path: string, encoding: 'utf-8'): Promise<string> {
+    return await readFile(path, encoding)
+  }
+
+  /**
+   * Write file asynchronously
+   */
+  async writeFileAsync(path: string, content: string, encoding: 'utf-8'): Promise<void>
+  async writeFileAsync(path: string, content: string, options: { flag: string }): Promise<void>
+  async writeFileAsync(path: string, content: string, encodingOrOptions: 'utf-8' | { flag: string }): Promise<void> {
+    await writeFile(path, content, encodingOrOptions as any)
+  }
+
+  /**
+   * Create directory asynchronously
+   */
+  async mkdirAsync(path: string, options: { recursive?: boolean }): Promise<void> {
+    await fsMkdir(path, options)
+  }
+
+  /**
+   * Read directory asynchronously
+   */
+  async readdirAsync(path: string): Promise<string[]>
+  async readdirAsync(path: string, options: { withFileTypes: true }): Promise<Dirent[]>
+  async readdirAsync(path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]> {
+    if (options?.withFileTypes) {
+      return await readdir(path, { withFileTypes: true })
+    }
+    return await readdir(path)
+  }
+
+  /**
+   * Remove file or directory asynchronously
+   */
+  async removeAsync(path: string, options: { recursive: boolean; force: boolean }): Promise<void> {
+    await rm(path, options)
+  }
+
+  // Sync filesystem operations
+
+  /**
+   * Check if path exists synchronously
+   */
+  existsSyncFS(path: string): boolean {
+    return existsSync(path)
+  }
+
+  /**
+   * Create directory synchronously
+   */
+  mkdirSyncFS(path: string, options: { recursive?: boolean }): void {
+    mkdirSync(path, options)
+  }
+
+  /**
+   * Read directory synchronously
+   */
+  readdirSyncFS(path: string): string[]
+  readdirSyncFS(path: string, options: { withFileTypes: true }): Dirent[]
+  readdirSyncFS(path: string, options?: { withFileTypes?: boolean }): string[] | Dirent[] {
+    if (options?.withFileTypes) {
+      return readdirSync(path, { withFileTypes: true })
+    }
+    return readdirSync(path)
+  }
+
+  /**
+   * Read file synchronously
+   */
+  readFileSyncFS(path: string, encoding: NodeJS.BufferEncoding): string {
+    return readFileSync(path, encoding)
+  }
+
+  /**
+   * Get file stats synchronously
+   */
+  statSyncFS(path: string): Stats {
+    return statSync(path)
+  }
+
+  /**
+   * Write file synchronously
+   */
+  writeFileSyncFS(path: string, content: string, encoding: NodeJS.BufferEncoding): void {
+    writeFileSync(path, content, encoding)
   }
 
   /**

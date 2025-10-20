@@ -1,7 +1,4 @@
-import { spawn } from 'child_process'
 import type { Dirent, Stats } from 'fs'
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs'
-import { mkdir as fsMkdir, readdir, readFile, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
 import type { LocalBackend } from '../backends/LocalBackend.js'
 import { ERROR_CODES } from '../constants.js'
@@ -57,7 +54,7 @@ export class LocalWorkspace extends BaseWorkspace {
     const env = this.buildEnvironment()
 
     return new Promise((resolve, reject) => {
-      const child = spawn(shell, ['-c', command], {
+      const child = this.backend.spawnProcess(shell, ['-c', command], {
         cwd: this.workspacePath,
         stdio: ['pipe', 'pipe', 'pipe'],
         env,
@@ -125,8 +122,7 @@ export class LocalWorkspace extends BaseWorkspace {
     } else if (this.backend.options.shell === 'auto') {
       // Auto-detection: prefer bash if available, fall back to sh
       try {
-        const { execSync } = require('child_process')
-        execSync('command -v bash', { stdio: 'ignore' })
+        this.backend.execSyncCommand('command -v bash', { stdio: 'ignore' })
         return 'bash'
       } catch {
         return 'sh'
@@ -231,7 +227,7 @@ export class LocalWorkspace extends BaseWorkspace {
     const fullPath = this.resolvePath(path)
 
     try {
-      return await readFile(fullPath, 'utf-8')
+      return await this.backend.readFileAsync(fullPath, 'utf-8')
     } catch (error) {
       throw this.wrapError(error, 'Read file', ERROR_CODES.READ_FAILED, `read ${path}`)
     }
@@ -259,10 +255,10 @@ export class LocalWorkspace extends BaseWorkspace {
       // Create parent directories if they don't exist
       if (parentPath !== '.') {
         const fullParentPath = this.resolvePath(parentPath)
-        await fsMkdir(fullParentPath, { recursive: true })
+        await this.backend.mkdirAsync(fullParentPath, { recursive: true })
       }
-      
-      await writeFile(fullPath, content, 'utf-8')
+
+      await this.backend.writeFileAsync(fullPath, content, 'utf-8')
     } catch (error) {
       throw this.wrapError(error, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${path}`)
     }
@@ -287,7 +283,7 @@ export class LocalWorkspace extends BaseWorkspace {
     const fullPath = this.resolvePath(path)
 
     try {
-      await fsMkdir(fullPath, { recursive })
+      await this.backend.mkdirAsync(fullPath, { recursive })
     } catch (error) {
       throw this.wrapError(error, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${path}`)
     }
@@ -313,19 +309,19 @@ export class LocalWorkspace extends BaseWorkspace {
 
     try {
       // Create empty file or update timestamp if it exists
-      await writeFile(fullPath, '', { flag: 'a' })
+      await this.backend.writeFileAsync(fullPath, '', { flag: 'a' })
     } catch (error) {
       throw this.wrapError(error, 'Create file', ERROR_CODES.WRITE_FAILED, `touch ${path}`)
     }
   }
 
   async exists(): Promise<boolean> {
-    return existsSync(this.workspacePath)
+    return this.backend.existsSyncFS(this.workspacePath)
   }
 
   async delete(): Promise<void> {
     try {
-      await rm(this.workspacePath, { recursive: true, force: true })
+      await this.backend.removeAsync(this.workspacePath, { recursive: true, force: true })
     } catch (error) {
       throw this.wrapError(
         error,
@@ -338,7 +334,7 @@ export class LocalWorkspace extends BaseWorkspace {
 
   async list(): Promise<string[]> {
     try {
-      return await readdir(this.workspacePath)
+      return await this.backend.readdirAsync(this.workspacePath)
     } catch (error) {
       throw this.wrapError(
         error,
@@ -353,7 +349,7 @@ export class LocalWorkspace extends BaseWorkspace {
   existsSync(path: string): boolean {
     this.validatePath(path)
     const fullPath = this.resolvePath(path)
-    return existsSync(fullPath)
+    return this.backend.existsSyncFS(fullPath)
   }
 
   mkdirSync(path: string, options?: { recursive?: boolean }): void {
@@ -375,7 +371,7 @@ export class LocalWorkspace extends BaseWorkspace {
     const fullPath = this.resolvePath(path)
 
     try {
-      mkdirSync(fullPath, { recursive: options?.recursive ?? true })
+      this.backend.mkdirSyncFS(fullPath, { recursive: options?.recursive ?? true })
     } catch (error) {
       throw this.wrapError(error, 'Create directory (sync)', ERROR_CODES.WRITE_FAILED, `mkdir ${path}`)
     }
@@ -387,9 +383,9 @@ export class LocalWorkspace extends BaseWorkspace {
 
     try {
       if (options?.withFileTypes) {
-        return readdirSync(fullPath, { withFileTypes: true })
+        return this.backend.readdirSyncFS(fullPath, { withFileTypes: true })
       }
-      return readdirSync(fullPath)
+      return this.backend.readdirSyncFS(fullPath)
     } catch (error) {
       throw this.wrapError(error, 'Read directory (sync)', ERROR_CODES.READ_FAILED, `readdir ${path}`)
     }
@@ -411,7 +407,7 @@ export class LocalWorkspace extends BaseWorkspace {
     const fullPath = this.resolvePath(path)
 
     try {
-      return readFileSync(fullPath, encoding)
+      return this.backend.readFileSyncFS(fullPath, encoding)
     } catch (error) {
       throw this.wrapError(error, 'Read file (sync)', ERROR_CODES.READ_FAILED, `read ${path}`)
     }
@@ -422,7 +418,7 @@ export class LocalWorkspace extends BaseWorkspace {
     const fullPath = this.resolvePath(path)
 
     try {
-      return statSync(fullPath)
+      return this.backend.statSyncFS(fullPath)
     } catch (error) {
       throw this.wrapError(error, 'Stat file (sync)', ERROR_CODES.READ_FAILED, `stat ${path}`)
     }
@@ -450,10 +446,10 @@ export class LocalWorkspace extends BaseWorkspace {
       // Create parent directories if they don't exist
       if (parentPath !== '.') {
         const fullParentPath = this.resolvePath(parentPath)
-        mkdirSync(fullParentPath, { recursive: true })
+        this.backend.mkdirSyncFS(fullParentPath, { recursive: true })
       }
 
-      writeFileSync(fullPath, content, encoding)
+      this.backend.writeFileSyncFS(fullPath, content, encoding)
     } catch (error) {
       throw this.wrapError(error, 'Write file (sync)', ERROR_CODES.WRITE_FAILED, `write ${path}`)
     }
@@ -467,9 +463,9 @@ export class LocalWorkspace extends BaseWorkspace {
 
       try {
         if (options?.withFileTypes) {
-          return await readdir(fullPath, { withFileTypes: true })
+          return await this.backend.readdirAsync(fullPath, { withFileTypes: true })
         }
-        return await readdir(fullPath)
+        return await this.backend.readdirAsync(fullPath)
       } catch (error) {
         throw this.wrapError(error, 'Read directory (async)', ERROR_CODES.READ_FAILED, `readdir ${path}`)
       }

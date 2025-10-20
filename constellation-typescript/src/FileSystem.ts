@@ -4,6 +4,22 @@ import { getLogger } from './utils/logger.js'
 import type { Workspace, WorkspaceConfig } from './workspace/Workspace.js'
 
 /**
+ * Type guard to check if input is a FileSystemBackend instance
+ */
+function isBackendInstance(input: Partial<BackendConfig> | FileSystemBackend): input is FileSystemBackend {
+  return (
+    typeof input === 'object' &&
+    input !== null &&
+    'type' in input &&
+    'userId' in input &&
+    'options' in input &&
+    'connected' in input &&
+    'getWorkspace' in input &&
+    typeof (input as FileSystemBackend).getWorkspace === 'function'
+  )
+}
+
+/**
  * FileSystem class - Frontend abstraction for backend management
  *
  * This class:
@@ -16,8 +32,12 @@ import type { Workspace, WorkspaceConfig } from './workspace/Workspace.js'
  *
  * @example
  * ```typescript
- * // Create a filesystem (gets/creates backend from pool)
+ * // Create a filesystem with config (creates backend automatically)
  * const fs = new FileSystem({ userId: 'user123' })
+ *
+ * // Or provide a custom backend instance
+ * const customBackend = new LocalBackend({ userId: 'user123', type: 'local' })
+ * const fs = new FileSystem(customBackend)
  *
  * // Get workspaces and use them
  * const ws1 = await fs.getWorkspace('project-a')
@@ -36,28 +56,35 @@ export class FileSystem {
 
   /**
    * Create a new FileSystem instance
-   * @param input - Backend configuration object with userId
+   * @param input - Backend configuration object or a FileSystemBackend instance
    * @throws {FileSystemError} When configuration is invalid
    */
-  constructor(input: Partial<BackendConfig>) {
-    // Normalize config
-    if (input.type) {
-      // Full backend config - use as-is with defaults for missing fields
-      this.backendConfig = input as BackendConfig
+  constructor(input: Partial<BackendConfig> | FileSystemBackend) {
+    // Check if input is a backend instance
+    if (isBackendInstance(input)) {
+      // Use the provided backend instance
+      this.backend = input
+      this.backendConfig = input.options
     } else {
-      getLogger().debug('No backend config provided, assuming local backend: %s', input)
-      // Partial config - assume local backend and fill in defaults
-      this.backendConfig = {
-        type: 'local',
-        shell: 'auto',
-        validateUtils: false,
-        preventDangerous: true,
-        ...input,
-      } as LocalBackendConfig
-    }
+      // Normalize config
+      if (input.type) {
+        // Full backend config - use as-is with defaults for missing fields
+        this.backendConfig = input as BackendConfig
+      } else {
+        getLogger().debug('No backend config provided, assuming local backend: %s', input)
+        // Partial config - assume local backend and fill in defaults
+        this.backendConfig = {
+          type: 'local',
+          shell: 'auto',
+          validateUtils: false,
+          preventDangerous: true,
+          ...input,
+        } as LocalBackendConfig
+      }
 
-    // Create a new backend instance for this FileSystem
-    this.backend = BackendFactory.create(this.backendConfig)
+      // Create a new backend instance for this FileSystem
+      this.backend = BackendFactory.create(this.backendConfig)
+    }
   }
 
   /**
