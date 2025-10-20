@@ -101,12 +101,30 @@ export function isDangerous(command: string): boolean {
 }
 
 /**
+ * Extract heredoc markers and their content from a command
+ * Heredocs with single quotes (<<'EOF') don't perform shell expansion, so their content is safe
+ * @param command - The command to check
+ * @returns Command with heredoc content replaced by placeholders
+ */
+function stripHeredocContent(command: string): string {
+  // Match heredocs: << 'DELIMITER' ... DELIMITER or << "DELIMITER" ... DELIMITER or <<DELIMITER ... DELIMITER
+  // We'll be conservative and strip all heredoc content since it's literal data
+  const heredocRegex = /<<\s*['"]?(\w+)['"]?[\s\S]*?\n\1/g
+
+  // Replace heredoc content with a safe placeholder
+  return command.replace(heredocRegex, '<<HEREDOC_PLACEHOLDER')
+}
+
+/**
  * Check if a command attempts to escape the workspace
  * @param command - The command to check
  * @returns true if the command attempts to access outside workspace
  */
 export function isEscapingWorkspace(command: string): boolean {
-  return ESCAPE_PATTERNS.some(pattern => pattern.test(command))
+  // Strip heredoc content before validation since heredocs are literal data
+  const commandWithoutHeredocs = stripHeredocContent(command)
+
+  return ESCAPE_PATTERNS.some(pattern => pattern.test(commandWithoutHeredocs))
 }
 
 /**

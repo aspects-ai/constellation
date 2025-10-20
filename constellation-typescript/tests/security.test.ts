@@ -133,5 +133,44 @@ describe('Safety Patterns', () => {
       expect(isEscapingWorkspace('cat README.md')).toBe(false)
       expect(isEscapingWorkspace('echo "test"')).toBe(false)
     })
+
+    it('should allow heredoc content with command substitution syntax', () => {
+      // Heredocs with single quotes don't perform shell expansion
+      const heredocCommand = `cat > file.tsx << 'EOF'
+const Component = () => {
+  const style = \`scale(\${scale}) translateY(\${floatY}px)\`
+  return <div>$(echo "not executed")</div>
+}
+EOF`
+      expect(isEscapingWorkspace(heredocCommand)).toBe(false)
+    })
+
+    it('should allow heredoc content with parent directory references', () => {
+      // Content inside heredocs is literal, not shell commands
+      const heredocCommand = `cat > docs.md << 'EOF'
+To go up a directory: cd ../
+Home directory: ~/
+Command substitution: $(whoami)
+EOF`
+      expect(isEscapingWorkspace(heredocCommand)).toBe(false)
+    })
+
+    it('should still detect escape patterns outside heredocs', () => {
+      // cd before the heredoc should still be caught
+      const heredocCommand = `cd /tmp && cat > file.txt << 'EOF'
+content here
+EOF`
+      expect(isEscapingWorkspace(heredocCommand)).toBe(true)
+    })
+
+    it('should handle multiple heredocs in one command', () => {
+      const heredocCommand = `cat > file1.txt << 'EOF1'
+$(command substitution)
+EOF1
+cat > file2.txt << 'EOF2'
+~/home/reference
+EOF2`
+      expect(isEscapingWorkspace(heredocCommand)).toBe(false)
+    })
   })
 })
