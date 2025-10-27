@@ -67,6 +67,20 @@ export class RemoteWorkspace extends BaseWorkspace {
     return this.backend.directoryExists(this.workspacePath)
   }
 
+  async fileExists(path: string): Promise<boolean> {
+    this.validatePath(path)
+    const remotePath = this.resolvePath(path)
+
+    return this.backend.pathExists(remotePath)
+  }
+
+  async stat(path: string): Promise<Stats> {
+    this.validatePath(path)
+    const remotePath = this.resolvePath(path)
+
+    return this.backend.pathStat(remotePath)
+  }
+
   async delete(): Promise<void> {
     // Delete the entire workspace directory
     return this.backend.deleteDirectory(this.workspacePath)

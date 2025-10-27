@@ -316,7 +316,41 @@ export class LocalWorkspace extends BaseWorkspace {
   }
 
   async exists(): Promise<boolean> {
-    return this.backend.existsSyncFS(this.workspacePath)
+    return await this.backend.existsAsync(this.workspacePath)
+  }
+
+  async fileExists(path: string): Promise<boolean> {
+    this.validatePath(path)
+
+    try {
+      const fullPath = this.resolvePath(path)
+      return await this.backend.existsAsync(fullPath)
+    } catch (error) {
+      // If path validation fails, the file doesn't exist (or is inaccessible)
+      return false
+    }
+  }
+
+  async stat(path: string): Promise<Stats> {
+    this.validatePath(path)
+
+    // Check symlink safety
+    const symlinkCheck = checkSymlinkSafety(this.workspacePath, path)
+    if (!symlinkCheck.safe) {
+      throw new FileSystemError(
+        `Cannot stat file: ${symlinkCheck.reason}`,
+        ERROR_CODES.PATH_ESCAPE_ATTEMPT,
+        `stat ${path}`
+      )
+    }
+
+    const fullPath = this.resolvePath(path)
+
+    try {
+      return await this.backend.statAsync(fullPath)
+    } catch (error) {
+      throw this.wrapError(error, 'Stat file', ERROR_CODES.READ_FAILED, `stat ${path}`)
+    }
   }
 
   async delete(): Promise<void> {

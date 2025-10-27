@@ -631,6 +631,63 @@ export class RemoteBackend implements FileSystemBackend {
     })
   }
 
+  async pathExists(remotePath: string): Promise<boolean> {
+    await this.ensureSSHConnection()
+
+    if (!this.sshClient) {
+      return false
+    }
+
+    return new Promise((resolve) => {
+      if (!this.sshClient) {
+        resolve(false)
+        return
+      }
+      this.sshClient.exec(`test -e "${remotePath}"`, (err, stream) => {
+        if (err) {
+          resolve(false)
+          return
+        }
+
+        stream.on('close', (code: number) => {
+          // test command returns 0 if file/directory exists, 1 if it doesn't
+          resolve(code === 0)
+        })
+      })
+    })
+  }
+
+  async pathStat(remotePath: string): Promise<import('fs').Stats> {
+    await this.ensureSSHConnection()
+
+    if (!this.sshClient) {
+      throw new FileSystemError('SSH client not initialized', ERROR_CODES.READ_FAILED)
+    }
+
+    return new Promise((resolve, reject) => {
+      if (!this.sshClient) {
+        throw new FileSystemError('SSH client not initialized', ERROR_CODES.READ_FAILED)
+      }
+
+      this.sshClient.sftp((err, sftp) => {
+        if (err) {
+          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.READ_FAILED, `stat ${remotePath}`))
+          return
+        }
+
+        sftp.stat(remotePath, (err, stats) => {
+          if (err) {
+            reject(this.wrapError(err, 'Stat file', ERROR_CODES.READ_FAILED, `stat ${remotePath}`))
+          } else {
+            // SSH2 Stats type is compatible with fs.Stats for most use cases
+            // Cast through unknown to handle type incompatibility
+            resolve(stats as unknown as import('fs').Stats)
+          }
+        })
+      })
+    })
+  }
+
   async deleteDirectory(remotePath: string): Promise<void> {
     await this.ensureSSHConnection()
 

@@ -77,6 +77,20 @@ export interface Workspace {
   exists(): Promise<boolean>
 
   /**
+   * Check if a file or directory exists within the workspace
+   * @param path - Relative path to check within the workspace
+   * @returns Promise resolving to true if the file or directory exists
+   */
+  fileExists(path: string): Promise<boolean>
+
+  /**
+   * Get file or directory stats
+   * @param path - Relative path to the file or directory within the workspace
+   * @returns Promise resolving to file stats
+   */
+  stat(path: string): Promise<Stats>
+
+  /**
    * Delete the entire workspace directory
    * @returns Promise that resolves when the workspace is deleted
    */
@@ -209,6 +223,8 @@ export abstract class BaseWorkspace implements Workspace {
   abstract mkdir(path: string, recursive?: boolean): Promise<void>
   abstract touch(path: string): Promise<void>
   abstract exists(): Promise<boolean>
+  abstract fileExists(path: string): Promise<boolean>
+  abstract stat(path: string): Promise<Stats>
   abstract delete(): Promise<void>
   abstract list(): Promise<string[]>
 

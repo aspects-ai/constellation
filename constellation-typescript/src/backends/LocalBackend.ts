@@ -1,7 +1,8 @@
 import { getLogger } from '../utils/logger.js'
 import { execSync, spawn, type ChildProcess, type SpawnOptions } from 'child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent, type Stats } from 'fs'
-import { mkdir as fsMkdir, readdir, readFile, rm, writeFile } from 'fs/promises'
+import { access, mkdir as fsMkdir, readdir, readFile, rm, stat, writeFile } from 'fs/promises'
+import { constants } from 'fs'
 import { join } from 'path'
 import { ERROR_CODES } from '../constants.js'
 import { FileSystemError } from '../types.js'
@@ -187,6 +188,25 @@ export class LocalBackend implements FileSystemBackend {
    */
   async removeAsync(path: string, options: { recursive: boolean; force: boolean }): Promise<void> {
     await rm(path, options)
+  }
+
+  /**
+   * Check if path exists asynchronously
+   */
+  async existsAsync(path: string): Promise<boolean> {
+    try {
+      await access(path, constants.F_OK)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Get file stats asynchronously
+   */
+  async statAsync(path: string): Promise<Stats> {
+    return await stat(path)
   }
 
   // Sync filesystem operations

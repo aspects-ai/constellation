@@ -359,6 +359,110 @@ describe('LocalWorkspace', () => {
     })
   })
 
+  describe('fileExists', () => {
+    it('should return true for existing file', async () => {
+      await workspace.write('exists-test.txt', 'content')
+      const exists = await workspace.fileExists('exists-test.txt')
+      expect(exists).toBe(true)
+    })
+
+    it('should return false for non-existent file', async () => {
+      const exists = await workspace.fileExists('nonexistent.txt')
+      expect(exists).toBe(false)
+    })
+
+    it('should return true for existing directory', async () => {
+      await workspace.mkdir('test-dir')
+      const exists = await workspace.fileExists('test-dir')
+      expect(exists).toBe(true)
+    })
+
+    it('should return true for nested files', async () => {
+      await workspace.mkdir('parent')
+      await workspace.write('parent/child.txt', 'nested')
+      const exists = await workspace.fileExists('parent/child.txt')
+      expect(exists).toBe(true)
+    })
+
+    it('should return false for path escape attempts', async () => {
+      const exists = await workspace.fileExists('../../../etc/passwd')
+      expect(exists).toBe(false)
+    })
+
+    it('should validate empty paths', async () => {
+      await expect(workspace.fileExists('')).rejects.toThrow('Path cannot be empty')
+    })
+  })
+
+  describe('stat', () => {
+    it('should return stats for file', async () => {
+      await workspace.write('stat-file.txt', 'test content')
+      const stats = await workspace.stat('stat-file.txt')
+
+      expect(stats.isFile()).toBe(true)
+      expect(stats.isDirectory()).toBe(false)
+      expect(stats.size).toBeGreaterThan(0)
+    })
+
+    it('should return stats for directory', async () => {
+      await workspace.mkdir('stat-dir')
+      const stats = await workspace.stat('stat-dir')
+
+      expect(stats.isDirectory()).toBe(true)
+      expect(stats.isFile()).toBe(false)
+    })
+
+    it('should return stats for nested files', async () => {
+      await workspace.mkdir('nested')
+      await workspace.write('nested/file.txt', 'nested content')
+      const stats = await workspace.stat('nested/file.txt')
+
+      expect(stats.isFile()).toBe(true)
+      expect(stats.size).toBe(14) // "nested content" is 14 bytes
+    })
+
+    it('should throw for non-existent file', async () => {
+      await expect(workspace.stat('nonexistent.txt')).rejects.toThrow(FileSystemError)
+    })
+
+    it('should reject absolute paths', async () => {
+      await expect(workspace.stat('/etc/passwd')).rejects.toThrow('Absolute paths are not allowed')
+    })
+
+    it('should reject parent traversal', async () => {
+      await expect(workspace.stat('../../../etc/passwd')).rejects.toThrow('Path escapes workspace')
+    })
+
+    it('should validate empty paths', async () => {
+      await expect(workspace.stat('')).rejects.toThrow('Path cannot be empty')
+    })
+
+    it('should include modification time', async () => {
+      await workspace.write('mtime-test.txt', 'content')
+      const stats = await workspace.stat('mtime-test.txt')
+
+      expect(stats.mtime).toBeInstanceOf(Date)
+      expect(stats.mtime.getTime()).toBeLessThanOrEqual(Date.now())
+    })
+
+    it('should work with fileExists for checking file type', async () => {
+      await workspace.write('type-test.txt', 'file')
+      await workspace.mkdir('type-dir')
+
+      const fileExists = await workspace.fileExists('type-test.txt')
+      const dirExists = await workspace.fileExists('type-dir')
+
+      expect(fileExists).toBe(true)
+      expect(dirExists).toBe(true)
+
+      const fileStats = await workspace.stat('type-test.txt')
+      const dirStats = await workspace.stat('type-dir')
+
+      expect(fileStats.isFile()).toBe(true)
+      expect(dirStats.isDirectory()).toBe(true)
+    })
+  })
+
   describe('integration tests', () => {
     it('should support complete workflow', async () => {
       // Create directory structure
