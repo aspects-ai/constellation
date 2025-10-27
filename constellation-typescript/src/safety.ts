@@ -16,16 +16,15 @@ const DANGEROUS_PATTERNS = [
   /^chmod\s+.*777/,
   /^chown\s+.*root/,
   
-  // Dangerous network downloads and execution
+  // Dangerous network downloads and execution (pipe-to-shell)
   /curl\b.*\|\s*(sh|bash|zsh|fish)\b/,
   /wget\b.*\|\s*(sh|bash|zsh|fish)\b/,
   /\|\s*(sh|bash|zsh|fish)\s*$/,
-  
-  // Direct network tools (that could be used maliciously)
-  /^wget\b/,
-  /^curl\b/,
+
+  // Direct network tools that are inherently dangerous
   /^nc\b/,
   /^ncat\b/,
+  /^netcat\b/,
   /^telnet\b/,
   /^ftp\b/,
   /^ssh\b/,
@@ -146,9 +145,18 @@ export function isCommandSafe(command: string): { safe: boolean; reason?: string
   // Check for dangerous commands first
   if (isDangerous(command)) {
     const baseCmd = getBaseCommand(command)
+
+    // Provide specific guidance for pipe-to-shell attempts
+    if (/(?:curl|wget)\b.*\|\s*(?:sh|bash|zsh|fish)\b/.test(command.toLowerCase())) {
+      return {
+        safe: false,
+        reason: `Piping downloads to shell is dangerous. Download to a file first (e.g., 'curl -O <url>'), inspect it, then execute if safe.`
+      }
+    }
+
     return { safe: false, reason: `Dangerous command '${baseCmd}' is not allowed` }
   }
-  
+
   // Check for workspace escape attempts
   if (isEscapingWorkspace(command)) {
     // More specific messages for different escape types
@@ -166,7 +174,7 @@ export function isCommandSafe(command: string): { safe: boolean; reason?: string
     }
     return { safe: false, reason: 'Command attempts to escape workspace' }
   }
-  
+
   return { safe: true }
 }
 

