@@ -325,7 +325,7 @@ export class LocalWorkspace extends BaseWorkspace {
     try {
       const fullPath = this.resolvePath(path)
       return await this.backend.existsAsync(fullPath)
-    } catch (error) {
+    } catch {
       // If path validation fails, the file doesn't exist (or is inaccessible)
       return false
     }
