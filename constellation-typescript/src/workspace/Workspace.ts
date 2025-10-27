@@ -91,6 +91,31 @@ export interface Workspace {
   stat(path: string): Promise<Stats>
 
   /**
+   * Read directory contents
+   * @param path - Relative path to the directory within the workspace
+   * @param options - Options for reading directory
+   * @returns Promise resolving to array of directory entries
+   */
+  readdir(path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]>
+
+  /**
+   * Read file contents
+   * @param path - Relative path to the file within the workspace
+   * @param encoding - File encoding (defaults to 'utf-8')
+   * @returns Promise resolving to file contents as string
+   */
+  readFile(path: string, encoding?: NodeJS.BufferEncoding): Promise<string>
+
+  /**
+   * Write file contents
+   * @param path - Relative path to the file within the workspace
+   * @param content - Content to write
+   * @param encoding - File encoding (defaults to 'utf-8')
+   * @returns Promise that resolves when the write is complete
+   */
+  writeFile(path: string, content: string, encoding?: NodeJS.BufferEncoding): Promise<void>
+
+  /**
    * Delete the entire workspace directory
    * @returns Promise that resolves when the workspace is deleted
    */
@@ -225,6 +250,9 @@ export abstract class BaseWorkspace implements Workspace {
   abstract exists(): Promise<boolean>
   abstract fileExists(path: string): Promise<boolean>
   abstract stat(path: string): Promise<Stats>
+  abstract readdir(path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]>
+  abstract readFile(path: string, encoding?: NodeJS.BufferEncoding): Promise<string>
+  abstract writeFile(path: string, content: string, encoding?: NodeJS.BufferEncoding): Promise<void>
   abstract delete(): Promise<void>
   abstract list(): Promise<string[]>
 

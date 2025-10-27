@@ -353,6 +353,73 @@ export class LocalWorkspace extends BaseWorkspace {
     }
   }
 
+  async readdir(path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]> {
+    this.validatePath(path)
+    const fullPath = this.resolvePath(path)
+
+    try {
+      if (options?.withFileTypes) {
+        return await this.backend.readdirAsync(fullPath, { withFileTypes: true })
+      }
+      return await this.backend.readdirAsync(fullPath)
+    } catch (error) {
+      throw this.wrapError(error, 'Read directory', ERROR_CODES.READ_FAILED, `readdir ${path}`)
+    }
+  }
+
+  async readFile(path: string, encoding: NodeJS.BufferEncoding = 'utf-8'): Promise<string> {
+    this.validatePath(path)
+
+    // Check symlink safety
+    const symlinkCheck = checkSymlinkSafety(this.workspacePath, path)
+    if (!symlinkCheck.safe) {
+      throw new FileSystemError(
+        `Cannot read file: ${symlinkCheck.reason}`,
+        ERROR_CODES.PATH_ESCAPE_ATTEMPT,
+        `readFile ${path}`
+      )
+    }
+
+    const fullPath = this.resolvePath(path)
+
+    try {
+      return await this.backend.readFileAsync(fullPath, encoding as 'utf-8')
+    } catch (error) {
+      throw this.wrapError(error, 'Read file', ERROR_CODES.READ_FAILED, `readFile ${path}`)
+    }
+  }
+
+  async writeFile(path: string, content: string, encoding: NodeJS.BufferEncoding = 'utf-8'): Promise<void> {
+    this.validatePath(path)
+
+    // Check symlink safety for parent directories
+    const parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '.'
+    if (parentPath !== '.') {
+      const symlinkCheck = checkSymlinkSafety(this.workspacePath, parentPath)
+      if (!symlinkCheck.safe) {
+        throw new FileSystemError(
+          `Cannot write file: ${symlinkCheck.reason}`,
+          ERROR_CODES.PATH_ESCAPE_ATTEMPT,
+          `writeFile ${path}`
+        )
+      }
+    }
+
+    const fullPath = this.resolvePath(path)
+
+    try {
+      // Create parent directories if they don't exist
+      if (parentPath !== '.') {
+        const fullParentPath = this.resolvePath(parentPath)
+        await this.backend.mkdirAsync(fullParentPath, { recursive: true })
+      }
+
+      await this.backend.writeFileAsync(fullPath, content, encoding as 'utf-8')
+    } catch (error) {
+      throw this.wrapError(error, 'Write file', ERROR_CODES.WRITE_FAILED, `writeFile ${path}`)
+    }
+  }
+
   async delete(): Promise<void> {
     try {
       await this.backend.removeAsync(this.workspacePath, { recursive: true, force: true })

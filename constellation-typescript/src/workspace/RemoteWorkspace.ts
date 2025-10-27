@@ -81,6 +81,37 @@ export class RemoteWorkspace extends BaseWorkspace {
     return this.backend.pathStat(remotePath)
   }
 
+  async readdir(path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]> {
+    this.validatePath(path)
+    const remotePath = this.resolvePath(path)
+
+    if (options?.withFileTypes) {
+      // Remote backend doesn't support withFileTypes, so we need to throw
+      throw new FileSystemError(
+        'withFileTypes option is not supported for remote workspaces',
+        ERROR_CODES.INVALID_CONFIGURATION
+      )
+    }
+
+    return this.backend.listDirectory(remotePath)
+  }
+
+  async readFile(path: string, _encoding?: NodeJS.BufferEncoding): Promise<string> {
+    this.validatePath(path)
+    const remotePath = this.resolvePath(path)
+
+    // Remote backend's readFile always returns UTF-8, encoding parameter is ignored
+    return this.backend.readFile(remotePath)
+  }
+
+  async writeFile(path: string, content: string, _encoding?: NodeJS.BufferEncoding): Promise<void> {
+    this.validatePath(path)
+    const remotePath = this.resolvePath(path)
+
+    // Remote backend's writeFile always uses UTF-8, encoding parameter is ignored
+    return this.backend.writeFile(remotePath, content)
+  }
+
   async delete(): Promise<void> {
     // Delete the entire workspace directory
     return this.backend.deleteDirectory(this.workspacePath)

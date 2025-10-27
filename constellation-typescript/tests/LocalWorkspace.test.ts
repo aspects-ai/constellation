@@ -394,6 +394,123 @@ describe('LocalWorkspace', () => {
     })
   })
 
+  describe('readdir', () => {
+    it('should read directory contents', async () => {
+      await workspace.mkdir('dir-test')
+      await workspace.write('dir-test/file1.txt', 'content1')
+      await workspace.write('dir-test/file2.txt', 'content2')
+
+      const files = await workspace.readdir('dir-test')
+      expect(files).toHaveLength(2)
+      expect(files).toContain('file1.txt')
+      expect(files).toContain('file2.txt')
+    })
+
+    it('should read directory with withFileTypes option', async () => {
+      await workspace.mkdir('types-test')
+      await workspace.write('types-test/file.txt', 'content')
+      await workspace.mkdir('types-test/subdir')
+
+      const entries = await workspace.readdir('types-test', { withFileTypes: true })
+      expect(entries).toHaveLength(2)
+
+      const dirents = entries as import('fs').Dirent[]
+      const file = dirents.find(e => e.name === 'file.txt')
+      const dir = dirents.find(e => e.name === 'subdir')
+
+      expect(file?.isFile()).toBe(true)
+      expect(dir?.isDirectory()).toBe(true)
+    })
+
+    it('should read nested directory', async () => {
+      await workspace.mkdir('parent/child')
+      await workspace.write('parent/child/nested.txt', 'nested')
+
+      const files = await workspace.readdir('parent/child')
+      expect(files).toContain('nested.txt')
+    })
+
+    it('should throw for non-existent directory', async () => {
+      await expect(workspace.readdir('nonexistent')).rejects.toThrow(FileSystemError)
+    })
+
+    it('should reject absolute paths', async () => {
+      await expect(workspace.readdir('/etc')).rejects.toThrow('Path escapes workspace')
+    })
+
+    it('should validate empty paths', async () => {
+      await expect(workspace.readdir('')).rejects.toThrow('Path cannot be empty')
+    })
+  })
+
+  describe('readFile', () => {
+    it('should read file contents', async () => {
+      await workspace.write('readfile-test.txt', 'test content')
+      const content = await workspace.readFile('readfile-test.txt')
+      expect(content).toBe('test content')
+    })
+
+    it('should read file with encoding', async () => {
+      await workspace.write('encoding-test.txt', 'encoded content')
+      const content = await workspace.readFile('encoding-test.txt', 'utf-8')
+      expect(content).toBe('encoded content')
+    })
+
+    it('should read nested files', async () => {
+      await workspace.mkdir('nested')
+      await workspace.write('nested/file.txt', 'nested content')
+      const content = await workspace.readFile('nested/file.txt')
+      expect(content).toBe('nested content')
+    })
+
+    it('should throw for non-existent file', async () => {
+      await expect(workspace.readFile('nonexistent.txt')).rejects.toThrow(FileSystemError)
+    })
+
+    it('should reject absolute paths', async () => {
+      await expect(workspace.readFile('/etc/passwd')).rejects.toThrow('Path escapes workspace')
+    })
+
+    it('should validate empty paths', async () => {
+      await expect(workspace.readFile('')).rejects.toThrow('Path cannot be empty')
+    })
+  })
+
+  describe('writeFile', () => {
+    it('should write file contents', async () => {
+      await workspace.writeFile('writefile-test.txt', 'new content')
+      const content = await workspace.read('writefile-test.txt')
+      expect(content).toBe('new content')
+    })
+
+    it('should write file with encoding', async () => {
+      await workspace.writeFile('encoding-write.txt', 'encoded write', 'utf-8')
+      const content = await workspace.read('encoding-write.txt')
+      expect(content).toBe('encoded write')
+    })
+
+    it('should create parent directories automatically', async () => {
+      await workspace.writeFile('auto-dir/file.txt', 'auto content')
+      const content = await workspace.read('auto-dir/file.txt')
+      expect(content).toBe('auto content')
+    })
+
+    it('should overwrite existing files', async () => {
+      await workspace.writeFile('overwrite.txt', 'original')
+      await workspace.writeFile('overwrite.txt', 'updated')
+      const content = await workspace.read('overwrite.txt')
+      expect(content).toBe('updated')
+    })
+
+    it('should reject absolute paths', async () => {
+      await expect(workspace.writeFile('/tmp/test.txt', 'content')).rejects.toThrow('Path escapes workspace')
+    })
+
+    it('should validate empty paths', async () => {
+      await expect(workspace.writeFile('', 'content')).rejects.toThrow('Path cannot be empty')
+    })
+  })
+
   describe('stat', () => {
     it('should return stats for file', async () => {
       await workspace.write('stat-file.txt', 'test content')
