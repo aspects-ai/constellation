@@ -1,15 +1,15 @@
 // Core API
-export { FileSystem } from './FileSystem.js'
 export { ConstellationFS } from './config/Config.js'
+export { FileSystem } from './FileSystem.js'
 
 // Backend Management
 export { BackendFactory } from './backends/BackendFactory.js'
 
 // Workspace Classes
-export type { Workspace, WorkspaceConfig } from './workspace/Workspace.js'
-export { BaseWorkspace } from './workspace/Workspace.js'
 export { LocalWorkspace } from './workspace/LocalWorkspace.js'
 export { RemoteWorkspace } from './workspace/RemoteWorkspace.js'
+export { BaseWorkspace } from './workspace/Workspace.js'
+export type { Workspace, WorkspaceConfig } from './workspace/Workspace.js'
 
 // Backend Classes
 export { LocalBackend } from './backends/LocalBackend.js'
@@ -18,10 +18,7 @@ export { RemoteBackend } from './backends/RemoteBackend.js'
 // SDK Adapters
 export {
   BaseSDKAdapter,
-  ClaudeCodeAdapter,
-  CodebuffAdapter,
-  type SDKAdapter,
-  type CodebuffToolHandlers
+  ClaudeCodeAdapter, type CodebuffToolHandlers, type SDKAdapter
 } from './adapters/index.js'
 
 // Error Classes
@@ -30,19 +27,13 @@ export { DangerousOperationError, FileSystemError } from './types.js'
 // Platform Detection
 export {
   detectPlatformCapabilities,
-  findNativeLibrary,
-  validateNativeLibrary,
-  getRemoteBackendLibrary,
-  getPlatformGuidance,
-  type PlatformCapabilities
+  findNativeLibrary, getPlatformGuidance, getRemoteBackendLibrary, validateNativeLibrary, type PlatformCapabilities
 } from './utils/nativeLibrary.js'
 
 // Public Types
 export type {
-  BackendConfig,
-  FileSystemBackend,
-  FileInfo,
-  FileSystemInterface,
+  BackendConfig, FileInfo, FileSystemBackend, FileSystemInterface,
   LocalBackendConfig,
   RemoteBackendConfig
 } from './types.js'
+
