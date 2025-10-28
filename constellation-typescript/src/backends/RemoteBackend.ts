@@ -69,8 +69,6 @@ export class RemoteBackend implements FileSystemBackend {
 
     // Connection will be established on first use
     this.connected = false
-
-    getLogger().debug('RemoteBackend initialized for user:', this.userId)
   }
   
   /**
@@ -442,7 +440,9 @@ export class RemoteBackend implements FileSystemBackend {
    * Public helper methods for RemoteWorkspace
    */
 
-  async readFile(remotePath: string): Promise<string> {
+  async readFile(remotePath: string): Promise<Buffer>
+  async readFile(remotePath: string, encoding: BufferEncoding): Promise<string>
+  async readFile(remotePath: string, encoding?: BufferEncoding): Promise<string | Buffer> {
     await this.ensureSSHConnection()
 
     if (!this.sshClient) {
@@ -459,13 +459,25 @@ export class RemoteBackend implements FileSystemBackend {
           return
         }
 
-        sftp.readFile(remotePath, 'utf8', (err, data) => {
-          if (err) {
-            reject(this.wrapError(err, 'Read file', ERROR_CODES.READ_FAILED, `read ${remotePath}`))
-          } else {
-            resolve(Buffer.isBuffer(data) ? data.toString('utf8') : data)
-          }
-        })
+        if (encoding) {
+          // Read as string with specified encoding
+          sftp.readFile(remotePath, encoding, (err, data) => {
+            if (err) {
+              reject(this.wrapError(err, 'Read file', ERROR_CODES.READ_FAILED, `read ${remotePath}`))
+            } else {
+              resolve(Buffer.isBuffer(data) ? data.toString(encoding) : data)
+            }
+          })
+        } else {
+          // Read as Buffer (no encoding)
+          sftp.readFile(remotePath, (err, data) => {
+            if (err) {
+              reject(this.wrapError(err, 'Read file', ERROR_CODES.READ_FAILED, `read ${remotePath}`))
+            } else {
+              resolve(data)
+            }
+          })
+        }
       })
     })
   }

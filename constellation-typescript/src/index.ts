@@ -18,7 +18,7 @@ export { RemoteBackend } from './backends/RemoteBackend.js'
 // SDK Adapters
 export {
   BaseSDKAdapter,
-  ClaudeCodeAdapter, type CodebuffToolHandlers, type SDKAdapter
+  ClaudeCodeAdapter, type SDKAdapter
 } from './adapters/index.js'
 
 // Error Classes

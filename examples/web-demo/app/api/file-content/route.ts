@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
 
     try {
       const workspace = await fs.getWorkspace('default')
-      const content = await workspace.read(filePath)
+      const content = await workspace.readFile(filePath, 'utf-8')
       
       const readTime = Date.now() - readStartTime
       const totalTime = Date.now() - startTime

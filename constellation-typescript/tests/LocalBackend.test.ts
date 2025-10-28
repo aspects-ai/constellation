@@ -286,7 +286,7 @@ describe('LocalBackend', () => {
       await ws1.write('test-file.txt', 'content in workspace 1')
 
       // Second workspace should not have the file
-      await expect(ws2.read('test-file.txt')).rejects.toThrow()
+      await expect(ws2.readFile('test-file.txt', 'utf-8')).rejects.toThrow()
     })
 
     it('should set HOME to workspace path', async () => {

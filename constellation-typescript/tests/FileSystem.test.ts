@@ -41,7 +41,7 @@ describe('FileSystem', () => {
       const testContent = 'Hello, ConstellationFS!'
 
       await workspace.write('test.txt', testContent)
-      const content = await workspace.read('test.txt')
+      const content = await workspace.readFile('test.txt', 'utf-8')
 
       expect(content).toBe(testContent)
     })
@@ -108,7 +108,7 @@ describe('FileSystem', () => {
 
       const testContent = 'Test content in custom workspace'
       await workspace.write('custom-test.txt', testContent)
-      const content = await workspace.read('custom-test.txt')
+      const content = await workspace.readFile('custom-test.txt', 'utf-8')
 
       expect(content).toBe(testContent)
     })
@@ -125,7 +125,7 @@ describe('FileSystem', () => {
       expect(ws1.workspacePath).not.toBe(ws2.workspacePath)
 
       // Second workspace should not have the file
-      await expect(ws2.read('isolated-file.txt')).rejects.toThrow()
+      await expect(ws2.readFile('isolated-file.txt', 'utf-8')).rejects.toThrow()
     })
 
     it('should support nested directory paths in workspace name', async () => {
@@ -136,7 +136,7 @@ describe('FileSystem', () => {
 
       // Should be able to perform operations
       await workspace.write('nested-test.txt', 'Nested workspace test')
-      const content = await workspace.read('nested-test.txt')
+      const content = await workspace.readFile('nested-test.txt', 'utf-8')
       expect(content).toBe('Nested workspace test')
     })
 
@@ -149,7 +149,7 @@ describe('FileSystem', () => {
 
       // Should still work normally
       await workspace.write('default-workspace.txt', 'Default workspace test')
-      const content = await workspace.read('default-workspace.txt')
+      const content = await workspace.readFile('default-workspace.txt', 'utf-8')
       expect(content).toBe('Default workspace test')
     })
 
@@ -247,7 +247,7 @@ describe('FileSystem', () => {
       const workspace = await fs.getWorkspace('backend-workspace')
 
       await workspace.write('backend-test.txt', 'Testing backend override')
-      const content = await workspace.read('backend-test.txt')
+      const content = await workspace.readFile('backend-test.txt', 'utf-8')
 
       expect(content).toBe('Testing backend override')
       expect(workspace.userId).toBe('backend-test-user')
@@ -271,8 +271,8 @@ describe('FileSystem', () => {
       await ws1.write('file1.txt', 'From FileSystem 1')
       await ws2.write('file2.txt', 'From FileSystem 2')
 
-      const content1 = await ws1.read('file1.txt')
-      const content2 = await ws2.read('file2.txt')
+      const content1 = await ws1.readFile('file1.txt', 'utf-8')
+      const content2 = await ws2.readFile('file2.txt', 'utf-8')
 
       expect(content1).toBe('From FileSystem 1')
       expect(content2).toBe('From FileSystem 2')
@@ -341,7 +341,7 @@ describe('FileSystem', () => {
 
       const workspace = await fs.getWorkspace('legacy-test')
       await workspace.write('legacy.txt', 'Legacy config works')
-      const content = await workspace.read('legacy.txt')
+      const content = await workspace.readFile('legacy.txt', 'utf-8')
 
       expect(content).toBe('Legacy config works')
       expect(fs.userId).toBe('legacy-user')
@@ -383,7 +383,7 @@ describe('FileSystem', () => {
 
       // Perform operations
       await workspace.write('test.txt', 'Custom backend test')
-      const content = await workspace.read('test.txt')
+      const content = await workspace.readFile('test.txt', 'utf-8')
 
       // Verify operations were tracked
       expect(callLog.some((log) => log.includes('writeFileAsync') && log.includes('test.txt'))).toBe(true)

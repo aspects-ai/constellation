@@ -211,28 +211,6 @@ export class LocalWorkspace extends BaseWorkspace {
     return validated
   }
 
-  async read(path: string): Promise<string> {
-    this.validatePath(path)
-
-    // Check symlink safety
-    const symlinkCheck = checkSymlinkSafety(this.workspacePath, path)
-    if (!symlinkCheck.safe) {
-      throw new FileSystemError(
-        `Cannot read file: ${symlinkCheck.reason}`,
-        ERROR_CODES.PATH_ESCAPE_ATTEMPT,
-        `read ${path}`
-      )
-    }
-
-    const fullPath = this.resolvePath(path)
-
-    try {
-      return await this.backend.readFileAsync(fullPath, 'utf-8')
-    } catch (error) {
-      throw this.wrapError(error, 'Read file', ERROR_CODES.READ_FAILED, `read ${path}`)
-    }
-  }
-
   async write(path: string, content: string): Promise<void> {
     this.validatePath(path)
 
@@ -367,7 +345,7 @@ export class LocalWorkspace extends BaseWorkspace {
     }
   }
 
-  async readFile(path: string, encoding: NodeJS.BufferEncoding = 'utf-8'): Promise<string> {
+  async readFile(path: string, encoding?: NodeJS.BufferEncoding | null): Promise<string | Buffer> {
     this.validatePath(path)
 
     // Check symlink safety
@@ -383,7 +361,10 @@ export class LocalWorkspace extends BaseWorkspace {
     const fullPath = this.resolvePath(path)
 
     try {
-      return await this.backend.readFileAsync(fullPath, encoding as 'utf-8')
+      if (encoding) {
+        return await this.backend.readFileAsync(fullPath, encoding)
+      }
+      return await this.backend.readFileAsync(fullPath)
     } catch (error) {
       throw this.wrapError(error, 'Read file', ERROR_CODES.READ_FAILED, `readFile ${path}`)
     }

@@ -41,13 +41,6 @@ export interface Workspace {
   exec(command: string, encoding?: 'utf8' | 'buffer'): Promise<string | Buffer>
 
   /**
-   * Read the contents of a file
-   * @param path - Relative path to the file within the workspace
-   * @returns Promise resolving to the file contents as UTF-8 string
-   */
-  read(path: string): Promise<string>
-
-  /**
    * Write content to a file
    * @param path - Relative path to the file within the workspace
    * @param content - Content to write to the file as UTF-8 string
@@ -101,10 +94,10 @@ export interface Workspace {
   /**
    * Read file contents
    * @param path - Relative path to the file within the workspace
-   * @param encoding - File encoding (defaults to 'utf-8')
-   * @returns Promise resolving to file contents as string
+   * @param encoding - File encoding. If null/undefined, returns Buffer for binary data
+   * @returns Promise resolving to file contents as string (when encoding specified) or Buffer (when no encoding)
    */
-  readFile(path: string, encoding?: NodeJS.BufferEncoding): Promise<string>
+  readFile(path: string, encoding?: NodeJS.BufferEncoding | null): Promise<string | Buffer>
 
   /**
    * Write file contents
@@ -243,7 +236,6 @@ export abstract class BaseWorkspace implements Workspace {
 
   // Abstract methods that must be implemented by concrete workspace types
   abstract exec(command: string, encoding?: 'utf8' | 'buffer'): Promise<string | Buffer>
-  abstract read(path: string): Promise<string>
   abstract write(path: string, content: string): Promise<void>
   abstract mkdir(path: string, recursive?: boolean): Promise<void>
   abstract touch(path: string): Promise<void>
@@ -251,7 +243,7 @@ export abstract class BaseWorkspace implements Workspace {
   abstract fileExists(path: string): Promise<boolean>
   abstract stat(path: string): Promise<Stats>
   abstract readdir(path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]>
-  abstract readFile(path: string, encoding?: NodeJS.BufferEncoding): Promise<string>
+  abstract readFile(path: string, encoding?: NodeJS.BufferEncoding | null): Promise<string | Buffer>
   abstract writeFile(path: string, content: string, encoding?: NodeJS.BufferEncoding): Promise<void>
   abstract delete(): Promise<void>
   abstract list(): Promise<string[]>

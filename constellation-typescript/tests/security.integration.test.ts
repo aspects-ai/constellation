@@ -94,7 +94,7 @@ describe('Security Integration Tests', () => {
       // Test a sequence of safe operations
       await workspace.exec('mkdir -p safe-subdir')
       await workspace.write('safe-subdir/nested-file.txt', 'nested content')
-      const content = await workspace.read('safe-subdir/nested-file.txt')
+      const content = await workspace.readFile('safe-subdir/nested-file.txt', 'utf-8')
 
       expect(content).toBe('nested content')
 
@@ -106,8 +106,8 @@ describe('Security Integration Tests', () => {
   describe('File Operations Security', () => {
     it('should block reading files outside workspace', async () => {
       const workspace = await fs.getWorkspace('default')
-      await expect(workspace.read('/etc/passwd')).rejects.toThrow('Absolute paths are not allowed')
-      await expect(workspace.read('../../../etc/passwd')).rejects.toThrow('Path escapes workspace')
+      await expect(workspace.readFile('/etc/passwd', 'utf-8')).rejects.toThrow('Absolute paths are not allowed')
+      await expect(workspace.readFile('../../../etc/passwd', 'utf-8')).rejects.toThrow('Path escapes workspace')
     })
 
     it('should block writing files outside workspace', async () => {
@@ -119,7 +119,7 @@ describe('Security Integration Tests', () => {
     it('should allow safe file operations', async () => {
       const workspace = await fs.getWorkspace('default')
       await expect(workspace.write('safe-test.txt', 'safe content')).resolves.not.toThrow()
-      await expect(workspace.read('safe-test.txt')).resolves.toBe('safe content')
+      await expect(workspace.readFile('safe-test.txt', 'utf-8')).resolves.toBe('safe content')
 
       // Clean up
       await workspace.exec('rm -f safe-test.txt')

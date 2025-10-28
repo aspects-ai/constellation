@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
           const fileType = statResult.trim().toLowerCase();
 
           if (fileType.includes('regular file')) {
-            const content = await workspace.read(filePath);
+            const content = await workspace.readFile(filePath, 'utf-8');
             const normalizedPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
             files.push({ path: normalizedPath, content });
             console.log('[sandbox-files] Added file:', normalizedPath);

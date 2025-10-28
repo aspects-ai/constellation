@@ -1,12 +1,11 @@
-import { getLogger } from '../utils/logger.js'
 import { execSync, spawn, type ChildProcess, type SpawnOptions } from 'child_process'
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent, type Stats } from 'fs'
+import { constants, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent, type Stats } from 'fs'
 import { access, mkdir as fsMkdir, readdir, readFile, rm, stat, writeFile } from 'fs/promises'
-import { constants } from 'fs'
 import { join } from 'path'
 import { ERROR_CODES } from '../constants.js'
 import { FileSystemError } from '../types.js'
 import { LocalWorkspaceUtils } from '../utils/LocalWorkspaceUtils.js'
+import { getLogger } from '../utils/logger.js'
 import { LocalWorkspace } from '../workspace/LocalWorkspace.js'
 import type { Workspace, WorkspaceConfig } from '../workspace/Workspace.js'
 import type { FileSystemBackend, LocalBackendConfig } from './types.js'
@@ -44,7 +43,6 @@ export class LocalBackend implements FileSystemBackend {
     if (options.validateUtils) {
       this.validateEnvironment()
     }
-    getLogger().debug('LocalBackend initialized for user:', this.userId)
   }
 
   /**
@@ -115,7 +113,6 @@ export class LocalBackend implements FileSystemBackend {
     }
   }
 
-
   /**
    * Clean up backend resources
    */
@@ -150,9 +147,17 @@ export class LocalBackend implements FileSystemBackend {
 
   /**
    * Read file asynchronously
+   * @param path - File path to read
+   * @param encoding - File encoding. If not provided, returns Buffer
+   * @returns Promise resolving to file contents as string or Buffer
    */
-  async readFileAsync(path: string, encoding: 'utf-8'): Promise<string> {
-    return await readFile(path, encoding)
+  async readFileAsync(path: string): Promise<Buffer>
+  async readFileAsync(path: string, encoding: BufferEncoding): Promise<string>
+  async readFileAsync(path: string, encoding?: BufferEncoding): Promise<string | Buffer> {
+    if (encoding) {
+      return await readFile(path, encoding)
+    }
+    return await readFile(path)
   }
 
   /**

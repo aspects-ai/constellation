@@ -31,14 +31,6 @@ export class RemoteWorkspace extends BaseWorkspace {
     return this.backend.execInWorkspace(this.workspacePath, command, encoding, this.customEnv)
   }
 
-  async read(path: string): Promise<string> {
-    this.validatePath(path)
-    const remotePath = this.resolvePath(path)
-
-    // Use SFTP to read file
-    return this.backend.readFile(remotePath)
-  }
-
   async write(path: string, content: string): Promise<void> {
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
@@ -96,11 +88,13 @@ export class RemoteWorkspace extends BaseWorkspace {
     return this.backend.listDirectory(remotePath)
   }
 
-  async readFile(path: string, _encoding?: NodeJS.BufferEncoding): Promise<string> {
+  async readFile(path: string, encoding?: NodeJS.BufferEncoding | null): Promise<string | Buffer> {
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
-    // Remote backend's readFile always returns UTF-8, encoding parameter is ignored
+    if (encoding) {
+      return this.backend.readFile(remotePath, encoding)
+    }
     return this.backend.readFile(remotePath)
   }
 

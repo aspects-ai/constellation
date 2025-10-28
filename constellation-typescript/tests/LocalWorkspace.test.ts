@@ -74,34 +74,34 @@ describe('LocalWorkspace', () => {
   describe('read', () => {
     it('should read file content', async () => {
       await workspace.write('read-test.txt', 'test content')
-      const content = await workspace.read('read-test.txt')
+      const content = await workspace.readFile('read-test.txt', 'utf-8')
 
       expect(content).toBe('test content')
     })
 
     it('should reject absolute paths', async () => {
-      await expect(workspace.read('/etc/passwd')).rejects.toThrow('Absolute paths are not allowed')
+      await expect(workspace.readFile('/etc/passwd', 'utf-8')).rejects.toThrow('Absolute paths are not allowed')
     })
 
     it('should reject parent traversal', async () => {
-      await expect(workspace.read('../../../etc/passwd')).rejects.toThrow('Path escapes workspace')
+      await expect(workspace.readFile('../../../etc/passwd', 'utf-8')).rejects.toThrow('Path escapes workspace')
     })
 
     it('should throw when file does not exist', async () => {
-      await expect(workspace.read('nonexistent.txt')).rejects.toThrow()
+      await expect(workspace.readFile('nonexistent.txt', 'utf-8')).rejects.toThrow()
     })
 
     it('should read files in subdirectories', async () => {
       await workspace.mkdir('subdir')
       await workspace.write('subdir/nested.txt', 'nested content')
 
-      const content = await workspace.read('subdir/nested.txt')
+      const content = await workspace.readFile('subdir/nested.txt', 'utf-8')
       expect(content).toBe('nested content')
     })
 
     it('should handle empty files', async () => {
       await workspace.write('empty.txt', '')
-      const content = await workspace.read('empty.txt')
+      const content = await workspace.readFile('empty.txt', 'utf-8')
 
       expect(content).toBe('')
     })
@@ -110,7 +110,7 @@ describe('LocalWorkspace', () => {
   describe('write', () => {
     it('should write file content', async () => {
       await workspace.write('write-test.txt', 'new content')
-      const content = await workspace.read('write-test.txt')
+      const content = await workspace.readFile('write-test.txt', 'utf-8')
 
       expect(content).toBe('new content')
     })
@@ -119,7 +119,7 @@ describe('LocalWorkspace', () => {
       await workspace.write('overwrite.txt', 'original')
       await workspace.write('overwrite.txt', 'updated')
 
-      const content = await workspace.read('overwrite.txt')
+      const content = await workspace.readFile('overwrite.txt', 'utf-8')
       expect(content).toBe('updated')
     })
 
@@ -135,7 +135,7 @@ describe('LocalWorkspace', () => {
       await workspace.mkdir('parent')
       await workspace.write('parent/child.txt', 'nested write')
 
-      const content = await workspace.read('parent/child.txt')
+      const content = await workspace.readFile('parent/child.txt', 'utf-8')
       expect(content).toBe('nested write')
     })
 
@@ -143,7 +143,7 @@ describe('LocalWorkspace', () => {
       const unicodeContent = 'Hello World'
       await workspace.write('unicode.txt', unicodeContent)
 
-      const content = await workspace.read('unicode.txt')
+      const content = await workspace.readFile('unicode.txt', 'utf-8')
       expect(content).toBe(unicodeContent)
     })
 
@@ -151,7 +151,7 @@ describe('LocalWorkspace', () => {
       const multiline = 'line1\nline2\nline3'
       await workspace.write('multiline.txt', multiline)
 
-      const content = await workspace.read('multiline.txt')
+      const content = await workspace.readFile('multiline.txt', 'utf-8')
       expect(content).toBe(multiline)
     })
   })
@@ -188,7 +188,7 @@ describe('LocalWorkspace', () => {
   describe('touch', () => {
     it('should create empty file', async () => {
       await workspace.touch('touched.txt')
-      const content = await workspace.read('touched.txt')
+      const content = await workspace.readFile('touched.txt', 'utf-8')
 
       expect(content).toBe('')
     })
@@ -197,7 +197,7 @@ describe('LocalWorkspace', () => {
       await workspace.mkdir('subdir')
       await workspace.touch('subdir/file.txt')
 
-      const content = await workspace.read('subdir/file.txt')
+      const content = await workspace.readFile('subdir/file.txt', 'utf-8')
       expect(content).toBe('')
     })
 
@@ -205,7 +205,7 @@ describe('LocalWorkspace', () => {
       await workspace.write('existing.txt', 'original content')
       await workspace.touch('existing.txt')
 
-      const content = await workspace.read('existing.txt')
+      const content = await workspace.readFile('existing.txt', 'utf-8')
       expect(content).toBe('original content')
     })
 
@@ -298,7 +298,7 @@ describe('LocalWorkspace', () => {
       ).resolves.toBeDefined() // Command succeeds
 
       // But reading through the symlink should be blocked
-      await expect(workspace.read('escape-link/etc/passwd')).rejects.toThrow()
+      await expect(workspace.readFile('escape-link/etc/passwd', 'utf-8')).rejects.toThrow()
     })
 
     it('should validate all paths before operations', async () => {
@@ -309,7 +309,7 @@ describe('LocalWorkspace', () => {
       ]
 
       for (const path of dangerousPaths) {
-        await expect(workspace.read(path)).rejects.toThrow()
+        await expect(workspace.readFile(path, 'utf-8')).rejects.toThrow()
         await expect(workspace.write(path, 'bad')).rejects.toThrow()
       }
     })
@@ -332,7 +332,7 @@ describe('LocalWorkspace', () => {
   describe('error handling', () => {
     it('should wrap errors with FileSystemError', async () => {
       try {
-        await workspace.read('nonexistent.txt')
+        await workspace.readFile('nonexistent.txt', 'utf-8')
       } catch (error) {
         expect(error).toBeInstanceOf(FileSystemError)
         expect((error as FileSystemError).errorCode).toBe('READ_FAILED')
@@ -341,7 +341,7 @@ describe('LocalWorkspace', () => {
 
     it('should not double-wrap FileSystemError', async () => {
       try {
-        await workspace.read('/etc/passwd')
+        await workspace.readFile('/etc/passwd', 'utf-8')
       } catch (error) {
         expect(error).toBeInstanceOf(FileSystemError)
         // Should be the original FileSystemError, not wrapped again
@@ -350,7 +350,7 @@ describe('LocalWorkspace', () => {
 
     it('should include operation context in errors', async () => {
       try {
-        await workspace.read('missing.txt')
+        await workspace.readFile('missing.txt', 'utf-8')
       } catch (error) {
         expect(error).toBeInstanceOf(FileSystemError)
         const fsError = error as FileSystemError
@@ -444,23 +444,26 @@ describe('LocalWorkspace', () => {
   })
 
   describe('readFile', () => {
-    it('should read file contents', async () => {
+    it('should read file contents as Buffer when no encoding specified', async () => {
       await workspace.write('readfile-test.txt', 'test content')
       const content = await workspace.readFile('readfile-test.txt')
-      expect(content).toBe('test content')
+      expect(content).toBeInstanceOf(Buffer)
+      expect(content.toString('utf-8')).toBe('test content')
     })
 
-    it('should read file with encoding', async () => {
+    it('should read file with encoding as string', async () => {
       await workspace.write('encoding-test.txt', 'encoded content')
       const content = await workspace.readFile('encoding-test.txt', 'utf-8')
+      expect(typeof content).toBe('string')
       expect(content).toBe('encoded content')
     })
 
-    it('should read nested files', async () => {
+    it('should read nested files as Buffer by default', async () => {
       await workspace.mkdir('nested')
       await workspace.write('nested/file.txt', 'nested content')
       const content = await workspace.readFile('nested/file.txt')
-      expect(content).toBe('nested content')
+      expect(content).toBeInstanceOf(Buffer)
+      expect(content.toString('utf-8')).toBe('nested content')
     })
 
     it('should throw for non-existent file', async () => {
@@ -479,26 +482,26 @@ describe('LocalWorkspace', () => {
   describe('writeFile', () => {
     it('should write file contents', async () => {
       await workspace.writeFile('writefile-test.txt', 'new content')
-      const content = await workspace.read('writefile-test.txt')
+      const content = await workspace.readFile('writefile-test.txt', 'utf-8')
       expect(content).toBe('new content')
     })
 
     it('should write file with encoding', async () => {
       await workspace.writeFile('encoding-write.txt', 'encoded write', 'utf-8')
-      const content = await workspace.read('encoding-write.txt')
+      const content = await workspace.readFile('encoding-write.txt', 'utf-8')
       expect(content).toBe('encoded write')
     })
 
     it('should create parent directories automatically', async () => {
       await workspace.writeFile('auto-dir/file.txt', 'auto content')
-      const content = await workspace.read('auto-dir/file.txt')
+      const content = await workspace.readFile('auto-dir/file.txt', 'utf-8')
       expect(content).toBe('auto content')
     })
 
     it('should overwrite existing files', async () => {
       await workspace.writeFile('overwrite.txt', 'original')
       await workspace.writeFile('overwrite.txt', 'updated')
-      const content = await workspace.read('overwrite.txt')
+      const content = await workspace.readFile('overwrite.txt', 'utf-8')
       expect(content).toBe('updated')
     })
 
@@ -590,7 +593,7 @@ describe('LocalWorkspace', () => {
       await workspace.write('src/utils/helper.ts', 'export const help = true')
 
       // Read files
-      const indexContent = await workspace.read('src/index.ts')
+      const indexContent = await workspace.readFile('src/index.ts', 'utf-8')
       expect(indexContent).toBe('export * from "./utils"')
 
       // List files
@@ -616,7 +619,7 @@ describe('LocalWorkspace', () => {
       expect(items.length).toBeGreaterThanOrEqual(10)
 
       for (let i = 0; i < 10; i++) {
-        const content = await workspace.read(`file-${i}.txt`)
+        const content = await workspace.readFile(`file-${i}.txt`, 'utf-8')
         expect(content).toBe(`content ${i}`)
       }
     })

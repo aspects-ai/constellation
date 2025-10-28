@@ -176,12 +176,6 @@ class LocalBackend(FileSystemBackend):
         # Detect shell
         self._shell_cmd = self._detect_shell()
         
-        # Log backend initialization
-        self.logger.info(f"LocalBackend initialized for user {self.user_id}", 
-                        workspace=self.workspace, shell=self._shell_cmd,
-                        timeout_seconds=self.timeout_seconds, 
-                        max_concurrent=self.max_concurrent_commands)
-        
         # Validate environment if requested
         if self.validate_utils:
             self._validate_environment()
