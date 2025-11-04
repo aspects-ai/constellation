@@ -1,69 +1,41 @@
-import { getLogger } from '../utils/logger'
 import { existsSync, readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import { getLogger } from '../utils/logger'
 
 /**
  * Library-level configuration interface for ConstellationFS
  */
-interface LibraryConfig {
+export interface LibraryConfig {
   /** Base directory for all user workspaces */
   workspaceRoot: string
-  /** Enable FUSE filesystem mounting (internal) */
-  fuseEnabled?: boolean
-  /** Base path for FUSE mount points (internal) */
-  fuseMountPoint?: string
-  /** Backend-specific FUSE options (internal) */
-  backends?: {
-    local?: {
-      /** Actual root directory when using FUSE pass-through */
-      actualRoot?: string
-    }
-    remote?: {
-      /** Whether FUSE is required for this backend */
-      requiresFUSE?: boolean
-    }
-  }
 }
 
 /**
- * Singleton configuration manager for ConstellationFS library
- * Automatically loads from .constellationfs.json if present
+ * Singleton configuration manager for ConstellationFS library.
+ * Loads from .constellationfs.json by default, but allows injection of overrides.
  */
 export class ConstellationFS {
   private static instance: ConstellationFS | null = null
   private config: LibraryConfig
   private appId: string
 
-  private constructor(appId: string) {
+  private constructor(appId: string, injectedConfig?: Partial<LibraryConfig>) {
     this.appId = appId
+
     // Default configuration
-    this.config = {
+    let baseConfig: LibraryConfig = {
       workspaceRoot: join(tmpdir(), 'constellation-fs'),
-      fuseMountPoint: undefined,
-      backends: {}
     }
 
-    // Always try to load from .constellationfs.json in current directory
-    this.loadConfigFile()
-
-    getLogger().info('ConstellationFS initialized with config:', this.config)
-  }
-
-  /**
-   * Load configuration from .constellationfs.json if it exists
-   */
-  private loadConfigFile(): void {
+    // Try to load from .constellationfs.json
     const configPath = '.constellationfs.json'
-    
     if (existsSync(configPath)) {
       try {
         const fileContent = readFileSync(configPath, 'utf-8')
         const loadedConfig = JSON.parse(fileContent) as Partial<LibraryConfig>
-        
-        // Merge with defaults
-        this.config = {
-          ...this.config,
+        baseConfig = {
+          ...baseConfig,
           ...loadedConfig,
         }
       } catch (error) {
@@ -71,19 +43,33 @@ export class ConstellationFS {
         // Continue with defaults
       }
     }
+
+    // Apply injected overrides last
+    if (injectedConfig) {
+      baseConfig = {
+        ...baseConfig,
+        ...injectedConfig,
+      }
+    }
+
+    this.config = baseConfig
+
+    getLogger().info('ConstellationFS initialized with config:', this.config)
   }
 
   /**
-   * Get the singleton instance
-   * @returns ConstellationFS instance (creates with defaults if not loaded)
+   * Get or initialize the singleton instance.
+   * Allows injecting overrides for testing or custom configurations.
+   * If already initialized, injectedConfig is ignored.
+   * @param injectedConfig Optional overrides for LibraryConfig
    */
-  static getInstance(): ConstellationFS {
+  static getInstance(injectedConfig?: Partial<LibraryConfig>): ConstellationFS {
     if (!ConstellationFS.instance) {
       const appId = process.env.CONSTELLATIONFS_APP_ID
       if (!appId) {
         throw new Error('CONSTELLATIONFS_APP_ID is not set')
       }
-      ConstellationFS.instance = new ConstellationFS(appId)
+      ConstellationFS.instance = new ConstellationFS(appId, injectedConfig)
     }
     return ConstellationFS.instance
   }
@@ -96,28 +82,7 @@ export class ConstellationFS {
   }
 
   /**
-   * Check if FUSE is enabled
-   */
-  get fuseEnabled(): boolean {
-    return this.config.fuseEnabled ?? true
-  }
-
-  /**
-   * Get FUSE mount point base path
-   */
-  get fuseMountPoint(): string | undefined {
-    return this.config.fuseMountPoint
-  }
-
-  /**
-   * Get backend-specific configuration
-   */
-  get backends(): LibraryConfig['backends'] {
-    return this.config.backends || {}
-  }
-
-  /**
-   * Get the full configuration object
+   * Get the full configuration object.
    */
   get configuration(): Readonly<LibraryConfig> {
     return { ...this.config }
