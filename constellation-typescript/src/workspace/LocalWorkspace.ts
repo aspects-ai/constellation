@@ -4,6 +4,7 @@ import type { LocalBackend } from '../backends/LocalBackend.js'
 import { ERROR_CODES } from '../constants.js'
 import { isCommandSafe, isDangerous } from '../safety.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
+import { getLogger } from '../utils/logger.js'
 import { checkSymlinkSafety } from '../utils/pathValidator.js'
 import { BaseWorkspace, type WorkspaceConfig } from './Workspace.js'
 
@@ -95,6 +96,8 @@ export class LocalWorkspace extends BaseWorkspace {
           const stdoutBuffer = Buffer.concat(stdoutChunks)
           const errorMessage = stderrBuffer.toString('utf-8').trim() || stdoutBuffer.toString('utf-8').trim()
 
+          getLogger().error(`Command execution failed in workspace: ${this.workspacePath}, cwd: ${this.workspacePath}, exit code: ${code}`)
+
           reject(
             new FileSystemError(
               `Command execution failed with exit code ${code}: ${errorMessage}`,
@@ -106,6 +109,7 @@ export class LocalWorkspace extends BaseWorkspace {
       })
 
       child.on('error', (err) => {
+        getLogger().error(`Command execution error in workspace: ${this.workspacePath}, cwd: ${this.workspacePath}`, err)
         reject(this.wrapError(err, 'Execute command', ERROR_CODES.EXEC_ERROR, command))
       })
     })
@@ -570,6 +574,9 @@ export class LocalWorkspace extends BaseWorkspace {
 
     // Get error message from Error objects or fallback
     const message = error instanceof Error ? error.message : 'Unknown error occurred'
+
+    // Log the error with workspace context
+    getLogger().error(`${operation} failed in workspace: ${this.workspacePath}${command ? `, command: ${command}` : ''}`, error)
 
     return new FileSystemError(`${operation} failed: ${message}`, errorCode, command)
   }

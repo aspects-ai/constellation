@@ -266,7 +266,7 @@ export class RemoteBackend implements FileSystemBackend {
 
       this.sshClient.exec(fullCommand, (err, stream) => {
         if (err) {
-          getLogger().error(`[SSH exec] Command failed: ${err.message}`)
+          getLogger().error(`[SSH exec] Command failed in workspace: ${workspacePath}, cwd: ${workspacePath}`, err)
           reject(
             new FileSystemError(`SSH command failed: ${err.message}`, ERROR_CODES.EXEC_FAILED, command)
           )
@@ -300,6 +300,7 @@ export class RemoteBackend implements FileSystemBackend {
 
             resolve(output)
           } else {
+            getLogger().error(`Command failed in workspace: ${workspacePath}, cwd: ${workspacePath}, exit code: ${code}`)
             reject(
               new FileSystemError(
                 `Command failed with exit code ${code}: ${stderr.trim() || stdout.trim()}`,
@@ -455,7 +456,7 @@ export class RemoteBackend implements FileSystemBackend {
       }
       this.sshClient.sftp((err, sftp) => {
         if (err) {
-          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.READ_FAILED, `read ${remotePath}`))
+          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.READ_FAILED, `read ${remotePath}`, remotePath))
           return
         }
 
@@ -463,7 +464,7 @@ export class RemoteBackend implements FileSystemBackend {
           // Read as string with specified encoding
           sftp.readFile(remotePath, encoding, (err, data) => {
             if (err) {
-              reject(this.wrapError(err, 'Read file', ERROR_CODES.READ_FAILED, `read ${remotePath}`))
+              reject(this.wrapError(err, 'Read file', ERROR_CODES.READ_FAILED, `read ${remotePath}`, remotePath))
             } else {
               resolve(Buffer.isBuffer(data) ? data.toString(encoding) : data)
             }
@@ -472,7 +473,7 @@ export class RemoteBackend implements FileSystemBackend {
           // Read as Buffer (no encoding)
           sftp.readFile(remotePath, (err, data) => {
             if (err) {
-              reject(this.wrapError(err, 'Read file', ERROR_CODES.READ_FAILED, `read ${remotePath}`))
+              reject(this.wrapError(err, 'Read file', ERROR_CODES.READ_FAILED, `read ${remotePath}`, remotePath))
             } else {
               resolve(data)
             }
@@ -495,13 +496,13 @@ export class RemoteBackend implements FileSystemBackend {
       }
       this.sshClient.sftp((err, sftp) => {
         if (err) {
-          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`))
+          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`, remotePath))
           return
         }
 
         sftp.writeFile(remotePath, content, 'utf8', (err) => {
           if (err) {
-            reject(this.wrapError(err, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`))
+            reject(this.wrapError(err, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`, remotePath))
           } else {
             resolve()
           }
@@ -525,7 +526,7 @@ export class RemoteBackend implements FileSystemBackend {
         }
         this.sshClient.exec(`mkdir -p "${remotePath}"`, (err, stream) => {
           if (err) {
-            reject(this.wrapError(err, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${remotePath}`))
+            reject(this.wrapError(err, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${remotePath}`, remotePath))
             return
           }
 
@@ -534,6 +535,7 @@ export class RemoteBackend implements FileSystemBackend {
               if (code === 0) {
                 resolve()
               } else {
+                getLogger().error(`Failed to create directory for path: ${remotePath}`)
                 reject(
                   new FileSystemError(
                     `Failed to create directory: ${remotePath}`,
@@ -558,13 +560,13 @@ export class RemoteBackend implements FileSystemBackend {
         }
         this.sshClient.sftp((err, sftp) => {
           if (err) {
-            reject(this.wrapError(err, 'SFTP session', ERROR_CODES.WRITE_FAILED, `mkdir ${remotePath}`))
+            reject(this.wrapError(err, 'SFTP session', ERROR_CODES.WRITE_FAILED, `mkdir ${remotePath}`, remotePath))
             return
           }
 
           sftp.mkdir(remotePath, (err) => {
             if (err) {
-              reject(this.wrapError(err, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${remotePath}`))
+              reject(this.wrapError(err, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${remotePath}`, remotePath))
             } else {
               resolve()
             }
@@ -589,7 +591,7 @@ export class RemoteBackend implements FileSystemBackend {
       // Use touch command for creating empty files
       this.sshClient.exec(`touch "${remotePath}"`, (err, stream) => {
         if (err) {
-          reject(this.wrapError(err, 'Create file', ERROR_CODES.WRITE_FAILED, `touch ${remotePath}`))
+          reject(this.wrapError(err, 'Create file', ERROR_CODES.WRITE_FAILED, `touch ${remotePath}`, remotePath))
           return
         }
 
@@ -598,6 +600,7 @@ export class RemoteBackend implements FileSystemBackend {
             if (code === 0) {
               resolve()
             } else {
+              getLogger().error(`Failed to create file for path: ${remotePath}`)
               reject(
                 new FileSystemError(
                   `Failed to create file: ${remotePath}`,
@@ -683,13 +686,13 @@ export class RemoteBackend implements FileSystemBackend {
 
       this.sshClient.sftp((err, sftp) => {
         if (err) {
-          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.READ_FAILED, `stat ${remotePath}`))
+          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.READ_FAILED, `stat ${remotePath}`, remotePath))
           return
         }
 
         sftp.stat(remotePath, (err, stats) => {
           if (err) {
-            reject(this.wrapError(err, 'Stat file', ERROR_CODES.READ_FAILED, `stat ${remotePath}`))
+            reject(this.wrapError(err, 'Stat file', ERROR_CODES.READ_FAILED, `stat ${remotePath}`, remotePath))
           } else {
             // SSH2 Stats type is compatible with fs.Stats for most use cases
             // Cast through unknown to handle type incompatibility
@@ -714,7 +717,7 @@ export class RemoteBackend implements FileSystemBackend {
 
       this.sshClient.exec(`rm -rf "${remotePath}"`, (err, stream) => {
         if (err) {
-          reject(this.wrapError(err, 'Delete directory', ERROR_CODES.WRITE_FAILED, `rm -rf ${remotePath}`))
+          reject(this.wrapError(err, 'Delete directory', ERROR_CODES.WRITE_FAILED, `rm -rf ${remotePath}`, remotePath))
           return
         }
 
@@ -722,6 +725,7 @@ export class RemoteBackend implements FileSystemBackend {
           if (code === 0) {
             resolve()
           } else {
+            getLogger().error(`Failed to delete directory for path: ${remotePath}`)
             reject(
               new FileSystemError(
                 `Failed to delete directory: ${remotePath}`,
@@ -749,7 +753,7 @@ export class RemoteBackend implements FileSystemBackend {
       }
       this.sshClient.exec(`ls -1 "${remotePath}"`, (err, stream) => {
         if (err) {
-          reject(this.wrapError(err, 'List directory', ERROR_CODES.READ_FAILED, `ls ${remotePath}`))
+          reject(this.wrapError(err, 'List directory', ERROR_CODES.READ_FAILED, `ls ${remotePath}`, remotePath))
           return
         }
 
@@ -778,15 +782,25 @@ export class RemoteBackend implements FileSystemBackend {
     operation: string,
     errorCode: string,
     command?: string,
+    remotePath?: string,
   ): FileSystemError {
     if (error instanceof FileSystemError) {
       return error
     }
-    
-    const message = error instanceof Error 
-      ? error.message 
+
+    const message = error instanceof Error
+      ? error.message
       : 'Unknown error occurred'
-    
+
+    // Log the error with path context
+    if (remotePath) {
+      getLogger().error(`${operation} failed for path: ${remotePath}${command ? `, command: ${command}` : ''}`, error)
+    } else if (command) {
+      getLogger().error(`${operation} failed, command: ${command}`, error)
+    } else {
+      getLogger().error(`${operation} failed`, error)
+    }
+
     return new FileSystemError(
       `${operation} failed: ${message}`,
       errorCode,
