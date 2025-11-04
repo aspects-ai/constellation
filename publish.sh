@@ -42,5 +42,13 @@ npm publish
 
 echo "Successfully published constellation-typescript@$NEW_VERSION"
 
+# Commit and push the new version to GitHub
+echo "Committing and pushing version bump to GitHub..."
+git add package.json package-lock.json || true
+git commit -m "Bump constellation-typescript to v$NEW_VERSION"
+git tag "constellation-typescript-v$NEW_VERSION"
+git push origin HEAD
+git push origin "constellation-typescript-v$NEW_VERSION"
+
 cd ..
 
