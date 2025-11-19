@@ -45,11 +45,11 @@ export interface FileSystemInterface {
   /**
    * Write content to a file
    * @param path - Relative path to the file within the workspace
-   * @param content - Content to write to the file as UTF-8 string
+   * @param content - Content to write to the file as string or Buffer
    * @returns Promise that resolves when the write is complete
    * @throws {FileSystemError} When file cannot be written
    */
-  write(path: string, content: string): Promise<void>
+  write(path: string, content: string | Buffer): Promise<void>
 
   /**
    * Create a directory

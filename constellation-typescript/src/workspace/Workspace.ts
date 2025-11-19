@@ -43,10 +43,10 @@ export interface Workspace {
   /**
    * Write content to a file
    * @param path - Relative path to the file within the workspace
-   * @param content - Content to write to the file as UTF-8 string
+   * @param content - Content to write to the file as string or Buffer
    * @returns Promise that resolves when the write is complete
    */
-  write(path: string, content: string): Promise<void>
+  write(path: string, content: string | Buffer): Promise<void>
 
   /**
    * Create a directory
@@ -102,11 +102,11 @@ export interface Workspace {
   /**
    * Write file contents
    * @param path - Relative path to the file within the workspace
-   * @param content - Content to write
-   * @param encoding - File encoding (defaults to 'utf-8')
+   * @param content - Content to write as string or Buffer
+   * @param encoding - File encoding (defaults to 'utf-8'). Ignored when content is Buffer
    * @returns Promise that resolves when the write is complete
    */
-  writeFile(path: string, content: string, encoding?: NodeJS.BufferEncoding): Promise<void>
+  writeFile(path: string, content: string | Buffer, encoding?: NodeJS.BufferEncoding): Promise<void>
 
   /**
    * Delete the entire workspace directory
@@ -145,10 +145,10 @@ export interface Workspace {
   /**
    * Read file contents synchronously
    * @param path - Relative path to the file within the workspace
-   * @param encoding - File encoding (defaults to 'utf-8')
-   * @returns File contents as string
+   * @param encoding - File encoding. If null/undefined, returns Buffer for binary data
+   * @returns File contents as string (when encoding specified) or Buffer (when no encoding)
    */
-  readFileSync(path: string, encoding?: NodeJS.BufferEncoding): string
+  readFileSync(path: string, encoding?: NodeJS.BufferEncoding | null): string | Buffer
 
   /**
    * Get file stats synchronously
@@ -160,10 +160,10 @@ export interface Workspace {
   /**
    * Write file contents synchronously
    * @param path - Relative path to the file within the workspace
-   * @param content - Content to write
-   * @param encoding - File encoding (defaults to 'utf-8')
+   * @param content - Content to write as string or Buffer
+   * @param encoding - File encoding (defaults to 'utf-8'). Ignored when content is Buffer
    */
-  writeFileSync(path: string, content: string, encoding?: NodeJS.BufferEncoding): void
+  writeFileSync(path: string, content: string | Buffer, encoding?: NodeJS.BufferEncoding): void
 
   /**
    * Promises API for compatibility with Node.js fs.promises
@@ -236,7 +236,7 @@ export abstract class BaseWorkspace implements Workspace {
 
   // Abstract methods that must be implemented by concrete workspace types
   abstract exec(command: string, encoding?: 'utf8' | 'buffer'): Promise<string | Buffer>
-  abstract write(path: string, content: string): Promise<void>
+  abstract write(path: string, content: string | Buffer): Promise<void>
   abstract mkdir(path: string, recursive?: boolean): Promise<void>
   abstract touch(path: string): Promise<void>
   abstract exists(): Promise<boolean>
@@ -244,7 +244,7 @@ export abstract class BaseWorkspace implements Workspace {
   abstract stat(path: string): Promise<Stats>
   abstract readdir(path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]>
   abstract readFile(path: string, encoding?: NodeJS.BufferEncoding | null): Promise<string | Buffer>
-  abstract writeFile(path: string, content: string, encoding?: NodeJS.BufferEncoding): Promise<void>
+  abstract writeFile(path: string, content: string | Buffer, encoding?: NodeJS.BufferEncoding): Promise<void>
   abstract delete(): Promise<void>
   abstract list(): Promise<string[]>
 
@@ -252,9 +252,9 @@ export abstract class BaseWorkspace implements Workspace {
   abstract existsSync(path: string): boolean
   abstract mkdirSync(path: string, options?: { recursive?: boolean }): void
   abstract readdirSync(path: string, options?: { withFileTypes?: boolean }): string[] | Dirent[]
-  abstract readFileSync(path: string, encoding?: NodeJS.BufferEncoding): string
+  abstract readFileSync(path: string, encoding?: NodeJS.BufferEncoding | null): string | Buffer
   abstract statSync(path: string): Stats
-  abstract writeFileSync(path: string, content: string, encoding?: NodeJS.BufferEncoding): void
+  abstract writeFileSync(path: string, content: string | Buffer, encoding?: NodeJS.BufferEncoding): void
   abstract promises: {
     readdir(path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]>
   }

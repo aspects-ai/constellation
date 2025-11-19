@@ -215,7 +215,7 @@ export class LocalWorkspace extends BaseWorkspace {
     return validated
   }
 
-  async write(path: string, content: string): Promise<void> {
+  async write(path: string, content: string | Buffer): Promise<void> {
     this.validatePath(path)
 
     // Check symlink safety for parent directories
@@ -240,7 +240,12 @@ export class LocalWorkspace extends BaseWorkspace {
         await this.backend.mkdirAsync(fullParentPath, { recursive: true })
       }
 
-      await this.backend.writeFileAsync(fullPath, content, 'utf-8')
+      // Handle Buffer or string content
+      if (Buffer.isBuffer(content)) {
+        await this.backend.writeFileAsync(fullPath, content, { flag: 'w' })
+      } else {
+        await this.backend.writeFileAsync(fullPath, content, 'utf-8')
+      }
     } catch (error) {
       throw this.wrapError(error, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${path}`)
     }
@@ -374,7 +379,7 @@ export class LocalWorkspace extends BaseWorkspace {
     }
   }
 
-  async writeFile(path: string, content: string, encoding: NodeJS.BufferEncoding = 'utf-8'): Promise<void> {
+  async writeFile(path: string, content: string | Buffer, encoding: NodeJS.BufferEncoding = 'utf-8'): Promise<void> {
     this.validatePath(path)
 
     // Check symlink safety for parent directories
@@ -399,7 +404,12 @@ export class LocalWorkspace extends BaseWorkspace {
         await this.backend.mkdirAsync(fullParentPath, { recursive: true })
       }
 
-      await this.backend.writeFileAsync(fullPath, content, encoding as 'utf-8')
+      // Handle Buffer or string content
+      if (Buffer.isBuffer(content)) {
+        await this.backend.writeFileAsync(fullPath, content, { flag: 'w' })
+      } else {
+        await this.backend.writeFileAsync(fullPath, content, encoding as 'utf-8')
+      }
     } catch (error) {
       throw this.wrapError(error, 'Write file', ERROR_CODES.WRITE_FAILED, `writeFile ${path}`)
     }
@@ -477,7 +487,7 @@ export class LocalWorkspace extends BaseWorkspace {
     }
   }
 
-  readFileSync(path: string, encoding: NodeJS.BufferEncoding = 'utf-8'): string {
+  readFileSync(path: string, encoding?: NodeJS.BufferEncoding | null): string | Buffer {
     this.validatePath(path)
 
     // Check symlink safety
@@ -493,6 +503,10 @@ export class LocalWorkspace extends BaseWorkspace {
     const fullPath = this.resolvePath(path)
 
     try {
+      // Return Buffer when encoding is null/undefined
+      if (encoding === null || encoding === undefined) {
+        return this.backend.readFileSyncFS(fullPath, null)
+      }
       return this.backend.readFileSyncFS(fullPath, encoding)
     } catch (error) {
       throw this.wrapError(error, 'Read file (sync)', ERROR_CODES.READ_FAILED, `read ${path}`)
@@ -510,7 +524,7 @@ export class LocalWorkspace extends BaseWorkspace {
     }
   }
 
-  writeFileSync(path: string, content: string, encoding: NodeJS.BufferEncoding = 'utf-8'): void {
+  writeFileSync(path: string, content: string | Buffer, encoding: NodeJS.BufferEncoding = 'utf-8'): void {
     this.validatePath(path)
 
     // Check symlink safety for parent directories
@@ -535,7 +549,12 @@ export class LocalWorkspace extends BaseWorkspace {
         this.backend.mkdirSyncFS(fullParentPath, { recursive: true })
       }
 
-      this.backend.writeFileSyncFS(fullPath, content, encoding)
+      // Handle Buffer or string content
+      if (Buffer.isBuffer(content)) {
+        this.backend.writeFileSyncFS(fullPath, content)
+      } else {
+        this.backend.writeFileSyncFS(fullPath, content, encoding)
+      }
     } catch (error) {
       throw this.wrapError(error, 'Write file (sync)', ERROR_CODES.WRITE_FAILED, `write ${path}`)
     }

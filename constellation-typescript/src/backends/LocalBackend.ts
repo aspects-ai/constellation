@@ -163,9 +163,9 @@ export class LocalBackend implements FileSystemBackend {
   /**
    * Write file asynchronously
    */
-  async writeFileAsync(path: string, content: string, encoding: 'utf-8'): Promise<void>
-  async writeFileAsync(path: string, content: string, options: { flag: string }): Promise<void>
-  async writeFileAsync(path: string, content: string, encodingOrOptions: 'utf-8' | { flag: string }): Promise<void> {
+  async writeFileAsync(path: string, content: string | Buffer, encoding: 'utf-8'): Promise<void>
+  async writeFileAsync(path: string, content: string | Buffer, options: { flag: string }): Promise<void>
+  async writeFileAsync(path: string, content: string | Buffer, encodingOrOptions: 'utf-8' | { flag: string }): Promise<void> {
     await writeFile(path, content, encodingOrOptions as any)
   }
 
@@ -245,7 +245,12 @@ export class LocalBackend implements FileSystemBackend {
   /**
    * Read file synchronously
    */
-  readFileSyncFS(path: string, encoding: NodeJS.BufferEncoding): string {
+  readFileSyncFS(path: string, encoding: null): Buffer
+  readFileSyncFS(path: string, encoding: NodeJS.BufferEncoding): string
+  readFileSyncFS(path: string, encoding: NodeJS.BufferEncoding | null): string | Buffer {
+    if (encoding === null) {
+      return readFileSync(path)
+    }
     return readFileSync(path, encoding)
   }
 
@@ -259,8 +264,12 @@ export class LocalBackend implements FileSystemBackend {
   /**
    * Write file synchronously
    */
-  writeFileSyncFS(path: string, content: string, encoding: NodeJS.BufferEncoding): void {
-    writeFileSync(path, content, encoding)
+  writeFileSyncFS(path: string, content: string | Buffer, encoding?: NodeJS.BufferEncoding): void {
+    if (encoding) {
+      writeFileSync(path, content, encoding)
+    } else {
+      writeFileSync(path, content)
+    }
   }
 
   /**

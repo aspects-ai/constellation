@@ -31,7 +31,7 @@ export class RemoteWorkspace extends BaseWorkspace {
     return this.backend.execInWorkspace(this.workspacePath, command, encoding, this.customEnv)
   }
 
-  async write(path: string, content: string): Promise<void> {
+  async write(path: string, content: string | Buffer): Promise<void> {
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
@@ -98,11 +98,11 @@ export class RemoteWorkspace extends BaseWorkspace {
     return this.backend.readFile(remotePath)
   }
 
-  async writeFile(path: string, content: string, _encoding?: NodeJS.BufferEncoding): Promise<void> {
+  async writeFile(path: string, content: string | Buffer, _encoding?: NodeJS.BufferEncoding): Promise<void> {
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
-    // Remote backend's writeFile always uses UTF-8, encoding parameter is ignored
+    // Remote backend's writeFile handles both string and Buffer
     return this.backend.writeFile(remotePath, content)
   }
 
@@ -139,7 +139,7 @@ export class RemoteWorkspace extends BaseWorkspace {
     )
   }
 
-  readFileSync(_path: string, _encoding?: NodeJS.BufferEncoding): string {
+  readFileSync(_path: string, _encoding?: NodeJS.BufferEncoding | null): string | Buffer {
     throw new FileSystemError(
       'Synchronous operations are not supported for remote workspaces',
       ERROR_CODES.INVALID_CONFIGURATION
@@ -153,7 +153,7 @@ export class RemoteWorkspace extends BaseWorkspace {
     )
   }
 
-  writeFileSync(_path: string, _content: string, _encoding?: NodeJS.BufferEncoding): void {
+  writeFileSync(_path: string, _content: string | Buffer, _encoding?: NodeJS.BufferEncoding): void {
     throw new FileSystemError(
       'Synchronous operations are not supported for remote workspaces',
       ERROR_CODES.INVALID_CONFIGURATION

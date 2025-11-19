@@ -483,7 +483,7 @@ export class RemoteBackend implements FileSystemBackend {
     })
   }
 
-  async writeFile(remotePath: string, content: string): Promise<void> {
+  async writeFile(remotePath: string, content: string | Buffer): Promise<void> {
     await this.ensureSSHConnection()
 
     if (!this.sshClient) {
@@ -500,13 +500,24 @@ export class RemoteBackend implements FileSystemBackend {
           return
         }
 
-        sftp.writeFile(remotePath, content, 'utf8', (err) => {
-          if (err) {
-            reject(this.wrapError(err, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`, remotePath))
-          } else {
-            resolve()
-          }
-        })
+        // Handle Buffer or string content differently
+        if (Buffer.isBuffer(content)) {
+          sftp.writeFile(remotePath, content, (err) => {
+            if (err) {
+              reject(this.wrapError(err, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`, remotePath))
+            } else {
+              resolve()
+            }
+          })
+        } else {
+          sftp.writeFile(remotePath, content, 'utf8', (err) => {
+            if (err) {
+              reject(this.wrapError(err, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`, remotePath))
+            } else {
+              resolve()
+            }
+          })
+        }
       })
     })
   }
