@@ -79,8 +79,11 @@ describe('LocalWorkspace', () => {
       expect(content).toBe('test content')
     })
 
-    it('should reject absolute paths', async () => {
-      await expect(workspace.readFile('/etc/passwd', 'utf-8')).rejects.toThrow('Absolute paths are not allowed')
+    it('should treat paths starting with / as workspace-relative', async () => {
+      // /test.txt should be treated as <workspace>/test.txt
+      await workspace.write('/test.txt', 'workspace-relative content')
+      const content = await workspace.readFile('/test.txt', 'utf-8')
+      expect(content).toBe('workspace-relative content')
     })
 
     it('should reject parent traversal', async () => {
@@ -123,8 +126,11 @@ describe('LocalWorkspace', () => {
       expect(content).toBe('updated')
     })
 
-    it('should reject absolute paths', async () => {
-      await expect(workspace.write('/tmp/bad.txt', 'content')).rejects.toThrow('Absolute paths are not allowed')
+    it('should treat paths starting with / as workspace-relative', async () => {
+      // /tmp/test.txt should be treated as <workspace>/tmp/test.txt
+      await workspace.write('/tmp/test.txt', 'workspace content')
+      const content = await workspace.readFile('/tmp/test.txt', 'utf-8')
+      expect(content).toBe('workspace content')
     })
 
     it('should reject parent traversal', async () => {
@@ -176,8 +182,11 @@ describe('LocalWorkspace', () => {
       await expect(workspace.mkdir('existing')).resolves.not.toThrow()
     })
 
-    it('should reject absolute paths', async () => {
-      await expect(workspace.mkdir('/tmp/bad')).rejects.toThrow('Absolute paths are not allowed')
+    it('should treat paths starting with / as workspace-relative', async () => {
+      // /tmp/dir should be treated as <workspace>/tmp/dir
+      await workspace.mkdir('/tmp/dir')
+      const result = await workspace.exec('test -d tmp/dir && echo "exists"')
+      expect(result).toBe('exists')
     })
 
     it('should reject parent traversal', async () => {
@@ -209,8 +218,11 @@ describe('LocalWorkspace', () => {
       expect(content).toBe('original content')
     })
 
-    it('should reject absolute paths', async () => {
-      await expect(workspace.touch('/tmp/bad.txt')).rejects.toThrow('Absolute paths are not allowed')
+    it('should treat paths starting with / as workspace-relative', async () => {
+      // /tmp/file.txt should be treated as <workspace>/tmp/file.txt
+      await workspace.touch('/tmp/file.txt')
+      const result = await workspace.exec('test -f tmp/file.txt && echo "exists"')
+      expect(result).toBe('exists')
     })
 
     it('should reject parent traversal', async () => {
@@ -292,26 +304,28 @@ describe('LocalWorkspace', () => {
 
   describe('security and isolation', () => {
     it('should prevent symlink escape attempts', async () => {
-      // Try to create symlink to parent directory
+      // Symlink creation commands are dangerous and blocked
       await expect(
         workspace.exec('ln -s ../../ escape-link')
-      ).resolves.toBeDefined() // Command succeeds
-
-      // But reading through the symlink should be blocked
-      await expect(workspace.readFile('escape-link/etc/passwd', 'utf-8')).rejects.toThrow()
+      ).rejects.toThrow('Dangerous')
     })
 
     it('should validate all paths before operations', async () => {
+      // Paths that should still be rejected (escaping workspace or home directory references)
       const dangerousPaths = [
-        '/etc/passwd',
-        '../../../etc/passwd',
-        '~/secrets',
+        '../../../etc/passwd',  // Parent traversal escape
+        '~/secrets',            // Home directory reference
       ]
 
       for (const path of dangerousPaths) {
         await expect(workspace.readFile(path, 'utf-8')).rejects.toThrow()
         await expect(workspace.write(path, 'bad')).rejects.toThrow()
       }
+
+      // Paths starting with / should now be treated as workspace-relative
+      await workspace.mkdir('/etc')
+      await workspace.write('/etc/passwd', 'test')
+      await expect(workspace.readFile('/etc/passwd', 'utf-8')).resolves.toBe('test')
     })
 
     it('should maintain workspace isolation across operations', async () => {
@@ -321,8 +335,8 @@ describe('LocalWorkspace', () => {
       await ws1.write('secret.txt', 'ws1 secret')
       await ws2.write('secret.txt', 'ws2 secret')
 
-      const ws1Content = await ws1.read('secret.txt')
-      const ws2Content = await ws2.read('secret.txt')
+      const ws1Content = await ws1.readFile('secret.txt', 'utf-8')
+      const ws2Content = await ws2.readFile('secret.txt', 'utf-8')
 
       expect(ws1Content).toBe('ws1 secret')
       expect(ws2Content).toBe('ws2 secret')
@@ -333,9 +347,10 @@ describe('LocalWorkspace', () => {
     it('should wrap errors with FileSystemError', async () => {
       try {
         await workspace.readFile('nonexistent.txt', 'utf-8')
+        expect.fail('Should have thrown an error')
       } catch (error) {
         expect(error).toBeInstanceOf(FileSystemError)
-        expect((error as FileSystemError).errorCode).toBe('READ_FAILED')
+        expect((error as FileSystemError).code).toBe('READ_FAILED')
       }
     })
 
@@ -434,8 +449,12 @@ describe('LocalWorkspace', () => {
       await expect(workspace.readdir('nonexistent')).rejects.toThrow(FileSystemError)
     })
 
-    it('should reject absolute paths', async () => {
-      await expect(workspace.readdir('/etc')).rejects.toThrow('Path escapes workspace')
+    it('should treat paths starting with / as workspace-relative', async () => {
+      // /etc should be treated as <workspace>/etc
+      await workspace.mkdir('/etc')
+      await workspace.write('/etc/passwd', 'test content')
+      const files = await workspace.readdir('/etc')
+      expect(files).toContain('passwd')
     })
 
     it('should validate empty paths', async () => {
@@ -470,8 +489,12 @@ describe('LocalWorkspace', () => {
       await expect(workspace.readFile('nonexistent.txt')).rejects.toThrow(FileSystemError)
     })
 
-    it('should reject absolute paths', async () => {
-      await expect(workspace.readFile('/etc/passwd')).rejects.toThrow('Path escapes workspace')
+    it('should treat paths starting with / as workspace-relative', async () => {
+      // /etc/passwd should be treated as <workspace>/etc/passwd
+      await workspace.mkdir('/etc')
+      await workspace.write('/etc/passwd', 'test content')
+      const content = await workspace.readFile('/etc/passwd', 'utf-8')
+      expect(content).toBe('test content')
     })
 
     it('should validate empty paths', async () => {
@@ -505,8 +528,11 @@ describe('LocalWorkspace', () => {
       expect(content).toBe('updated')
     })
 
-    it('should reject absolute paths', async () => {
-      await expect(workspace.writeFile('/tmp/test.txt', 'content')).rejects.toThrow('Path escapes workspace')
+    it('should treat paths starting with / as workspace-relative', async () => {
+      // /tmp/test.txt should be treated as <workspace>/tmp/test.txt
+      await workspace.writeFile('/tmp/test.txt', 'content')
+      const content = await workspace.readFile('/tmp/test.txt', 'utf-8')
+      expect(content).toBe('content')
     })
 
     it('should validate empty paths', async () => {
@@ -545,8 +571,12 @@ describe('LocalWorkspace', () => {
       await expect(workspace.stat('nonexistent.txt')).rejects.toThrow(FileSystemError)
     })
 
-    it('should reject absolute paths', async () => {
-      await expect(workspace.stat('/etc/passwd')).rejects.toThrow('Absolute paths are not allowed')
+    it('should treat paths starting with / as workspace-relative', async () => {
+      // /etc/passwd should be treated as <workspace>/etc/passwd
+      await workspace.mkdir('/etc')
+      await workspace.write('/etc/passwd', 'test content')
+      const stats = await workspace.stat('/etc/passwd')
+      expect(stats.isFile()).toBe(true)
     })
 
     it('should reject parent traversal', async () => {

@@ -25,15 +25,26 @@ export function isPathEscaping(workspacePath: string, targetPath: string): boole
  * Throws if the path would escape the workspace
  *
  * @param workspacePath - Absolute path to workspace root
- * @param targetPath - Path to resolve (can be relative or absolute)
+ * @param targetPath - Path to resolve (relative or starting with / for workspace-relative)
  * @returns Resolved absolute path within workspace
  * @throws Error if path escapes workspace boundaries
  */
 export function resolvePathSafely(workspacePath: string, targetPath: string): string {
-  // Resolve the full path
-  // If targetPath is absolute, resolve will use it as-is
-  // If targetPath is relative, resolve will join it with workspacePath
-  const fullPath = resolve(workspacePath, targetPath)
+  // Block home directory references
+  if (targetPath.startsWith('~') || targetPath.includes('$HOME')) {
+    throw new Error(`Home directory references are not allowed: ${targetPath}`)
+  }
+
+  // Normalize the target path
+  let normalizedTargetPath = targetPath
+
+  // If path starts with /, treat it as workspace-relative (strip the leading /)
+  if (targetPath.startsWith('/')) {
+    normalizedTargetPath = targetPath.slice(1)
+  }
+
+  // Resolve the full path relative to workspace
+  const fullPath = resolve(workspacePath, normalizedTargetPath)
 
   // Normalize both paths for comparison
   const normalizedWorkspace = normalize(workspacePath)
