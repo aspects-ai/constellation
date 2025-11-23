@@ -3,7 +3,52 @@
 # ConstellationFS Remote Backend Entrypoint
 # Configures and starts SSH server for filesystem access
 
+set -e
+
 echo "🌟 Starting ConstellationFS Remote Backend..."
+
+# Storage configuration
+STORAGE_TYPE="${STORAGE_TYPE:-local}"
+ARCHIL_MOUNT_PATH="${ARCHIL_MOUNT_PATH:-/workspace}"
+
+echo "📦 Storage type: $STORAGE_TYPE"
+
+if [ "$STORAGE_TYPE" = "archil" ]; then
+  echo "🔗 Configuring Archil storage..."
+
+  # Validate required environment variables
+  if [ -z "$ARCHIL_API_KEY" ]; then
+    echo "❌ ERROR: ARCHIL_API_KEY is required when STORAGE_TYPE=archil"
+    exit 1
+  fi
+
+  if [ -z "$ARCHIL_BUCKET" ]; then
+    echo "❌ ERROR: ARCHIL_BUCKET is required when STORAGE_TYPE=archil"
+    exit 1
+  fi
+
+  # Build mount command
+  MOUNT_CMD="archil mount $ARCHIL_BUCKET $ARCHIL_MOUNT_PATH --auth-token $ARCHIL_API_KEY"
+
+  if [ -n "$ARCHIL_REGION" ]; then
+    MOUNT_CMD="$MOUNT_CMD --region $ARCHIL_REGION"
+  fi
+
+  echo "📁 Mounting Archil bucket '$ARCHIL_BUCKET' at $ARCHIL_MOUNT_PATH..."
+
+  if $MOUNT_CMD; then
+    echo "✅ Archil filesystem mounted successfully"
+  else
+    echo "❌ ERROR: Failed to mount Archil filesystem"
+    exit 1
+  fi
+elif [ "$STORAGE_TYPE" = "local" ]; then
+  echo "📁 Using local storage at $ARCHIL_MOUNT_PATH"
+  mkdir -p "$ARCHIL_MOUNT_PATH"
+else
+  echo "❌ ERROR: Invalid STORAGE_TYPE '$STORAGE_TYPE'. Must be 'archil' or 'local'"
+  exit 1
+fi
 
 # Configure SSH users from environment
 if [ -n "$SSH_USERS" ]; then
