@@ -34,3 +34,5 @@ coverage/
 logs/
 *.log
 .claude
+.env
+remote/deploy-tool/.env

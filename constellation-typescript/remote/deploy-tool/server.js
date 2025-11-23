@@ -1,14 +1,44 @@
 import express from "express";
 import { spawn } from "child_process";
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { tmpdir } from "os";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = 3456;
 
+// Load .env file
+function loadEnvFile() {
+  const envPath = path.join(__dirname, ".env");
+  const env = {};
+  if (existsSync(envPath)) {
+    const content = readFileSync(envPath, "utf-8");
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith("#")) {
+        const [key, ...valueParts] = trimmed.split("=");
+        env[key.trim()] = valueParts.join("=").trim();
+      }
+    }
+  }
+  return env;
+}
+
+const envConfig = loadEnvFile();
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Endpoint to get env defaults (for form prefill)
+app.get("/env-defaults", (req, res) => {
+  res.json({
+    sshUser: envConfig.SSH_USER || "",
+    hasArchilKey: !!envConfig.ARCHIL_API_KEY,
+    hasSshPassword: !!envConfig.SSH_PASSWORD,
+  });
+});
 
 // Serve the HTML form
 app.get("/", (req, res) => {
@@ -41,10 +71,6 @@ app.get("/", (req, res) => {
       border-radius: 6px;
       padding: 16px;
       margin-bottom: 20px;
-    }
-    fieldset.deploy-section {
-      border-color: #4a90d9;
-      background: #f8fafc;
     }
     legend {
       font-weight: 600;
@@ -88,13 +114,8 @@ app.get("/", (req, res) => {
       margin-top: 12px;
     }
     .conditional-section.visible { display: block; }
-    .button-row {
-      display: flex;
-      gap: 12px;
-      margin-top: 8px;
-    }
     button {
-      flex: 1;
+      width: 100%;
       padding: 14px;
       background: #4a90d9;
       color: white;
@@ -103,17 +124,12 @@ app.get("/", (req, res) => {
       font-size: 16px;
       font-weight: 600;
       cursor: pointer;
+      margin-top: 8px;
     }
     button:hover { background: #3a7bc8; }
     button:disabled {
       background: #ccc;
       cursor: not-allowed;
-    }
-    button.secondary {
-      background: #28a745;
-    }
-    button.secondary:hover {
-      background: #218838;
     }
     #output {
       margin-top: 24px;
@@ -141,103 +157,73 @@ app.get("/", (req, res) => {
 </head>
 <body>
   <h1>ConstellationFS Deploy Tool</h1>
-  <p class="subtitle">Build and deploy the remote backend to GCP</p>
+  <p class="subtitle">Deploy a ConstellationFS remote backend VM to GCP</p>
 
   <form id="deployForm">
     <fieldset>
-      <legend>1. Build Configuration</legend>
-      <div class="section-note">Build a generic image and push to Google Artifact Registry</div>
+      <legend>GCP Configuration</legend>
       <div class="form-group">
         <label for="gcpProject">GCP Project ID *</label>
         <input type="text" id="gcpProject" name="gcpProject" required placeholder="my-project-id">
       </div>
       <div class="form-group">
-        <label for="registryRegion">Registry Region *</label>
-        <input type="text" id="registryRegion" name="registryRegion" value="us-central1" placeholder="us-central1">
-        <div class="help-text">Artifact Registry region (e.g., us-central1, us-east1)</div>
+        <label for="vmName">VM Instance Name *</label>
+        <input type="text" id="vmName" name="vmName" required placeholder="constellation-remote">
       </div>
       <div class="form-group">
-        <label for="repoName">Repository Name *</label>
-        <input type="text" id="repoName" name="repoName" value="constellation-remote" placeholder="constellation-remote">
-        <div class="help-text">Artifact Registry repository name</div>
+        <label for="vmZone">VM Zone *</label>
+        <input type="text" id="vmZone" name="vmZone" value="us-central1-a" placeholder="us-central1-a">
       </div>
       <div class="form-group">
-        <label for="imageName">Image Name</label>
-        <input type="text" id="imageName" name="imageName" value="constellation-remote" placeholder="constellation-remote">
-      </div>
-      <div class="form-group">
-        <label for="imageTag">Image Tag</label>
-        <input type="text" id="imageTag" name="imageTag" value="latest" placeholder="latest">
+        <label for="machineType">Machine Type</label>
+        <input type="text" id="machineType" name="machineType" value="e2-medium" placeholder="e2-medium">
       </div>
     </fieldset>
 
-    <fieldset class="deploy-section">
-      <legend>2. VM Deployment (Optional)</legend>
+    <fieldset>
+      <legend>Storage Configuration</legend>
       <div class="form-group">
-        <label for="createVm">
-          <input type="checkbox" id="createVm" name="createVm" style="width: auto; margin-right: 8px;">
-          Create a new GCP VM with this container
-        </label>
+        <label for="storageType">Storage Type *</label>
+        <select id="storageType" name="storageType">
+          <option value="local">Local (VM disk)</option>
+          <option value="archil">Archil (GCP Bucket)</option>
+        </select>
       </div>
 
-      <div id="vmConfig" class="conditional-section">
-        <div class="section-note">Creates a Container-Optimized OS VM running the container</div>
-
+      <div id="archilConfig" class="conditional-section">
         <div class="form-group">
-          <label for="vmName">VM Instance Name *</label>
-          <input type="text" id="vmName" name="vmName" placeholder="constellation-vm">
+          <label for="archilApiKey">Archil API Key *</label>
+          <input type="password" id="archilApiKey" name="archilApiKey" placeholder="your-api-key">
+          <div class="help-text env-hint" id="archilApiKeyHint" style="display:none; color:#28a745;">✓ Using value from .env</div>
         </div>
         <div class="form-group">
-          <label for="vmZone">VM Zone *</label>
-          <input type="text" id="vmZone" name="vmZone" value="us-central1-a" placeholder="us-central1-a">
+          <label for="archilBucket">Archil Bucket *</label>
+          <input type="text" id="archilBucket" name="archilBucket" placeholder="user@bucket-name">
+          <div class="help-text">Format: user@bucket-name</div>
         </div>
         <div class="form-group">
-          <label for="machineType">Machine Type</label>
-          <input type="text" id="machineType" name="machineType" value="e2-medium" placeholder="e2-medium">
-        </div>
-
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
-        <div style="font-weight: 600; margin-bottom: 12px;">Runtime Configuration</div>
-
-        <div class="form-group">
-          <label for="storageType">Storage Type *</label>
-          <select id="storageType" name="storageType">
-            <option value="local">Local</option>
-            <option value="archil">Archil (GCP Bucket)</option>
-          </select>
-        </div>
-
-        <div id="archilConfig" class="conditional-section">
-          <div class="form-group">
-            <label for="archilApiKey">Archil API Key *</label>
-            <input type="password" id="archilApiKey" name="archilApiKey" placeholder="your-api-key">
-          </div>
-          <div class="form-group">
-            <label for="archilBucket">Archil Bucket *</label>
-            <input type="text" id="archilBucket" name="archilBucket" placeholder="user@bucket-name">
-            <div class="help-text">Format: user@bucket-name</div>
-          </div>
-          <div class="form-group">
-            <label for="archilRegion">Archil Region</label>
-            <input type="text" id="archilRegion" name="archilRegion" placeholder="gcp-us-central1">
-            <div class="help-text">Optional. e.g., gcp-us-central1</div>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="sshUser">SSH Username *</label>
-          <input type="text" id="sshUser" name="sshUser" value="dev" placeholder="dev">
-        </div>
-        <div class="form-group">
-          <label for="sshPassword">SSH Password *</label>
-          <input type="password" id="sshPassword" name="sshPassword" placeholder="secure-password">
+          <label for="archilRegion">Archil Region</label>
+          <input type="text" id="archilRegion" name="archilRegion" placeholder="gcp-us-central1">
+          <div class="help-text">Optional. e.g., gcp-us-central1</div>
         </div>
       </div>
     </fieldset>
 
-    <div class="button-row">
-      <button type="submit" id="submitBtn">Build & Push to GCR</button>
-    </div>
+    <fieldset>
+      <legend>SSH Configuration</legend>
+      <div class="section-note">Configure SSH access credentials for the VM</div>
+      <div class="form-group">
+        <label for="sshUser">SSH Username *</label>
+        <input type="text" id="sshUser" name="sshUser" value="dev" placeholder="dev">
+      </div>
+      <div class="form-group">
+        <label for="sshPassword">SSH Password *</label>
+        <input type="password" id="sshPassword" name="sshPassword" placeholder="secure-password">
+        <div class="help-text env-hint" id="sshPasswordHint" style="display:none; color:#28a745;">✓ Using value from .env</div>
+      </div>
+    </fieldset>
+
+    <button type="submit" id="submitBtn">Create VM</button>
   </form>
 
   <div id="output"></div>
@@ -246,41 +232,27 @@ app.get("/", (req, res) => {
     const form = document.getElementById('deployForm');
     const output = document.getElementById('output');
     const submitBtn = document.getElementById('submitBtn');
-    const createVm = document.getElementById('createVm');
-    const vmConfig = document.getElementById('vmConfig');
     const storageType = document.getElementById('storageType');
     const archilConfig = document.getElementById('archilConfig');
 
     // Fields to persist (exclude sensitive fields)
     const STORAGE_KEY = 'constellation-deploy-config';
     const PERSIST_FIELDS = [
-      'gcpProject', 'registryRegion', 'repoName', 'imageName', 'imageTag',
-      'vmName', 'vmZone', 'machineType',
+      'gcpProject', 'vmName', 'vmZone', 'machineType',
       'storageType', 'archilBucket', 'archilRegion',
       'sshUser'
     ];
-    const PERSIST_CHECKBOXES = ['createVm'];
 
     // Load saved values on page load
     function loadSavedValues() {
       try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-
         PERSIST_FIELDS.forEach(field => {
           const el = document.getElementById(field);
           if (el && saved[field]) {
             el.value = saved[field];
           }
         });
-
-        PERSIST_CHECKBOXES.forEach(field => {
-          const el = document.getElementById(field);
-          if (el && saved[field] !== undefined) {
-            el.checked = saved[field];
-            el.dispatchEvent(new Event('change'));
-          }
-        });
-
         // Trigger change events to show/hide conditional sections
         storageType.dispatchEvent(new Event('change'));
       } catch (e) {
@@ -296,27 +268,39 @@ app.get("/", (req, res) => {
           const el = document.getElementById(field);
           if (el) values[field] = el.value;
         });
-        PERSIST_CHECKBOXES.forEach(field => {
-          const el = document.getElementById(field);
-          if (el) values[field] = el.checked;
-        });
         localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
       } catch (e) {
         console.error('Failed to save values:', e);
       }
     }
 
-    // Load on page ready
-    loadSavedValues();
-
-    createVm.addEventListener('change', () => {
-      vmConfig.classList.toggle('visible', createVm.checked);
-      submitBtn.textContent = createVm.checked ? 'Build & Create VM' : 'Build & Push to GCR';
-    });
-
+    // Set up event listeners first
     storageType.addEventListener('change', () => {
       archilConfig.classList.toggle('visible', storageType.value === 'archil');
     });
+
+    // Load saved values after listeners are registered
+    loadSavedValues();
+
+    // Check for env defaults and show hints
+    let envDefaults = {};
+    fetch('/env-defaults')
+      .then(r => r.json())
+      .then(data => {
+        envDefaults = data;
+        if (data.hasArchilKey) {
+          document.getElementById('archilApiKeyHint').style.display = 'block';
+          document.getElementById('archilApiKey').placeholder = '(using .env value)';
+        }
+        if (data.hasSshPassword) {
+          document.getElementById('sshPasswordHint').style.display = 'block';
+          document.getElementById('sshPassword').placeholder = '(using .env value)';
+        }
+        if (data.sshUser) {
+          document.getElementById('sshUser').value = data.sshUser;
+        }
+      })
+      .catch(() => {});
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -326,28 +310,22 @@ app.get("/", (req, res) => {
 
       const formData = new FormData(form);
       const data = Object.fromEntries(formData.entries());
-      data.createVm = createVm.checked;
+
+      // Mark if we should use env values
+      data.useEnvArchilKey = envDefaults.hasArchilKey && !data.archilApiKey;
+      data.useEnvSshPassword = envDefaults.hasSshPassword && !data.sshPassword;
 
       // Validation
-      if (data.createVm) {
-        if (!data.vmName || !data.vmZone) {
-          alert('VM Name and Zone are required');
+      if (data.storageType === 'archil') {
+        const hasArchilKey = data.archilApiKey || data.useEnvArchilKey;
+        if (!hasArchilKey || !data.archilBucket) {
+          alert('Archil API Key and Bucket are required when using Archil storage');
           return;
-        }
-        if (!data.sshPassword) {
-          alert('SSH Password is required');
-          return;
-        }
-        if (data.storageType === 'archil') {
-          if (!data.archilApiKey || !data.archilBucket) {
-            alert('Archil API Key and Bucket are required when using Archil storage');
-            return;
-          }
         }
       }
 
       output.classList.add('visible');
-      output.textContent = 'Starting...\\n';
+      output.textContent = 'Starting VM creation...\\n';
       submitBtn.disabled = true;
 
       try {
@@ -384,21 +362,23 @@ app.get("/", (req, res) => {
 app.post("/deploy", async (req, res) => {
   const {
     gcpProject,
-    registryRegion = "us-central1",
-    repoName = "constellation-remote",
-    imageName = "constellation-remote",
-    imageTag = "latest",
-    createVm,
     vmName,
-    vmZone,
+    vmZone = "us-central1-a",
     machineType = "e2-medium",
     storageType = "local",
-    archilApiKey,
-    archilBucket,
-    archilRegion,
-    sshUser = "dev",
-    sshPassword,
+    archilApiKey: formArchilApiKey = "",
+    archilBucket = "",
+    archilRegion = "",
+    sshUser: formSshUser = "dev",
+    sshPassword: formSshPassword,
+    useEnvArchilKey,
+    useEnvSshPassword,
   } = req.body;
+
+  // Use env values if flagged
+  const archilApiKey = useEnvArchilKey ? envConfig.ARCHIL_API_KEY : formArchilApiKey;
+  const sshUser = envConfig.SSH_USER || formSshUser;
+  const sshPassword = useEnvSshPassword ? envConfig.SSH_PASSWORD : formSshPassword;
 
   res.setHeader("Content-Type", "text/plain");
   res.setHeader("Transfer-Encoding", "chunked");
@@ -407,141 +387,155 @@ app.post("/deploy", async (req, res) => {
   const logError = (msg) => res.write(`[ERROR] ${msg}\n`);
   const logSuccess = (msg) => res.write(`[SUCCESS] ${msg}\n`);
 
-  const remoteDir = path.resolve(__dirname, "..");
-  const contextDir = path.resolve(__dirname, "../..");
-
-  // Artifact Registry URL format: REGION-docker.pkg.dev/PROJECT/REPO/IMAGE:TAG
-  const imageUrl = `${registryRegion}-docker.pkg.dev/${gcpProject}/${repoName}/${imageName}:${imageTag}`;
-
-  log(`=== ConstellationFS Deploy ===`);
+  log(`=== ConstellationFS VM Deploy ===`);
   log(`Project: ${gcpProject}`);
-  log(`Image: ${imageUrl}`);
+  log(`VM: ${vmName} (${machineType}) in ${vmZone}`);
+  log(`Storage: ${storageType}`);
+  if (useEnvArchilKey) log(`Using Archil API key from .env`);
+  if (useEnvSshPassword) log(`Using SSH password from .env`);
   log(``);
 
-  // Step 1: Build and push with Cloud Build
-  log(`[1/${createVm ? "2" : "1"}] Building and pushing image to Artifact Registry...`);
-  log(`Context: ${contextDir}`);
-  log(``);
-
-  const buildSuccess = await runCommand(
-    "gcloud",
-    [
-      "builds",
-      "submit",
-      "--config",
-      path.join(remoteDir, "cloudbuild.yaml"),
-      "--substitutions",
-      `_IMAGE_URL=${imageUrl}`,
-      "--project",
-      gcpProject,
-      contextDir,
-    ],
-    log
-  );
-
-  if (!buildSuccess) {
-    logError("Build failed!");
+  // Load and customize startup script
+  log(`Preparing startup script...`);
+  const startupScriptPath = path.join(__dirname, "..", "vm-startup.sh");
+  let startupScript;
+  try {
+    startupScript = readFileSync(startupScriptPath, "utf-8");
+  } catch (err) {
+    logError(`Failed to read startup script: ${err.message}`);
     return res.end();
   }
 
-  logSuccess(`Image pushed to ${imageUrl}`);
-  log(``);
+  // Replace placeholders with actual values
+  startupScript = startupScript
+    .replace("__STORAGE_TYPE__", storageType)
+    .replace("__ARCHIL_API_KEY__", archilApiKey)
+    .replace("__ARCHIL_BUCKET__", archilBucket)
+    .replace("__ARCHIL_REGION__", archilRegion)
+    .replace("__SSH_USERS__", `${sshUser}:${sshPassword}`);
 
-  // Step 2: Create VM if requested
-  if (createVm) {
-    log(`[2/2] Creating VM ${vmName} in ${vmZone}...`);
+  // Write startup script to temp file (avoids shell escaping issues)
+  const tempScriptPath = path.join(tmpdir(), `constellation-startup-${Date.now()}.sh`);
+  writeFileSync(tempScriptPath, startupScript);
+  log(`Startup script written to temp file`);
 
-    // Build environment variables for the container
-    const envVars = [
-      `STORAGE_TYPE=${storageType}`,
-      `SSH_USERS=${sshUser}:${sshPassword}`,
-    ];
+  // Check if VM already exists and delete it
+  log(`Checking if VM ${vmName} already exists...`);
+  const existsCheck = await runCommandCapture("gcloud", [
+    "compute",
+    "instances",
+    "describe",
+    vmName,
+    "--zone",
+    vmZone,
+    "--project",
+    gcpProject,
+    "--format",
+    "value(name)",
+  ]);
 
-    if (storageType === "archil") {
-      envVars.push(`ARCHIL_API_KEY=${archilApiKey}`);
-      envVars.push(`ARCHIL_BUCKET=${archilBucket}`);
-      if (archilRegion) {
-        envVars.push(`ARCHIL_REGION=${archilRegion}`);
-      }
-    }
-
-    // Create VM with Container-Optimized OS
-    const createVmArgs = [
+  if (existsCheck.trim() === vmName) {
+    log(`VM ${vmName} exists. Deleting...`);
+    const deleteSuccess = await runCommand("gcloud", [
       "compute",
       "instances",
-      "create-with-container",
+      "delete",
       vmName,
-      "--project",
-      gcpProject,
       "--zone",
       vmZone,
-      "--machine-type",
-      machineType,
-      "--container-image",
-      imageUrl,
-      "--container-privileged", // Required for FUSE/Archil
-      "--tags",
-      "constellation-ssh",
-    ];
+      "--project",
+      gcpProject,
+      "--quiet",
+    ], log);
 
-    // Add environment variables
-    for (const envVar of envVars) {
-      createVmArgs.push("--container-env", envVar);
-    }
-
-    const vmSuccess = await runCommand("gcloud", createVmArgs, log);
-
-    if (!vmSuccess) {
-      logError("VM creation failed!");
-      log(``);
-      log(`Note: If the VM already exists, you may need to delete it first:`);
-      log(`  gcloud compute instances delete ${vmName} --zone=${vmZone} --project=${gcpProject}`);
+    if (!deleteSuccess) {
+      logError("Failed to delete existing VM");
+      try { unlinkSync(tempScriptPath); } catch (e) {}
       return res.end();
     }
-
-    logSuccess(`VM ${vmName} created!`);
+    logSuccess(`Deleted existing VM ${vmName}`);
     log(``);
-
-    // Get external IP
-    log(`Getting VM external IP...`);
-    await runCommand(
-      "gcloud",
-      [
-        "compute",
-        "instances",
-        "describe",
-        vmName,
-        "--zone",
-        vmZone,
-        "--project",
-        gcpProject,
-        "--format",
-        "get(networkInterfaces[0].accessConfigs[0].natIP)",
-      ],
-      log
-    );
-
-    log(``);
-    log(`To connect via SSH (once container starts):`);
-    log(`  ssh ${sshUser}@<EXTERNAL_IP>`);
-    log(``);
-    log(`Note: You may need to create a firewall rule to allow SSH on port 22:`);
-    log(`  gcloud compute firewall-rules create allow-constellation-ssh \\`);
-    log(`    --allow tcp:22 --target-tags constellation-ssh --project ${gcpProject}`);
   } else {
-    log(`Image built and pushed. To use it:`);
-    log(``);
-    log(`1. Create a VM manually:`);
-    log(`   gcloud compute instances create-with-container ${imageName}-vm \\`);
-    log(`     --container-image=${imageUrl} \\`);
-    log(`     --container-privileged \\`);
-    log(`     --container-env=STORAGE_TYPE=local \\`);
-    log(`     --container-env=SSH_USERS=dev:yourpassword \\`);
-    log(`     --project=${gcpProject}`);
+    log(`No existing VM found, proceeding with creation...`);
   }
 
+  log(`Creating VM ${vmName}...`);
   log(``);
-  log(`=== Done ===`);
+
+  // Create VM with startup script from file
+  const createVmArgs = [
+    "compute",
+    "instances",
+    "create",
+    vmName,
+    "--project",
+    gcpProject,
+    "--zone",
+    vmZone,
+    "--machine-type",
+    machineType,
+    "--image-family",
+    "ubuntu-2204-lts",
+    "--image-project",
+    "ubuntu-os-cloud",
+    "--boot-disk-size",
+    "20GB",
+    "--tags",
+    "constellation-ssh",
+    "--metadata-from-file",
+    `startup-script=${tempScriptPath}`,
+  ];
+
+  const vmSuccess = await runCommand("gcloud", createVmArgs, log);
+
+  // Clean up temp file
+  try {
+    unlinkSync(tempScriptPath);
+  } catch (e) {
+    // Ignore cleanup errors
+  }
+
+  if (!vmSuccess) {
+    logError("VM creation failed!");
+    return res.end();
+  }
+
+  logSuccess(`VM ${vmName} created!`);
+  log(``);
+
+  // Get external IP
+  log(`Getting VM external IP...`);
+  const ipResult = await runCommandCapture("gcloud", [
+    "compute",
+    "instances",
+    "describe",
+    vmName,
+    "--zone",
+    vmZone,
+    "--project",
+    gcpProject,
+    "--format",
+    "get(networkInterfaces[0].accessConfigs[0].natIP)",
+  ]);
+
+  const externalIp = ipResult.trim();
+  log(`External IP: ${externalIp}`);
+  log(``);
+
+  log(`=== Setup Complete ===`);
+  log(``);
+  log(`The VM is starting up and running the setup script.`);
+  log(`This may take 1-2 minutes. You can monitor progress with:`);
+  log(`  gcloud compute ssh ${vmName} --zone=${vmZone} --project=${gcpProject} -- tail -f /var/log/syslog`);
+  log(``);
+  log(`Once ready, connect via:`);
+  log(`  ssh ${sshUser}@${externalIp}`);
+  log(``);
+  log(`If SSH connection is refused, ensure the firewall rule exists:`);
+  log(`  gcloud compute firewall-rules create allow-constellation-ssh \\`);
+  log(`    --allow tcp:22 --target-tags constellation-ssh --project ${gcpProject}`);
+  log(``);
+
   res.end();
 });
 
@@ -549,7 +543,8 @@ app.post("/deploy", async (req, res) => {
 function runCommand(cmd, args, log) {
   return new Promise((resolve) => {
     const fullCommand = `${cmd} ${args.map((a) => `'${a}'`).join(" ")}`;
-    log(`> ${fullCommand}\n`);
+    log(`> ${cmd} ${args.slice(0, 6).join(" ")} ...`);
+    log(``);
 
     // Source zshrc to get PATH, then run command
     const wrappedCommand = `source ~/.zshrc 2>/dev/null; ${fullCommand}`;
@@ -568,6 +563,32 @@ function runCommand(cmd, args, log) {
     proc.on("error", (err) => {
       log(`Failed to start process: ${err.message}`);
       resolve(false);
+    });
+  });
+}
+
+// Helper to run a command and capture output
+function runCommandCapture(cmd, args) {
+  return new Promise((resolve) => {
+    const fullCommand = `${cmd} ${args.map((a) => `'${a}'`).join(" ")}`;
+    const wrappedCommand = `source ~/.zshrc 2>/dev/null; ${fullCommand}`;
+
+    let output = "";
+    const proc = spawn(wrappedCommand, [], {
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: "/bin/zsh",
+    });
+
+    proc.stdout.on("data", (data) => {
+      output += data.toString();
+    });
+
+    proc.on("close", () => {
+      resolve(output);
+    });
+
+    proc.on("error", () => {
+      resolve("");
     });
   });
 }

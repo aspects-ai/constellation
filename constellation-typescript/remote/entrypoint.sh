@@ -28,7 +28,7 @@ if [ "$STORAGE_TYPE" = "archil" ]; then
   fi
 
   # Build mount command
-  MOUNT_CMD="archil mount $ARCHIL_BUCKET $ARCHIL_MOUNT_PATH --auth-token $ARCHIL_API_KEY"
+  MOUNT_CMD="archil mount --force $ARCHIL_BUCKET $ARCHIL_MOUNT_PATH --auth-token $ARCHIL_API_KEY"
 
   if [ -n "$ARCHIL_REGION" ]; then
     MOUNT_CMD="$MOUNT_CMD --region $ARCHIL_REGION"
@@ -58,17 +58,30 @@ if [ -n "$SSH_USERS" ]; then
     IFS=':' read -ra USER <<< "$user_config"
     username="${USER[0]}"
     password="${USER[1]}"
-    
+
     echo "   Creating user: $username"
     useradd -m -s /bin/bash "$username" 2>/dev/null || echo "   User $username already exists"
     echo "$username:$password" | chpasswd
-    
+
     # Create user workspace
     mkdir -p "/workspace/$username"
     chown "$username:$username" "/workspace/$username"
     chmod 755 "/workspace/$username"
+
+    # Set up SSH directory for user (for optional pubkey auth)
+    mkdir -p "/home/$username/.ssh"
+    touch "/home/$username/.ssh/authorized_keys"
+    chown -R "$username:$username" "/home/$username/.ssh"
+    chmod 700 "/home/$username/.ssh"
+    chmod 600 "/home/$username/.ssh/authorized_keys"
   done
 fi
+
+# Ensure password authentication is enabled (fix for some base images)
+sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -i 's/^ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/' /etc/ssh/sshd_config
+echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config.d/password.conf 2>/dev/null || true
 
 # Add SSH keys if provided
 if [ -n "$SSH_PUBLIC_KEY" ]; then
