@@ -406,12 +406,16 @@ app.post("/deploy", async (req, res) => {
     return res.end();
   }
 
+  // Get mount path from env or default
+  const archilMountPath = envConfig.ARCHIL_MOUNT_PATH || "/workspace";
+
   // Replace placeholders with actual values
   startupScript = startupScript
     .replace("__STORAGE_TYPE__", storageType)
     .replace("__ARCHIL_API_KEY__", archilApiKey)
     .replace("__ARCHIL_BUCKET__", archilBucket)
     .replace("__ARCHIL_REGION__", archilRegion)
+    .replace("__ARCHIL_MOUNT_PATH__", archilMountPath)
     .replace("__SSH_USERS__", `${sshUser}:${sshPassword}`);
 
   // Write startup script to temp file (avoids shell escaping issues)

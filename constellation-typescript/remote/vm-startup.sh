@@ -11,8 +11,8 @@ STORAGE_TYPE="__STORAGE_TYPE__"
 ARCHIL_API_KEY="__ARCHIL_API_KEY__"
 ARCHIL_BUCKET="__ARCHIL_BUCKET__"
 ARCHIL_REGION="__ARCHIL_REGION__"
+ARCHIL_MOUNT_PATH="__ARCHIL_MOUNT_PATH__"
 SSH_USERS="__SSH_USERS__"
-WORKSPACE_PATH="/workspace"
 
 # Install packages
 echo "📦 Installing packages..."
@@ -33,7 +33,7 @@ curl -fsSL https://s3.amazonaws.com/archil-client/install | sh
 
 # Create workspace directory
 echo "📁 Creating workspace..."
-mkdir -p "$WORKSPACE_PATH"
+mkdir -p "$ARCHIL_MOUNT_PATH"
 
 # Configure SSH user (admin identity for ConstellationFS file operations)
 SSH_USERNAME=""
@@ -91,30 +91,30 @@ if [ "$STORAGE_TYPE" = "archil" ]; then
     fi
 
     # Build mount command (must run as root with --force)
-    MOUNT_CMD="sudo archil mount --force $ARCHIL_BUCKET $WORKSPACE_PATH --auth-token $ARCHIL_API_KEY"
+    MOUNT_CMD="sudo archil mount --force $ARCHIL_BUCKET $ARCHIL_MOUNT_PATH --auth-token $ARCHIL_API_KEY"
 
     if [ -n "$ARCHIL_REGION" ] && [ "$ARCHIL_REGION" != "__ARCHIL_REGION__" ]; then
         MOUNT_CMD="$MOUNT_CMD --region $ARCHIL_REGION"
     fi
 
-    echo "📁 Mounting bucket '$ARCHIL_BUCKET' at $WORKSPACE_PATH..."
+    echo "📁 Mounting bucket '$ARCHIL_BUCKET' at $ARCHIL_MOUNT_PATH..."
     if $MOUNT_CMD; then
         echo "✅ Archil filesystem mounted successfully"
 
         # Change ownership of mounted workspace to SSH user so they can operate on it
         if [ -n "$SSH_USERNAME" ]; then
             echo "📁 Setting workspace ownership to $SSH_USERNAME..."
-            chown -R "$SSH_USERNAME:$SSH_USERNAME" "$WORKSPACE_PATH"
+            chown -R "$SSH_USERNAME:$SSH_USERNAME" "$ARCHIL_MOUNT_PATH"
         fi
     else
         echo "❌ ERROR: Failed to mount Archil filesystem"
         exit 1
     fi
 else
-    echo "📁 Using local storage at $WORKSPACE_PATH"
+    echo "📁 Using local storage at $ARCHIL_MOUNT_PATH"
     # For local storage, also set ownership to SSH user
     if [ -n "$SSH_USERNAME" ]; then
-        chown -R "$SSH_USERNAME:$SSH_USERNAME" "$WORKSPACE_PATH"
+        chown -R "$SSH_USERNAME:$SSH_USERNAME" "$ARCHIL_MOUNT_PATH"
     fi
 fi
 
@@ -124,5 +124,5 @@ echo "📡 SSH is ready on port 22"
 if [ -n "$SSH_USERNAME" ]; then
     echo "👤 SSH user: $SSH_USERNAME"
 fi
-echo "📁 Workspace: $WORKSPACE_PATH"
+echo "📁 Workspace: $ARCHIL_MOUNT_PATH"
 echo ""
