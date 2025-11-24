@@ -224,13 +224,19 @@ export class RemoteBackend implements FileSystemBackend {
 
         stream.on('data', (data: Buffer) => {
           const chunk = data.toString()
-          getLogger().debug(`[SSH stdout] ${chunk.trim()}`)
+          // Only log if it looks like text (not binary data)
+          if (process.env.CONSTELLATION_DEBUG_LOGGING === 'true' && /^[\x20-\x7E\s]*$/.test(chunk)) {
+            getLogger().debug(`[SSH stdout] ${chunk.trim()}`)
+          }
           stdout += chunk
         })
 
         stream.stderr.on('data', (data: Buffer) => {
           const chunk = data.toString()
-          getLogger().debug(`[SSH stderr] ${chunk.trim()}`)
+          // Only log if it looks like text (not binary data)
+          if (process.env.CONSTELLATION_DEBUG_LOGGING === 'true' && /^[\x20-\x7E\s]*$/.test(chunk)) {
+            getLogger().debug(`[SSH stderr] ${chunk.trim()}`)
+          }
           stderr += chunk
         })
 
@@ -296,9 +302,13 @@ export class RemoteBackend implements FileSystemBackend {
         host: this.options.host,
         port: this.options.port,
         username: this.getUserFromAuth(),
-        debug: (message) => getLogger().debug(`[ConstellationFS] ${message}`),
         // Try both password and keyboard-interactive authentication
         tryKeyboard: true
+      }
+
+      // Only enable SSH debug logging if CONSTELLATION_DEBUG_LOGGING is set
+      if (process.env.CONSTELLATION_DEBUG_LOGGING === 'true') {
+        connectOptions.debug = (message) => getLogger().debug(`[ConstellationFS] ${message}`)
       }
 
       if (auth.type === 'password') {

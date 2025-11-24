@@ -19,6 +19,10 @@ export interface Logger {
 class DefaultLogger implements Logger {
   constructor(private enabled = true) {}
 
+  private get debugEnabled(): boolean {
+    return this.enabled && process.env.CONSTELLATION_DEBUG_LOGGING === 'true'
+  }
+
   error(message: string, ...args: unknown[]): void {
     if (this.enabled) {
       // eslint-disable-next-line no-console
@@ -41,7 +45,7 @@ class DefaultLogger implements Logger {
   }
 
   debug(message: string, ...args: unknown[]): void {
-    if (this.enabled) {
+    if (this.debugEnabled) {
       // eslint-disable-next-line no-console
       console.debug(`[ConstellationFS] ${message}`, ...args)
     }
