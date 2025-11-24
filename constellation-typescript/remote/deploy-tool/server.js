@@ -486,6 +486,8 @@ app.post("/deploy", async (req, res) => {
     "20GB",
     "--tags",
     "constellation-ssh",
+    "--scopes",
+    "storage-full",
     "--metadata-from-file",
     `startup-script=${tempScriptPath}`,
   ];

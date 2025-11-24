@@ -26,7 +26,8 @@ apt-get install -y \
     ripgrep \
     git \
     fuse \
-    bindfs
+    bindfs \
+    npm
 
 # Install Archil client
 echo "📦 Installing Archil client..."
