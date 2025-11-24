@@ -32,8 +32,8 @@ const RemoteBackendConfigSchema = BaseBackendConfigSchema.extend({
     type: z.enum(AUTH_TYPES),
     credentials: z.record(z.string(), z.unknown()),
   }),
-  host: z.string().optional(),
-  port: z.number().optional(),
+  host: z.string().min(1, 'host is required for remote backend'),
+  port: z.number().positive().optional(),
 })
 
 export const BackendConfigSchema = z.discriminatedUnion('type', [

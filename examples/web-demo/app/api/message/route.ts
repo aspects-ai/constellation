@@ -1,9 +1,10 @@
 import { CodebuffClient } from "@codebuff/sdk";
-import { BackendConfig, FileSystem } from "constellationfs";
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getCodebuffClient } from "../../../lib/codebuff-init";
 import { broadcastToStream } from "../../../lib/streams";
+import { createFileSystem, initConstellationFS } from "../../../lib/constellation-init";
+import type { FileSystem } from "constellationfs";
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,10 +44,6 @@ export async function POST(request: NextRequest) {
       message?.substring(0, 100) + (message?.length > 100 ? "..." : ""),
     );
     console.log("[API] 🆔 Session ID:", sessionId);
-    
-    // Get backend type from environment variable
-    const backendType = (process.env.NEXT_PUBLIC_CONSTELLATION_BACKEND_TYPE as 'local' | 'remote') || 'local';
-    console.log("[API] 🔧 Backend type:", backendType);
     console.log("[API] 🔄 Previous runState present:", !!previousRunState);
     if (previousRunState) {
       console.log("[API] 📊 Previous runState type:", typeof previousRunState);
@@ -79,37 +76,12 @@ export async function POST(request: NextRequest) {
     const streamId = uuidv4();
     console.log("[API] 🌊 Stream ID created:", streamId);
 
-    // Create backend configuration
-    let fsConfig: Partial<BackendConfig>;
+    // Initialize ConstellationFS configuration
+    initConstellationFS()
 
-    if (backendType === "remote") {
-      fsConfig = {
-        type: "remote",
-        // Host will be determined from REMOTE_VM_HOST environment variable
-        userId: sessionId,
-        auth: {
-          type: "password",
-          credentials: {
-            username: 'root',
-            password: "constellation", // Default password for Docker container
-          },
-        },
-      };
-      console.log('[API] Using remote backend config (host from env):', { ...fsConfig, auth: { ...fsConfig.auth, credentials: { username: fsConfig.auth?.credentials.username, password: '[REDACTED]' } } })
-    } else {
-      fsConfig = {
-        type: "local",
-        userId: sessionId,
-      };
-      console.log('[API] Using local backend config')
-    }
-
-    // Initialize ConstellationFS with specified backend
-    console.log("[API] 🗂️ Initializing FileSystem with config:", fsConfig.type);
-    const fs = new FileSystem({
-      userId: sessionId,
-      ...fsConfig,
-    });
+    // Create FileSystem instance
+    console.log("[API] 🗂️ Initializing FileSystem");
+    const fs = createFileSystem(sessionId);
     console.log("[API] ✅ FileSystem initialized");
 
     // Initialize workspace with sample files if empty

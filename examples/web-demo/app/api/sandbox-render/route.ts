@@ -1,49 +1,23 @@
-import { FileSystem } from 'constellationfs'
 import { NextRequest, NextResponse } from 'next/server'
+import { createFileSystem, initConstellationFS } from '../../../lib/constellation-init'
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const sessionId = searchParams.get('sessionId')
     const filePath = searchParams.get('filePath')
-    // Get backend type from environment variable
-    const backendType = (process.env.NEXT_PUBLIC_CONSTELLATION_BACKEND_TYPE as 'local' | 'remote') || 'local'
 
     if (!sessionId || !filePath) {
       return new NextResponse('Missing required parameters', { status: 400 })
     }
 
-    console.log('Sandbox-render API: sessionId =', JSON.stringify(sessionId), 'backend =', backendType)
+    console.log('Sandbox-render API: sessionId =', JSON.stringify(sessionId))
 
-    // Create backend configuration
-    let backendConfig: any
+    // Initialize ConstellationFS configuration
+    initConstellationFS()
 
-    if (backendType === 'remote') {
-      backendConfig = {
-        type: 'remote',
-        // Host will be determined from REMOTE_VM_HOST environment variable
-        userId: sessionId,
-        auth: {
-          type: 'password',
-          credentials: {
-            username: 'root',
-            password: 'constellation' // Default password for Docker container
-          }
-        }
-      }
-      console.log('Using remote backend config (host from env):', { ...backendConfig, auth: { ...backendConfig.auth, credentials: { username: backendConfig.auth.credentials.username, password: '[REDACTED]' } } })
-    } else {
-      backendConfig = {
-        type: 'local',
-        userId: sessionId
-      }
-      console.log('Using local backend config')
-    }
-
-    const fs = new FileSystem({
-      userId: sessionId,
-      ...backendConfig
-    })
+    // Create FileSystem instance
+    const fs = createFileSystem(sessionId)
 
     try {
       const workspace = await fs.getWorkspace('default')

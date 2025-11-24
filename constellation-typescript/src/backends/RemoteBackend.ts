@@ -5,7 +5,7 @@ import { ERROR_CODES } from '../constants.js'
 import { isCommandSafe, isDangerous } from '../safety.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
 import { getLogger } from '../utils/logger.js'
-import { getPlatformGuidance, getRemoteBackendLibrary } from '../utils/nativeLibrary.js'
+import { getPlatformGuidance } from '../utils/nativeLibrary.js'
 import { RemoteWorkspaceUtils } from '../utils/RemoteWorkspaceUtils.js'
 import { RemoteWorkspace } from '../workspace/RemoteWorkspace.js'
 import type { Workspace, WorkspaceConfig } from '../workspace/Workspace.js'
@@ -23,7 +23,6 @@ export class RemoteBackend implements FileSystemBackend {
   public readonly options: RemoteBackendConfig
   public connected: boolean
   private sshClient: Client | null = null
-  private interceptLibPath: string | null = null
   private isConnected = false
   private connectionPromise: Promise<void> | null = null
   private workspaceCache = new Map<string, RemoteWorkspace>()
@@ -49,19 +48,6 @@ export class RemoteBackend implements FileSystemBackend {
         ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
         `Suggestions:\n  ${suggestions}`
       )
-    }
-
-    // Locate the LD_PRELOAD intercept library using platform detection
-    if (process.env.USE_LD_PRELOAD === 'true') {
-      this.interceptLibPath = getRemoteBackendLibrary()
-      if (!this.interceptLibPath) {
-        const suggestions = guidance.suggestions.join('\n  ')
-        throw new FileSystemError(
-          'Native library required for remote backend but not found',
-          ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
-          `Suggestions:\n  ${suggestions}`
-        )
-      }
     }
 
     // Initialize SSH client
@@ -92,52 +78,12 @@ export class RemoteBackend implements FileSystemBackend {
     } else if (auth.type === 'key' && auth.credentials.username) {
       return auth.credentials.username as string
     }
-    // Default to current user
-    return process.env.USER || 'root'
-  }
-  
-  /**
-   * Parse host:port format into separate host and port
-   */
-  private parseHostPort(hostString: string): { host: string; port: number } {
-    const parts = hostString.split(':')
-    if (parts.length === 2) {
-      const host = parts[0]
-      const port = parseInt(parts[1], 10)
-      if (!isNaN(port)) {
-        return { host, port }
-      }
-    }
-    // Default to port 22 if no port specified or invalid
-    return { host: hostString, port: 22 }
-  }
 
-  /**
-   * Get host and port from options or environment variable
-   */
-  private getHostAndPortFromEnv(): { host: string; port: number } {
-    // Fall back to environment variable
-    const remoteHost = process.env.REMOTE_VM_HOST
-    if (!remoteHost) {
-      throw new FileSystemError(
-        'REMOTE_VM_HOST environment variable is required for remote backend',
-        ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
-        'Set REMOTE_VM_HOST=user@hostname:port before running'
-      )
-    }
-    
-    // Parse user@host:port format
-    const parts = remoteHost.split('@')
-    if (parts.length !== 2) {
-      throw new FileSystemError(
-        'REMOTE_VM_HOST must be in format user@hostname:port',
-        ERROR_CODES.BACKEND_NOT_IMPLEMENTED,
-        `Invalid format: ${remoteHost}`
-      )
-    }
-    
-    const hostPart = parts[1] // hostname:port
-    return this.parseHostPort(hostPart)
+    throw new FileSystemError(
+      'Username is required in auth credentials',
+      ERROR_CODES.INVALID_CONFIGURATION,
+      'Provide username in auth.credentials.username'
+    )
   }
 
   /**
@@ -346,10 +292,9 @@ export class RemoteBackend implements FileSystemBackend {
         throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
       }
       const auth = this.options.auth
-      const { host, port } = this.getHostAndPortFromEnv()
       const connectOptions: ConnectConfig = {
-        host,
-        port,
+        host: this.options.host,
+        port: this.options.port,
         username: this.getUserFromAuth(),
         debug: (message) => getLogger().debug(`[ConstellationFS] ${message}`)
       }

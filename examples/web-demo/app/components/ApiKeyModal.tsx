@@ -23,15 +23,9 @@ export default function ApiKeyModal({ opened, onSubmit }: ApiKeyModalProps) {
 
   const handleSubmit = async () => {
     if (!apiKey.trim()) return
-    
+
     setIsValidating(true)
-    
-    // Simple validation - just check if it looks like an Anthropic API key
-    if (!apiKey.startsWith('sk-ant-')) {
-      setIsValidating(false)
-      return
-    }
-    
+
     // Pass to parent component (stored in React state only)
     onSubmit(apiKey.trim())
     setIsValidating(false)
@@ -49,7 +43,7 @@ export default function ApiKeyModal({ opened, onSubmit }: ApiKeyModalProps) {
     >
       <Stack gap="md">
         <Text size="md" mb="xs">
-          To get started, enter your Anthropic API key for Codebuff to use.
+          To get started, enter your Codebuff API key.
         </Text>
 
         <Alert
@@ -58,26 +52,26 @@ export default function ApiKeyModal({ opened, onSubmit }: ApiKeyModalProps) {
           variant="light"
         >
           <Text size="sm">
-            Your API key is kept in memory only during this session and sent directly to Anthropic's servers. 
+            Your API key is kept in memory only during this session and sent directly to Codebuff's servers.
             It is never stored on our servers or in your browser storage.
           </Text>
         </Alert>
 
         <Stack gap="xs">
           <Text size="sm" c="dimmed">
-            Get your API key from the{' '}
-            <Anchor 
-              href="https://console.anthropic.com/settings/keys" 
+            Get your API key from{' '}
+            <Anchor
+              href="https://codebuff.com"
               target="_blank"
               size="sm"
             >
-              Anthropic Console
+              Codebuff
               <IconExternalLink size={12} style={{ marginLeft: 4 }} />
             </Anchor>
           </Text>
 
           <TextInput
-            placeholder="sk-ant-api03-..."
+            placeholder="Enter your Codebuff API key"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             leftSection={<IconKey size={16} />}
@@ -93,7 +87,7 @@ export default function ApiKeyModal({ opened, onSubmit }: ApiKeyModalProps) {
 
         <Button
           onClick={handleSubmit}
-          disabled={!apiKey.trim() || !apiKey.startsWith('sk-ant-')}
+          disabled={!apiKey.trim()}
           loading={isValidating}
           size="md"
           fullWidth

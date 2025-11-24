@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { getLogger } from '../utils/logger'
@@ -7,6 +6,8 @@ import { getLogger } from '../utils/logger'
  * Library-level configuration interface for ConstellationFS
  */
 export interface LibraryConfig {
+  /** Application identifier for isolating workspaces */
+  appId: string
   /** Base directory for all user workspaces */
   workspaceRoot: string
 }
@@ -21,54 +22,38 @@ export class ConstellationFS {
   private config: LibraryConfig
   private appId: string
 
-  private constructor(appId: string) {
-    this.appId = appId
+  private constructor() {
+    // Programmatic config must be set via setConfig() before getInstance()
+    if (!ConstellationFS.programmaticConfig) {
+      throw new Error(
+        'ConstellationFS configuration must be set via ConstellationFS.setConfig() before use'
+      )
+    }
+
+    // Validate required fields
+    if (!ConstellationFS.programmaticConfig.appId) {
+      throw new Error('appId is required in ConstellationFS configuration')
+    }
 
     // Default configuration
-    let baseConfig: LibraryConfig = {
-      workspaceRoot: join(tmpdir(), 'constellation-fs'),
+    const baseConfig: LibraryConfig = {
+      appId: ConstellationFS.programmaticConfig.appId,
+      workspaceRoot: ConstellationFS.programmaticConfig.workspaceRoot || join(tmpdir(), 'constellation-fs'),
     }
 
-    // If programmatic config is set, use it and skip file loading
-    if (ConstellationFS.programmaticConfig) {
-      baseConfig = {
-        ...baseConfig,
-        ...ConstellationFS.programmaticConfig,
-      }
-      this.config = baseConfig
-      getLogger().info('ConstellationFS initialized with programmatic config:', this.config)
-    } else {
-      // Otherwise, try to load from .constellationfs.json
-      const configPath = '.constellationfs.json'
-      if (existsSync(configPath)) {
-        try {
-          const fileContent = readFileSync(configPath, 'utf-8')
-          const loadedConfig = JSON.parse(fileContent) as Partial<LibraryConfig>
-          baseConfig = {
-            ...baseConfig,
-            ...loadedConfig,
-          }
-        } catch (error) {
-          console.warn(`Failed to load config from ${configPath}:`, error)
-          // Continue with defaults
-        }
-      }
-      this.config = baseConfig
-      getLogger().info('ConstellationFS initialized with config:', this.config)
-    }
+    this.config = baseConfig
+    this.appId = baseConfig.appId
+    getLogger().info('ConstellationFS initialized with config:', this.config)
   }
 
   /**
    * Get the singleton instance
-   * @returns ConstellationFS instance (creates with defaults if not loaded)
+   * @returns ConstellationFS instance
+   * @throws {Error} if setConfig() has not been called first
    */
   static getInstance(): ConstellationFS {
     if (!ConstellationFS.instance) {
-      const appId = process.env.CONSTELLATIONFS_APP_ID
-      if (!appId) {
-        throw new Error('CONSTELLATIONFS_APP_ID is not set')
-      }
-      ConstellationFS.instance = new ConstellationFS(appId)
+      ConstellationFS.instance = new ConstellationFS()
     }
     return ConstellationFS.instance
   }
