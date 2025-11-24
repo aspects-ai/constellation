@@ -296,9 +296,11 @@ export class RemoteBackend implements FileSystemBackend {
         host: this.options.host,
         port: this.options.port,
         username: this.getUserFromAuth(),
-        debug: (message) => getLogger().debug(`[ConstellationFS] ${message}`)
+        debug: (message) => getLogger().debug(`[ConstellationFS] ${message}`),
+        // Try both password and keyboard-interactive authentication
+        tryKeyboard: true
       }
-      
+
       if (auth.type === 'password') {
         connectOptions.password = auth.credentials.password as string
       } else if (auth.type === 'key') {
@@ -307,26 +309,38 @@ export class RemoteBackend implements FileSystemBackend {
           connectOptions.passphrase = auth.credentials.passphrase as string
         }
       }
-      
+
+      // Set up event handlers BEFORE connecting
       this.sshClient.on('ready', () => {
         this.isConnected = true
         this.connectionPromise = null
         getLogger().debug('[ConstellationFS] SSH connection ready')
         resolve()
       })
-      
+
       this.sshClient.on('close', () => {
         this.isConnected = false
         this.connectionPromise = null
         getLogger().debug('SSH connection closed')
       })
-      
+
       this.sshClient.on('error', (err) => {
         this.isConnected = false
         this.connectionPromise = null
         reject(err)
       })
-      
+
+      // Handle keyboard-interactive authentication (required by some SSH servers)
+      // This must be set up before connect() is called
+      if (auth.type === 'password') {
+        this.sshClient.on('keyboard-interactive', (_name, _instructions, _instructionsLang, prompts, finish) => {
+          getLogger().debug(`[ConstellationFS] Keyboard-interactive auth requested with ${prompts.length} prompt(s)`)
+          // Respond to all prompts with the password
+          const responses = prompts.map(() => auth.credentials.password as string)
+          finish(responses)
+        })
+      }
+
       this.sshClient.connect(connectOptions)
     })
   }

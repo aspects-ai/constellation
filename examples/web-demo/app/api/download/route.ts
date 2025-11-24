@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     // Get workspace and read file content
     const workspace = await fs.getWorkspace('default')
-    const content = await workspace.readFile(filePath, 'utf-8')
+    const content = await workspace.readFile(filePath, 'utf-8') as string
 
     // Get filename from path
     const filename = filePath.split('/').pop() || 'download.txt'
