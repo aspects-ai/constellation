@@ -24,8 +24,13 @@ export function isPathEscaping(workspacePath: string, targetPath: string): boole
  * Resolve a path safely within workspace boundaries
  * Throws if the path would escape the workspace
  *
+ * Supports three path formats:
+ * 1. Relative path: "someDir" or "./someDir" - resolved relative to workspace
+ * 2. Workspace-absolute path: "/someDir" - treated as workspace-relative
+ * 3. Full absolute path within workspace: "/workspace/someDir" - workspace prefix stripped
+ *
  * @param workspacePath - Absolute path to workspace root
- * @param targetPath - Path to resolve (relative or starting with / for workspace-relative)
+ * @param targetPath - Path to resolve (relative, workspace-absolute, or full absolute)
  * @returns Resolved absolute path within workspace
  * @throws Error if path escapes workspace boundaries
  */
@@ -35,23 +40,39 @@ export function resolvePathSafely(workspacePath: string, targetPath: string): st
     throw new Error(`Home directory references are not allowed: ${targetPath}`)
   }
 
-  // Normalize the target path
+  // Normalize workspace path for comparisons
+  const normalizedWorkspace = normalize(workspacePath)
+
   let normalizedTargetPath = targetPath
 
-  // If path starts with /, treat it as workspace-relative (strip the leading /)
-  if (targetPath.startsWith('/')) {
-    normalizedTargetPath = targetPath.slice(1)
+  // Handle absolute paths
+  if (isAbsolute(targetPath)) {
+    const normalizedTarget = normalize(targetPath)
+
+    // Check if this absolute path starts with the workspace path
+    // e.g., "/var/users/someWorkspace/someDir" when workspace is "/var/users/someWorkspace"
+    if (normalizedTarget === normalizedWorkspace) {
+      // Path is exactly the workspace root
+      normalizedTargetPath = '.'
+    } else if (normalizedTarget.startsWith(normalizedWorkspace + '/')) {
+      // Path is within workspace - strip workspace prefix to get relative path
+      const relativePath = normalizedTarget.slice(normalizedWorkspace.length + 1)
+      normalizedTargetPath = relativePath
+    } else {
+      // Absolute path that doesn't match workspace - treat as workspace-relative
+      // Strip leading / and use as workspace-relative path
+      normalizedTargetPath = targetPath.slice(1)
+    }
   }
 
   // Resolve the full path relative to workspace
   const fullPath = resolve(workspacePath, normalizedTargetPath)
 
-  // Normalize both paths for comparison
-  const normalizedWorkspace = normalize(workspacePath)
-  const normalizedTarget = normalize(fullPath)
+  // Normalize for final validation
+  const normalizedFull = normalize(fullPath)
 
   // Check if resolved path is within workspace
-  const relativePath = relative(normalizedWorkspace, normalizedTarget)
+  const relativePath = relative(normalizedWorkspace, normalizedFull)
 
   // If relative path starts with .. or is absolute, it's outside workspace
   if (relativePath.startsWith('..') || isAbsolute(relativePath)) {

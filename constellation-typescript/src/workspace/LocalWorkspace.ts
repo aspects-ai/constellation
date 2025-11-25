@@ -302,11 +302,7 @@ export class LocalWorkspace extends BaseWorkspace {
     }
   }
 
-  async exists(): Promise<boolean> {
-    return await this.backend.existsAsync(this.workspacePath)
-  }
-
-  async fileExists(path: string): Promise<boolean> {
+  async exists(path: string): Promise<boolean> {
     this.validatePath(path)
 
     try {
@@ -316,6 +312,11 @@ export class LocalWorkspace extends BaseWorkspace {
       // If path validation fails, the file doesn't exist (or is inaccessible)
       return false
     }
+  }
+
+  async fileExists(path: string): Promise<boolean> {
+    // Alias for exists() for backwards compatibility
+    return this.exists(path)
   }
 
   async stat(path: string): Promise<Stats> {

@@ -22,6 +22,7 @@ export default [
         require: 'readonly',
         module: 'readonly',
         NodeJS: 'readonly',
+        BufferEncoding: 'readonly',
       },
     },
     plugins: {

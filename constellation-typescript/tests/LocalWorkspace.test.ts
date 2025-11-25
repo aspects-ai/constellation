@@ -231,16 +231,26 @@ describe('LocalWorkspace', () => {
   })
 
   describe('exists', () => {
-    it('should return true for existing workspace', async () => {
-      const exists = await workspace.exists()
+    it('should return true for existing file', async () => {
+      await workspace.write('exists-test.txt', 'content')
+      const exists = await workspace.exists('exists-test.txt')
       expect(exists).toBe(true)
     })
 
-    it('should return false after deletion', async () => {
-      await workspace.delete()
-      const exists = await workspace.exists()
-
+    it('should return false for non-existent file', async () => {
+      const exists = await workspace.exists('nonexistent.txt')
       expect(exists).toBe(false)
+    })
+
+    it('should return true for existing directory', async () => {
+      await workspace.mkdir('test-dir')
+      const exists = await workspace.exists('test-dir')
+      expect(exists).toBe(true)
+    })
+
+    it('should work with workspace root path (.)', async () => {
+      const exists = await workspace.exists('.')
+      expect(exists).toBe(true)
     })
   })
 
@@ -652,6 +662,166 @@ describe('LocalWorkspace', () => {
         const content = await workspace.readFile(`file-${i}.txt`, 'utf-8')
         expect(content).toBe(`content ${i}`)
       }
+    })
+  })
+
+  describe('path format flexibility', () => {
+    it('should support all three path formats for the same file', async () => {
+      // Create a file using relative path
+      await workspace.write('test.txt', 'content')
+
+      // Read using relative path
+      const content1 = await workspace.readFile('test.txt', 'utf-8')
+      expect(content1).toBe('content')
+
+      // Read using workspace-absolute path (/test.txt)
+      const content2 = await workspace.readFile('/test.txt', 'utf-8')
+      expect(content2).toBe('content')
+
+      // Read using full absolute path
+      const fullPath = `${workspace.workspacePath}/test.txt`
+      const content3 = await workspace.readFile(fullPath, 'utf-8')
+      expect(content3).toBe('content')
+
+      // All three formats should access the same file
+      expect(content1).toBe(content2)
+      expect(content2).toBe(content3)
+    })
+
+    it('should support nested paths in all formats', async () => {
+      await workspace.mkdir('dir')
+      await workspace.write('dir/nested.txt', 'nested content')
+
+      // Relative path
+      const content1 = await workspace.readFile('dir/nested.txt', 'utf-8')
+      expect(content1).toBe('nested content')
+
+      // Workspace-absolute path
+      const content2 = await workspace.readFile('/dir/nested.txt', 'utf-8')
+      expect(content2).toBe('nested content')
+
+      // Full absolute path
+      const fullPath = `${workspace.workspacePath}/dir/nested.txt`
+      const content3 = await workspace.readFile(fullPath, 'utf-8')
+      expect(content3).toBe('nested content')
+
+      expect(content1).toBe(content2)
+      expect(content2).toBe(content3)
+    })
+
+    it('should support exists() with all three path formats', async () => {
+      await workspace.write('exists-test.txt', 'content')
+
+      // Relative path
+      expect(await workspace.exists('exists-test.txt')).toBe(true)
+
+      // Workspace-absolute path
+      expect(await workspace.exists('/exists-test.txt')).toBe(true)
+
+      // Full absolute path
+      const fullPath = `${workspace.workspacePath}/exists-test.txt`
+      expect(await workspace.exists(fullPath)).toBe(true)
+    })
+
+    it('should support mkdir with all three path formats', async () => {
+      // Relative path
+      await workspace.mkdir('dir1')
+      expect(await workspace.exists('dir1')).toBe(true)
+
+      // Workspace-absolute path
+      await workspace.mkdir('/dir2')
+      expect(await workspace.exists('dir2')).toBe(true)
+
+      // Full absolute path
+      const fullPath = `${workspace.workspacePath}/dir3`
+      await workspace.mkdir(fullPath)
+      expect(await workspace.exists('dir3')).toBe(true)
+    })
+
+    it('should support write with all three path formats', async () => {
+      // Relative path
+      await workspace.write('file1.txt', 'content1')
+      expect(await workspace.readFile('file1.txt', 'utf-8')).toBe('content1')
+
+      // Workspace-absolute path
+      await workspace.write('/file2.txt', 'content2')
+      expect(await workspace.readFile('file2.txt', 'utf-8')).toBe('content2')
+
+      // Full absolute path
+      const fullPath = `${workspace.workspacePath}/file3.txt`
+      await workspace.write(fullPath, 'content3')
+      expect(await workspace.readFile('file3.txt', 'utf-8')).toBe('content3')
+    })
+
+    it('should support readdir with all three path formats', async () => {
+      await workspace.mkdir('readdir-test')
+      await workspace.write('readdir-test/file1.txt', 'content1')
+      await workspace.write('readdir-test/file2.txt', 'content2')
+
+      // Relative path
+      const files1 = await workspace.readdir('readdir-test')
+      expect(files1).toContain('file1.txt')
+      expect(files1).toContain('file2.txt')
+
+      // Workspace-absolute path
+      const files2 = await workspace.readdir('/readdir-test')
+      expect(files2).toContain('file1.txt')
+      expect(files2).toContain('file2.txt')
+
+      // Full absolute path
+      const fullPath = `${workspace.workspacePath}/readdir-test`
+      const files3 = await workspace.readdir(fullPath)
+      expect(files3).toContain('file1.txt')
+      expect(files3).toContain('file2.txt')
+
+      expect(files1).toEqual(files2)
+      expect(files2).toEqual(files3)
+    })
+
+    it('should support stat with all three path formats', async () => {
+      await workspace.write('stat-test.txt', 'content')
+
+      // Relative path
+      const stats1 = await workspace.stat('stat-test.txt')
+      expect(stats1.isFile()).toBe(true)
+
+      // Workspace-absolute path
+      const stats2 = await workspace.stat('/stat-test.txt')
+      expect(stats2.isFile()).toBe(true)
+
+      // Full absolute path
+      const fullPath = `${workspace.workspacePath}/stat-test.txt`
+      const stats3 = await workspace.stat(fullPath)
+      expect(stats3.isFile()).toBe(true)
+
+      // All should return the same file stats
+      expect(stats1.size).toBe(stats2.size)
+      expect(stats2.size).toBe(stats3.size)
+    })
+
+    it('should handle workspace root path in all formats', async () => {
+      // Relative path (.)
+      expect(await workspace.exists('.')).toBe(true)
+
+      // Workspace-absolute path (/)
+      expect(await workspace.exists('/')).toBe(true)
+
+      // Full absolute path (workspace path itself)
+      expect(await workspace.exists(workspace.workspacePath)).toBe(true)
+    })
+
+    it('should reject absolute paths outside workspace', async () => {
+      // Absolute path that doesn't match workspace should be treated as workspace-relative
+      // e.g., /etc/passwd becomes <workspace>/etc/passwd
+      await workspace.mkdir('/etc')
+      await workspace.write('/etc/passwd', 'safe content')
+
+      // Should create the file inside workspace
+      const content = await workspace.readFile('etc/passwd', 'utf-8')
+      expect(content).toBe('safe content')
+
+      // Real system /etc/passwd should not be accessible via parent traversal
+      await expect(workspace.readFile('/../../../etc/passwd', 'utf-8')).rejects.toThrow('Path escapes workspace')
     })
   })
 })

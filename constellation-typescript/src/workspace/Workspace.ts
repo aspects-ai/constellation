@@ -64,13 +64,14 @@ export interface Workspace {
   touch(path: string): Promise<void>
 
   /**
-   * Check if the workspace directory exists
-   * @returns Promise resolving to true if the workspace exists
+   * Check if a file or directory exists within the workspace
+   * @param path - Relative path to check within the workspace
+   * @returns Promise resolving to true if the file or directory exists
    */
-  exists(): Promise<boolean>
+  exists(path: string): Promise<boolean>
 
   /**
-   * Check if a file or directory exists within the workspace
+   * Check if a file or directory exists within the workspace (alias for exists)
    * @param path - Relative path to check within the workspace
    * @returns Promise resolving to true if the file or directory exists
    */
@@ -239,7 +240,7 @@ export abstract class BaseWorkspace implements Workspace {
   abstract write(path: string, content: string | Buffer): Promise<void>
   abstract mkdir(path: string, recursive?: boolean): Promise<void>
   abstract touch(path: string): Promise<void>
-  abstract exists(): Promise<boolean>
+  abstract exists(path: string): Promise<boolean>
   abstract fileExists(path: string): Promise<boolean>
   abstract stat(path: string): Promise<Stats>
   abstract readdir(path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]>

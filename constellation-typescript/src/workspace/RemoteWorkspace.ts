@@ -55,15 +55,16 @@ export class RemoteWorkspace extends BaseWorkspace {
     return this.backend.touchFile(remotePath)
   }
 
-  async exists(): Promise<boolean> {
-    return this.backend.directoryExists(this.workspacePath)
-  }
-
-  async fileExists(path: string): Promise<boolean> {
+  async exists(path: string): Promise<boolean> {
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
     return this.backend.pathExists(remotePath)
+  }
+
+  async fileExists(path: string): Promise<boolean> {
+    // Alias for exists() for backwards compatibility
+    return this.exists(path)
   }
 
   async stat(path: string): Promise<Stats> {
