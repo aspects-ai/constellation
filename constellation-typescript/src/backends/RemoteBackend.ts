@@ -1,7 +1,7 @@
 import type { Stats } from 'fs'
 import { clearTimeout, setTimeout } from 'node:timers'
 import { join } from 'path'
-import type { ConnectConfig } from 'ssh2'
+import type { ConnectConfig, SFTPWrapper } from 'ssh2'
 import { Client } from 'ssh2'
 import { ERROR_CODES } from '../constants.js'
 import { isCommandSafe, isDangerous } from '../safety.js'
@@ -22,10 +22,23 @@ const SSH_KEEPALIVE_INTERVAL_MS = 30_000
 /** Number of missed keep-alives before considering connection dead */
 const SSH_KEEPALIVE_COUNT_MAX = 3
 
+/**
+ * Maximum concurrent SSH channels per connection.
+ * Server MaxSessions is 64, we use 50 to leave headroom.
+ */
+const MAX_CONCURRENT_CHANNELS = 50
+
 /** Represents a pending operation that can be rejected on connection loss */
 interface PendingOperation {
   reject: (error: Error) => void
   description: string
+}
+
+/** Queued operation waiting for a channel slot */
+interface QueuedOperation<T> {
+  execute: () => Promise<T>
+  resolve: (value: T) => void
+  reject: (error: Error) => void
 }
 
 /**
@@ -46,6 +59,17 @@ export class RemoteBackend implements FileSystemBackend {
 
   /** Track pending operations so we can reject them on connection loss */
   private pendingOperations = new Set<PendingOperation>()
+
+  /** Current number of active SSH channels */
+  private activeChannels = 0
+
+  /** Queue of operations waiting for a channel slot */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private operationQueue: QueuedOperation<any>[] = []
+
+  /** Cached SFTP session - reused for all SFTP operations to avoid channel exhaustion */
+  private sftpSession: SFTPWrapper | null = null
+  private sftpSessionPromise: Promise<SFTPWrapper> | null = null
 
   /**
    * Create a new RemoteBackend instance
@@ -194,14 +218,15 @@ export class RemoteBackend implements FileSystemBackend {
       )
     }
 
+    // Ensure SSH connection is established
+    await this.ensureSSHConnection()
+
     if (!this.sshClient) {
       throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
     }
 
-    // Ensure SSH connection is established
-    await this.ensureSSHConnection()
-
-    return new Promise((resolve, reject) => {
+    // Use channel limiting to avoid overwhelming the SSH server
+    return this.withChannelLimit(() => new Promise((resolve, reject) => {
       if (!this.sshClient) {
         throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
       }
@@ -311,24 +336,27 @@ export class RemoteBackend implements FileSystemBackend {
           }
         })
       })
-    })
+    }))
   }
-  
+
   /**
    * Ensure SSH connection is established
    */
   private async ensureSSHConnection(): Promise<void> {
     // If already connected, return immediately
     if (this.isConnected && this.sshClient) {
+      getLogger().debug('[SSH] ensureSSHConnection: already connected')
       return Promise.resolve()
     }
 
     // If connection is in progress, wait for it
     if (this.connectionPromise) {
+      getLogger().debug('[SSH] ensureSSHConnection: connection in progress, waiting...')
       return this.connectionPromise
     }
 
     // Start new connection (this will create a fresh SSH client if needed)
+    getLogger().debug(`[SSH] ensureSSHConnection: starting new connection (isConnected=${this.isConnected}, sshClient=${!!this.sshClient})`)
     this.connectionPromise = this.connectSSH()
     return this.connectionPromise
   }
@@ -432,21 +460,39 @@ export class RemoteBackend implements FileSystemBackend {
     this.connected = false
     this.connectionPromise = null
 
+    // Clear cached SFTP session (it's tied to the old connection)
+    if (this.sftpSession) {
+      getLogger().debug('[ConstellationFS] Clearing cached SFTP session due to connection loss')
+      this.sftpSession = null
+    }
+    this.sftpSessionPromise = null
+
+    const error = new FileSystemError(
+      `SSH connection lost: ${reason}`,
+      ERROR_CODES.EXEC_FAILED
+    )
+
+    // Reject all pending operations
     if (wasConnected && this.pendingOperations.size > 0) {
       getLogger().warn(`[ConstellationFS] Connection lost (${reason}), rejecting ${this.pendingOperations.size} pending operation(s)`)
-
-      const error = new FileSystemError(
-        `SSH connection lost: ${reason}`,
-        ERROR_CODES.EXEC_FAILED
-      )
-
-      // Reject all pending operations
       for (const op of this.pendingOperations) {
         getLogger().debug(`[ConstellationFS] Rejecting pending operation: ${op.description}`)
         op.reject(error)
       }
       this.pendingOperations.clear()
     }
+
+    // Reject all queued operations
+    if (this.operationQueue.length > 0) {
+      getLogger().warn(`[ConstellationFS] Connection lost (${reason}), rejecting ${this.operationQueue.length} queued operation(s)`)
+      for (const queued of this.operationQueue) {
+        queued.reject(error)
+      }
+      this.operationQueue = []
+    }
+
+    // Reset channel count
+    this.activeChannels = 0
   }
 
   /**
@@ -460,6 +506,122 @@ export class RemoteBackend implements FileSystemBackend {
     return () => {
       this.pendingOperations.delete(op)
     }
+  }
+
+  /**
+   * Execute an operation with channel concurrency limiting.
+   * Ensures we don't exceed MAX_CONCURRENT_CHANNELS to avoid SSH server rejection.
+   */
+  private async withChannelLimit<T>(operation: () => Promise<T>): Promise<T> {
+    // If we have capacity, execute immediately
+    if (this.activeChannels < MAX_CONCURRENT_CHANNELS) {
+      return this.executeWithChannelTracking(operation)
+    }
+
+    // Otherwise, queue the operation
+    return new Promise<T>((resolve, reject) => {
+      this.operationQueue.push({
+        execute: operation,
+        resolve,
+        reject,
+      })
+      getLogger().debug(`[SSH] Operation queued, queue size: ${this.operationQueue.length}, active channels: ${this.activeChannels}`)
+    })
+  }
+
+  /**
+   * Execute an operation while tracking channel usage
+   */
+  private async executeWithChannelTracking<T>(operation: () => Promise<T>): Promise<T> {
+    this.activeChannels++
+    getLogger().debug(`[SSH] Channel acquired, active: ${this.activeChannels}/${MAX_CONCURRENT_CHANNELS}`)
+
+    try {
+      return await operation()
+    } finally {
+      this.activeChannels--
+      getLogger().debug(`[SSH] Channel released, active: ${this.activeChannels}/${MAX_CONCURRENT_CHANNELS}`)
+      this.processQueue()
+    }
+  }
+
+  /**
+   * Process queued operations when a channel becomes available
+   */
+  private processQueue(): void {
+    while (this.operationQueue.length > 0 && this.activeChannels < MAX_CONCURRENT_CHANNELS) {
+      const queued = this.operationQueue.shift()!
+      getLogger().debug(`[SSH] Dequeuing operation, remaining queue: ${this.operationQueue.length}`)
+
+      // Execute the queued operation
+      this.executeWithChannelTracking(queued.execute)
+        .then(queued.resolve)
+        .catch(queued.reject)
+    }
+  }
+
+  /**
+   * Get or create a cached SFTP session.
+   * Reuses a single SFTP channel for all SFTP operations to avoid channel exhaustion.
+   * The SFTP session is automatically cleaned up on connection loss.
+   */
+  private async getSftpSession(): Promise<SFTPWrapper> {
+    // Return existing session if available
+    if (this.sftpSession) {
+      return this.sftpSession
+    }
+
+    // If session creation is in progress, wait for it
+    if (this.sftpSessionPromise) {
+      return this.sftpSessionPromise
+    }
+
+    // Ensure SSH connection first
+    await this.ensureSSHConnection()
+
+    if (!this.sshClient) {
+      throw new FileSystemError('SSH client not initialized', ERROR_CODES.READ_FAILED)
+    }
+
+    // Create new SFTP session (this opens one channel that stays open)
+    this.sftpSessionPromise = new Promise<SFTPWrapper>((resolve, reject) => {
+      if (!this.sshClient) {
+        reject(new FileSystemError('SSH client not initialized', ERROR_CODES.READ_FAILED))
+        return
+      }
+
+      getLogger().debug('[SFTP] Creating new cached SFTP session')
+
+      this.sshClient.sftp((err, sftp) => {
+        this.sftpSessionPromise = null
+
+        if (err) {
+          getLogger().error('[SFTP] Failed to create SFTP session', err)
+          reject(new FileSystemError(
+            `Failed to create SFTP session: ${err.message}`,
+            ERROR_CODES.READ_FAILED
+          ))
+          return
+        }
+
+        // Listen for session close to clear the cache
+        sftp.on('close', () => {
+          getLogger().debug('[SFTP] Cached SFTP session closed')
+          this.sftpSession = null
+        })
+
+        sftp.on('error', (sftpErr: Error) => {
+          getLogger().error('[SFTP] Cached SFTP session error', sftpErr)
+          this.sftpSession = null
+        })
+
+        getLogger().debug('[SFTP] Cached SFTP session created successfully')
+        this.sftpSession = sftp
+        resolve(sftp)
+      })
+    })
+
+    return this.sftpSessionPromise
   }
 
   /**
@@ -520,17 +682,9 @@ export class RemoteBackend implements FileSystemBackend {
   async readFile(remotePath: string): Promise<Buffer>
   async readFile(remotePath: string, encoding: BufferEncoding): Promise<string>
   async readFile(remotePath: string, encoding?: BufferEncoding): Promise<string | Buffer> {
-    await this.ensureSSHConnection()
-
-    if (!this.sshClient) {
-      throw new FileSystemError('SSH client not initialized', ERROR_CODES.READ_FAILED)
-    }
+    const sftp = await this.getSftpSession()
 
     return new Promise((resolve, reject) => {
-      if (!this.sshClient) {
-        throw new FileSystemError('SSH client not initialized', ERROR_CODES.READ_FAILED)
-      }
-
       let completed = false
       const timeout = setTimeout(() => {
         if (!completed) {
@@ -544,56 +698,38 @@ export class RemoteBackend implements FileSystemBackend {
         }
       }, DEFAULT_OPERATION_TIMEOUT_MS)
 
-      this.sshClient.sftp((err, sftp) => {
-        if (err) {
+      if (encoding) {
+        // Read as string with specified encoding
+        sftp.readFile(remotePath, encoding, (readErr, data) => {
           if (completed) return
           completed = true
           clearTimeout(timeout)
-          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.READ_FAILED, `read ${remotePath}`, remotePath))
-          return
-        }
-
-        if (encoding) {
-          // Read as string with specified encoding
-          sftp.readFile(remotePath, encoding, (readErr, data) => {
-            if (completed) return
-            completed = true
-            clearTimeout(timeout)
-            if (readErr) {
-              reject(this.wrapError(readErr, 'Read file', ERROR_CODES.READ_FAILED, `read ${remotePath}`, remotePath))
-            } else {
-              resolve(Buffer.isBuffer(data) ? data.toString(encoding) : data)
-            }
-          })
-        } else {
-          // Read as Buffer (no encoding)
-          sftp.readFile(remotePath, (readErr, data) => {
-            if (completed) return
-            completed = true
-            clearTimeout(timeout)
-            if (readErr) {
-              reject(this.wrapError(readErr, 'Read file', ERROR_CODES.READ_FAILED, `read ${remotePath}`, remotePath))
-            } else {
-              resolve(data)
-            }
-          })
-        }
-      })
+          if (readErr) {
+            reject(this.wrapError(readErr, 'Read file', ERROR_CODES.READ_FAILED, `read ${remotePath}`, remotePath))
+          } else {
+            resolve(Buffer.isBuffer(data) ? data.toString(encoding) : data)
+          }
+        })
+      } else {
+        // Read as Buffer (no encoding)
+        sftp.readFile(remotePath, (readErr, data) => {
+          if (completed) return
+          completed = true
+          clearTimeout(timeout)
+          if (readErr) {
+            reject(this.wrapError(readErr, 'Read file', ERROR_CODES.READ_FAILED, `read ${remotePath}`, remotePath))
+          } else {
+            resolve(data)
+          }
+        })
+      }
     })
   }
 
   async writeFile(remotePath: string, content: string | Buffer): Promise<void> {
-    await this.ensureSSHConnection()
-
-    if (!this.sshClient) {
-      throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
-    }
+    const sftp = await this.getSftpSession()
 
     return new Promise((resolve, reject) => {
-      if (!this.sshClient) {
-        throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
-      }
-
       let completed = false
       const timeout = setTimeout(() => {
         if (!completed) {
@@ -607,40 +743,30 @@ export class RemoteBackend implements FileSystemBackend {
         }
       }, DEFAULT_OPERATION_TIMEOUT_MS)
 
-      this.sshClient.sftp((err, sftp) => {
-        if (err) {
+      // Handle Buffer or string content differently
+      if (Buffer.isBuffer(content)) {
+        sftp.writeFile(remotePath, content, (writeErr) => {
           if (completed) return
           completed = true
           clearTimeout(timeout)
-          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`, remotePath))
-          return
-        }
-
-        // Handle Buffer or string content differently
-        if (Buffer.isBuffer(content)) {
-          sftp.writeFile(remotePath, content, (writeErr) => {
-            if (completed) return
-            completed = true
-            clearTimeout(timeout)
-            if (writeErr) {
-              reject(this.wrapError(writeErr, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`, remotePath))
-            } else {
-              resolve()
-            }
-          })
-        } else {
-          sftp.writeFile(remotePath, content, 'utf8', (writeErr) => {
-            if (completed) return
-            completed = true
-            clearTimeout(timeout)
-            if (writeErr) {
-              reject(this.wrapError(writeErr, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`, remotePath))
-            } else {
-              resolve()
-            }
-          })
-        }
-      })
+          if (writeErr) {
+            reject(this.wrapError(writeErr, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`, remotePath))
+          } else {
+            resolve()
+          }
+        })
+      } else {
+        sftp.writeFile(remotePath, content, 'utf8', (writeErr) => {
+          if (completed) return
+          completed = true
+          clearTimeout(timeout)
+          if (writeErr) {
+            reject(this.wrapError(writeErr, 'Write file', ERROR_CODES.WRITE_FAILED, `write ${remotePath}`, remotePath))
+          } else {
+            resolve()
+          }
+        })
+      }
     })
   }
 
@@ -653,9 +779,10 @@ export class RemoteBackend implements FileSystemBackend {
 
     if (recursive) {
       // Use mkdir -p for recursive directory creation
-      return new Promise((resolve, reject) => {
+      return this.withChannelLimit(() => new Promise((resolve, reject) => {
         if (!this.sshClient) {
-          throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+          reject(new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED))
+          return
         }
 
         let completed = false
@@ -713,13 +840,12 @@ export class RemoteBackend implements FileSystemBackend {
               // Consume stderr
             })
         })
-      })
+      }))
     } else {
-      return new Promise((resolve, reject) => {
-        if (!this.sshClient) {
-          throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
-        }
+      // Non-recursive: use cached SFTP session
+      const sftp = await this.getSftpSession()
 
+      return new Promise((resolve, reject) => {
         let completed = false
         const timeout = setTimeout(() => {
           if (!completed) {
@@ -733,25 +859,15 @@ export class RemoteBackend implements FileSystemBackend {
           }
         }, DEFAULT_OPERATION_TIMEOUT_MS)
 
-        this.sshClient.sftp((err, sftp) => {
-          if (err) {
-            if (completed) return
-            completed = true
-            clearTimeout(timeout)
-            reject(this.wrapError(err, 'SFTP session', ERROR_CODES.WRITE_FAILED, `mkdir ${remotePath}`, remotePath))
-            return
+        sftp.mkdir(remotePath, (mkdirErr) => {
+          if (completed) return
+          completed = true
+          clearTimeout(timeout)
+          if (mkdirErr) {
+            reject(this.wrapError(mkdirErr, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${remotePath}`, remotePath))
+          } else {
+            resolve()
           }
-
-          sftp.mkdir(remotePath, (mkdirErr) => {
-            if (completed) return
-            completed = true
-            clearTimeout(timeout)
-            if (mkdirErr) {
-              reject(this.wrapError(mkdirErr, 'Create directory', ERROR_CODES.WRITE_FAILED, `mkdir ${remotePath}`, remotePath))
-            } else {
-              resolve()
-            }
-          })
         })
       })
     }
@@ -764,9 +880,10 @@ export class RemoteBackend implements FileSystemBackend {
       throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
     }
 
-    return new Promise((resolve, reject) => {
+    return this.withChannelLimit(() => new Promise((resolve, reject) => {
       if (!this.sshClient) {
-        throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+        reject(new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED))
+        return
       }
 
       let completed = false
@@ -825,7 +942,7 @@ export class RemoteBackend implements FileSystemBackend {
             // Consume stderr
           })
       })
-    })
+    }))
   }
 
   async directoryExists(remotePath: string): Promise<boolean> {
@@ -835,7 +952,7 @@ export class RemoteBackend implements FileSystemBackend {
       return false
     }
 
-    return new Promise((resolve) => {
+    return this.withChannelLimit(() => new Promise((resolve) => {
       if (!this.sshClient) {
         resolve(false)
         return
@@ -874,7 +991,7 @@ export class RemoteBackend implements FileSystemBackend {
           resolve(code === 0)
         })
       })
-    })
+    }))
   }
 
   async pathExists(remotePath: string): Promise<boolean> {
@@ -884,60 +1001,86 @@ export class RemoteBackend implements FileSystemBackend {
       return false
     }
 
-    return new Promise((resolve) => {
+    return this.withChannelLimit(() => new Promise((resolve) => {
       if (!this.sshClient) {
         resolve(false)
         return
       }
 
       let completed = false
+      let execCallbackFired = false
+      let streamCreated = false
+
+      const complete = (result: boolean, source: string) => {
+        if (completed) return
+        completed = true
+        clearTimeout(timeout)
+        getLogger().debug(`[SSH] pathExists completed via ${source}: ${remotePath} = ${result}`)
+        resolve(result)
+      }
+
       const timeout = setTimeout(() => {
         if (!completed) {
-          completed = true
-          getLogger().error(`[SSH] pathExists timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${remotePath}`)
-          resolve(false) // Resolve as false on timeout rather than rejecting
+          getLogger().error(
+            `[SSH] pathExists timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${remotePath}. ` +
+            `Diagnostics: execCallbackFired=${execCallbackFired}, streamCreated=${streamCreated}, ` +
+            `isConnected=${this.isConnected}, sshClient=${!!this.sshClient}`
+          )
+          complete(false, 'timeout')
         }
       }, DEFAULT_OPERATION_TIMEOUT_MS)
 
+      getLogger().debug(`[SSH] pathExists starting: ${remotePath}, isConnected=${this.isConnected}`)
+
       this.sshClient.exec(`test -e "${remotePath}"`, (err, stream) => {
+        execCallbackFired = true
+
         if (err) {
-          if (completed) return
-          completed = true
-          clearTimeout(timeout)
-          resolve(false)
+          getLogger().debug(`[SSH] pathExists exec error: ${err.message}`)
+          complete(false, 'exec-error')
           return
         }
 
-        stream.on('error', () => {
-          if (completed) return
-          completed = true
-          clearTimeout(timeout)
-          resolve(false)
+        streamCreated = true
+        getLogger().debug(`[SSH] pathExists stream created: ${remotePath}`)
+
+        stream.on('error', (streamErr: Error) => {
+          getLogger().debug(`[SSH] pathExists stream error: ${streamErr.message}`)
+          complete(false, 'stream-error')
+        })
+
+        stream.on('end', () => {
+          getLogger().debug('[SSH] pathExists stream end event')
+        })
+
+        stream.on('finish', () => {
+          getLogger().debug('[SSH] pathExists stream finish event')
+        })
+
+        stream.on('data', (data: Buffer) => {
+          getLogger().debug(`[SSH] pathExists stream data: ${data.toString()}`)
+        })
+
+        // Listen for both 'exit' and 'close' - sometimes only one fires
+        stream.on('exit', (code: number | null) => {
+          getLogger().debug(`[SSH] pathExists stream exit event: code=${code}`)
+          // exit code 0 = exists, 1 = doesn't exist, null = signal termination
+          complete(code === 0, 'exit')
         })
 
         stream.on('close', (code: number) => {
-          if (completed) return
-          completed = true
-          clearTimeout(timeout)
+          getLogger().debug(`[SSH] pathExists stream close event: code=${code}`)
           // test command returns 0 if file/directory exists, 1 if it doesn't
-          resolve(code === 0)
+          complete(code === 0, 'close')
         })
       })
-    })
+    }))
   }
 
   async pathStat(remotePath: string): Promise<Stats> {
-    await this.ensureSSHConnection()
-
-    if (!this.sshClient) {
-      throw new FileSystemError('SSH client not initialized', ERROR_CODES.READ_FAILED)
-    }
+    const sftp = await this.getSftpSession()
 
     return new Promise((resolve, reject) => {
-      if (!this.sshClient) {
-        throw new FileSystemError('SSH client not initialized', ERROR_CODES.READ_FAILED)
-      }
-
       let completed = false
       const timeout = setTimeout(() => {
         if (!completed) {
@@ -951,27 +1094,17 @@ export class RemoteBackend implements FileSystemBackend {
         }
       }, DEFAULT_OPERATION_TIMEOUT_MS)
 
-      this.sshClient.sftp((err, sftp) => {
-        if (err) {
-          if (completed) return
-          completed = true
-          clearTimeout(timeout)
-          reject(this.wrapError(err, 'SFTP session', ERROR_CODES.READ_FAILED, `stat ${remotePath}`, remotePath))
-          return
+      sftp.stat(remotePath, (statErr, stats) => {
+        if (completed) return
+        completed = true
+        clearTimeout(timeout)
+        if (statErr) {
+          reject(this.wrapError(statErr, 'Stat file', ERROR_CODES.READ_FAILED, `stat ${remotePath}`, remotePath))
+        } else {
+          // SSH2 Stats type is compatible with fs.Stats for most use cases
+          // Cast through unknown to handle type incompatibility
+          resolve(stats as unknown as Stats)
         }
-
-        sftp.stat(remotePath, (statErr, stats) => {
-          if (completed) return
-          completed = true
-          clearTimeout(timeout)
-          if (statErr) {
-            reject(this.wrapError(statErr, 'Stat file', ERROR_CODES.READ_FAILED, `stat ${remotePath}`, remotePath))
-          } else {
-            // SSH2 Stats type is compatible with fs.Stats for most use cases
-            // Cast through unknown to handle type incompatibility
-            resolve(stats as unknown as Stats)
-          }
-        })
       })
     })
   }
@@ -983,9 +1116,10 @@ export class RemoteBackend implements FileSystemBackend {
       throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
     }
 
-    return new Promise((resolve, reject) => {
+    return this.withChannelLimit(() => new Promise((resolve, reject) => {
       if (!this.sshClient) {
-        throw new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED)
+        reject(new FileSystemError('SSH client not initialized', ERROR_CODES.WRITE_FAILED))
+        return
       }
 
       let completed = false
@@ -1036,7 +1170,7 @@ export class RemoteBackend implements FileSystemBackend {
           }
         })
       })
-    })
+    }))
   }
 
   async listDirectory(remotePath: string): Promise<string[]> {
@@ -1046,7 +1180,7 @@ export class RemoteBackend implements FileSystemBackend {
       return []
     }
 
-    return new Promise((resolve, reject) => {
+    return this.withChannelLimit(() => new Promise((resolve, reject) => {
       if (!this.sshClient) {
         resolve([])
         return
@@ -1100,9 +1234,9 @@ export class RemoteBackend implements FileSystemBackend {
           }
         })
       })
-    })
+    }))
   }
-  
+
   /**
    * Wrap errors consistently
    */
@@ -1143,6 +1277,17 @@ export class RemoteBackend implements FileSystemBackend {
   async destroy(): Promise<void> {
     // Clear workspace cache
     this.workspaceCache.clear()
+
+    // Clear cached SFTP session
+    if (this.sftpSession) {
+      try {
+        this.sftpSession.end()
+      } catch {
+        // Ignore errors when ending SFTP session
+      }
+      this.sftpSession = null
+    }
+    this.sftpSessionPromise = null
 
     // Close SSH connection
     if (this.sshClient) {

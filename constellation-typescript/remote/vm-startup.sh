@@ -68,12 +68,36 @@ sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/ssh
 sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
 sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 
+# Performance tuning for ConstellationFS workloads (e2-medium: 2 vCPU, 4GB RAM)
+sed -i 's/^#MaxSessions 10/MaxSessions 64/' /etc/ssh/sshd_config
+sed -i 's/^#MaxStartups 10:30:100/MaxStartups 10:30:100/' /etc/ssh/sshd_config
+sed -i 's/^#ClientAliveInterval 0/ClientAliveInterval 60/' /etc/ssh/sshd_config
+sed -i 's/^#ClientAliveCountMax 3/ClientAliveCountMax 3/' /etc/ssh/sshd_config
+
+# Append settings if they weren't found (not commented out in config)
+grep -q '^MaxSessions' /etc/ssh/sshd_config || echo 'MaxSessions 64' >> /etc/ssh/sshd_config
+grep -q '^MaxStartups' /etc/ssh/sshd_config || echo 'MaxStartups 10:30:100' >> /etc/ssh/sshd_config
+grep -q '^ClientAliveInterval' /etc/ssh/sshd_config || echo 'ClientAliveInterval 60' >> /etc/ssh/sshd_config
+grep -q '^ClientAliveCountMax' /etc/ssh/sshd_config || echo 'ClientAliveCountMax 3' >> /etc/ssh/sshd_config
+
 # Also handle Ubuntu 22.04+ which uses sshd_config.d
 mkdir -p /etc/ssh/sshd_config.d
 cat > /etc/ssh/sshd_config.d/constellation.conf << 'EOF'
 PasswordAuthentication yes
 PermitRootLogin yes
 ChallengeResponseAuthentication yes
+
+# Performance tuning for ConstellationFS workloads (e2-medium: 2 vCPU, 4GB RAM)
+# MaxSessions: multiplexed sessions per single TCP connection (default: 10)
+MaxSessions 64
+
+# MaxStartups: rate limit for unauthenticated connections
+# Format: start:rate:full - start refusing at 30% when 10 pending, 100% at 100 pending
+MaxStartups 10:30:100
+
+# ClientAliveInterval: detect dead connections faster (seconds)
+ClientAliveInterval 60
+ClientAliveCountMax 3
 EOF
 
 # Restart SSH to apply changes
