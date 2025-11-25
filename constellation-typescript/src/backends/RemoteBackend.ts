@@ -16,6 +16,18 @@ import type { FileSystemBackend, RemoteBackendConfig } from './types.js'
 /** Default timeout for filesystem operations in milliseconds (120 seconds) */
 const DEFAULT_OPERATION_TIMEOUT_MS = 120_000
 
+/** SSH keep-alive interval in milliseconds (30 seconds) */
+const SSH_KEEPALIVE_INTERVAL_MS = 30_000
+
+/** Number of missed keep-alives before considering connection dead */
+const SSH_KEEPALIVE_COUNT_MAX = 3
+
+/** Represents a pending operation that can be rejected on connection loss */
+interface PendingOperation {
+  reject: (error: Error) => void
+  description: string
+}
+
 /**
  * Remote filesystem backend implementation using SSH
  * Provides remote command execution via SSH connection
@@ -31,6 +43,9 @@ export class RemoteBackend implements FileSystemBackend {
   private isConnected = false
   private connectionPromise: Promise<void> | null = null
   private workspaceCache = new Map<string, RemoteWorkspace>()
+
+  /** Track pending operations so we can reject them on connection loss */
+  private pendingOperations = new Set<PendingOperation>()
 
   /**
    * Create a new RemoteBackend instance
@@ -55,22 +70,9 @@ export class RemoteBackend implements FileSystemBackend {
       )
     }
 
-    // Initialize SSH client
-    this.initSSHClient()
-
-    // Connection will be established on first use
+    // SSH client will be created on first connection (lazy initialization)
+    // This allows reconnection with a fresh client if the connection drops
     this.connected = false
-  }
-  
-  /**
-   * Initialize SSH client
-   */
-  private initSSHClient(): void {
-    try {
-      this.sshClient = new Client()
-    } catch (error) {
-      getLogger().warn('SSH2 module not available, remote operations may be limited', error)
-    }
   }
   
   /**
@@ -216,9 +218,21 @@ export class RemoteBackend implements FileSystemBackend {
       getLogger().debug(`[SSH exec] Executing command: ${fullCommand}`)
 
       let completed = false
-      const timeout = setTimeout(() => {
+
+      // Track this operation so it can be rejected on connection loss
+      const untrack = this.trackOperation(`exec: ${command}`, reject)
+
+      const complete = () => {
         if (!completed) {
           completed = true
+          clearTimeout(timeout)
+          untrack()
+        }
+      }
+
+      const timeout = setTimeout(() => {
+        if (!completed) {
+          complete()
           getLogger().error(`[SSH exec] Command timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${command}`)
           reject(new FileSystemError(
             `SSH command timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms`,
@@ -231,8 +245,7 @@ export class RemoteBackend implements FileSystemBackend {
       this.sshClient.exec(fullCommand, (err, stream) => {
         if (err) {
           if (completed) return
-          completed = true
-          clearTimeout(timeout)
+          complete()
           getLogger().error(`[SSH exec] Command failed in workspace: ${workspacePath}, cwd: ${workspacePath}`, err)
           reject(
             new FileSystemError(`SSH command failed: ${err.message}`, ERROR_CODES.EXEC_FAILED, command)
@@ -245,8 +258,7 @@ export class RemoteBackend implements FileSystemBackend {
 
         stream.on('error', (streamErr: Error) => {
           if (completed) return
-          completed = true
-          clearTimeout(timeout)
+          complete()
           getLogger().error(`[SSH exec] Stream error for command: ${command}`, streamErr)
           reject(new FileSystemError(
             `SSH stream error: ${streamErr.message}`,
@@ -275,8 +287,7 @@ export class RemoteBackend implements FileSystemBackend {
 
         stream.on('close', (code: number) => {
           if (completed) return
-          completed = true
-          clearTimeout(timeout)
+          complete()
 
           if (code === 0) {
             let output = stdout.trim()
@@ -307,33 +318,39 @@ export class RemoteBackend implements FileSystemBackend {
    * Ensure SSH connection is established
    */
   private async ensureSSHConnection(): Promise<void> {
-    if (!this.sshClient) {
-      throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
-    }
-    
     // If already connected, return immediately
-    if (this.isConnected) {
+    if (this.isConnected && this.sshClient) {
       return Promise.resolve()
     }
-    
+
     // If connection is in progress, wait for it
     if (this.connectionPromise) {
       return this.connectionPromise
     }
-    
-    // Start new connection
+
+    // Start new connection (this will create a fresh SSH client if needed)
     this.connectionPromise = this.connectSSH()
     return this.connectionPromise
   }
-  
+
   /**
    * Connect to SSH server
+   * Creates a fresh SSH client instance to ensure clean state
    */
   private async connectSSH(): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (!this.sshClient) {
-        throw new FileSystemError('SSH client not initialized', ERROR_CODES.EXEC_FAILED)
+      // Always create a fresh SSH client - ssh2 Client cannot be reused after close
+      if (this.sshClient) {
+        // Clean up old client if it exists
+        this.sshClient.removeAllListeners()
+        try {
+          this.sshClient.end()
+        } catch {
+          // Ignore errors when ending old client
+        }
       }
+      this.sshClient = new Client()
+
       const auth = this.options.auth
       const connectOptions: ConnectConfig = {
         host: this.options.host,
@@ -357,23 +374,34 @@ export class RemoteBackend implements FileSystemBackend {
         }
       }
 
+      // Enable client-side keep-alives to detect dead connections proactively
+      connectOptions.keepaliveInterval = SSH_KEEPALIVE_INTERVAL_MS
+      connectOptions.keepaliveCountMax = SSH_KEEPALIVE_COUNT_MAX
+
       // Set up event handlers BEFORE connecting
       this.sshClient.on('ready', () => {
         this.isConnected = true
+        this.connected = true
         this.connectionPromise = null
         getLogger().debug('[ConstellationFS] SSH connection ready')
         resolve()
       })
 
+      this.sshClient.on('end', () => {
+        // 'end' fires when the connection is gracefully closed
+        getLogger().debug('[ConstellationFS] SSH connection ended')
+        this.handleConnectionLoss('Connection ended')
+      })
+
       this.sshClient.on('close', () => {
-        this.isConnected = false
-        this.connectionPromise = null
-        getLogger().debug('SSH connection closed')
+        // 'close' fires after connection is fully closed (may follow 'end' or happen on its own)
+        getLogger().debug('[ConstellationFS] SSH connection closed')
+        this.handleConnectionLoss('Connection closed')
       })
 
       this.sshClient.on('error', (err) => {
-        this.isConnected = false
-        this.connectionPromise = null
+        getLogger().error('[ConstellationFS] SSH connection error', err)
+        this.handleConnectionLoss(`Connection error: ${err.message}`)
         reject(err)
       })
 
@@ -390,6 +418,48 @@ export class RemoteBackend implements FileSystemBackend {
 
       this.sshClient.connect(connectOptions)
     })
+  }
+
+  /**
+   * Handle connection loss by rejecting all pending operations
+   * This ensures operations don't hang when the connection drops
+   */
+  private handleConnectionLoss(reason: string): void {
+    // Only process if we were previously connected
+    const wasConnected = this.isConnected
+
+    this.isConnected = false
+    this.connected = false
+    this.connectionPromise = null
+
+    if (wasConnected && this.pendingOperations.size > 0) {
+      getLogger().warn(`[ConstellationFS] Connection lost (${reason}), rejecting ${this.pendingOperations.size} pending operation(s)`)
+
+      const error = new FileSystemError(
+        `SSH connection lost: ${reason}`,
+        ERROR_CODES.EXEC_FAILED
+      )
+
+      // Reject all pending operations
+      for (const op of this.pendingOperations) {
+        getLogger().debug(`[ConstellationFS] Rejecting pending operation: ${op.description}`)
+        op.reject(error)
+      }
+      this.pendingOperations.clear()
+    }
+  }
+
+  /**
+   * Register a pending operation for tracking
+   * Returns a cleanup function to call when the operation completes
+   */
+  private trackOperation(description: string, reject: (error: Error) => void): () => void {
+    const op: PendingOperation = { reject, description }
+    this.pendingOperations.add(op)
+
+    return () => {
+      this.pendingOperations.delete(op)
+    }
   }
 
   /**
