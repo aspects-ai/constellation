@@ -29,6 +29,12 @@ apt-get install -y \
     bindfs \
     npm
 
+# Install pnpm globally
+npm i -g pnpm
+
+# Install workspace CLI (using npm for global installs)
+npm i -g @aspects-ai/workspace-cli
+
 # Install Archil client
 echo "📦 Installing Archil client..."
 curl -fsSL https://s3.amazonaws.com/archil-client/install | sh
