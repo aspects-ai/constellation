@@ -1,4 +1,25 @@
 /**
+ * Configuration for safety checks
+ */
+export interface SafetyConfig {
+  /**
+   * Additional patterns that should be allowed even if they match dangerous patterns.
+   * These are checked before dangerous patterns.
+   */
+  allowedPatterns?: RegExp[]
+}
+
+/**
+ * Default patterns that are allowed even though they might match dangerous patterns.
+ * These represent safe variations of otherwise dangerous commands.
+ */
+const DEFAULT_ALLOWED_PATTERNS: RegExp[] = [
+  // gcloud rsync is a gcloud subcommand, not the rsync binary - it's safe
+  /^gcloud\s+.*\brsync\b/,
+  /^gcloud\s+storage\s+rsync\b/,
+]
+
+/**
  * List of command patterns that are considered dangerous
  * These patterns will be blocked when preventDangerous is true
  */
@@ -89,13 +110,32 @@ const ESCAPE_PATTERNS = [
 ]
 
 /**
+ * Check if a command matches any allowed pattern
+ * @param command - The command to check
+ * @param config - Optional safety configuration with additional allowed patterns
+ * @returns true if the command matches an allowed pattern
+ */
+function isAllowed(command: string, config?: SafetyConfig): boolean {
+  const normalized = command.trim()
+  const allAllowed = [...DEFAULT_ALLOWED_PATTERNS, ...(config?.allowedPatterns ?? [])]
+
+  return allAllowed.some(pattern => pattern.test(normalized))
+}
+
+/**
  * Check if a command contains dangerous operations
  * @param command - The command to check
+ * @param config - Optional safety configuration with allowed pattern exceptions
  * @returns true if the command is considered dangerous
  */
-export function isDangerous(command: string): boolean {
+export function isDangerous(command: string, config?: SafetyConfig): boolean {
   const normalized = command.trim().toLowerCase()
-  
+
+  // Check allowlist first - if matched, it's not dangerous
+  if (isAllowed(command, config)) {
+    return false
+  }
+
   return DANGEROUS_PATTERNS.some(pattern => pattern.test(normalized))
 }
 
@@ -139,18 +179,19 @@ export function getBaseCommand(command: string): string {
  * Comprehensive safety check for commands
  * Combines dangerous command checking and workspace escape detection
  * @param command - The command to check
+ * @param config - Optional safety configuration with allowed pattern exceptions
  * @returns Object with safety status and optional reason
  */
-export function isCommandSafe(command: string): { safe: boolean; reason?: string } {
+export function isCommandSafe(command: string, config?: SafetyConfig): { safe: boolean; reason?: string } {
   // Check for dangerous commands first
-  if (isDangerous(command)) {
+  if (isDangerous(command, config)) {
     const baseCmd = getBaseCommand(command)
 
     // Provide specific guidance for pipe-to-shell attempts
     if (/(?:curl|wget)\b.*\|\s*(?:sh|bash|zsh|fish)\b/.test(command.toLowerCase())) {
       return {
         safe: false,
-        reason: `Piping downloads to shell is dangerous. Download to a file first (e.g., 'curl -O <url>'), inspect it, then execute if safe.`
+        reason: "Piping downloads to shell is dangerous. Download to a file first (e.g., 'curl -O <url>'), inspect it, then execute if safe."
       }
     }
 

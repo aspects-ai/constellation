@@ -26,8 +26,10 @@ apt-get install -y \
     ripgrep \
     git \
     fuse \
-    bindfs \
-    npm
+    bindfs
+
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt-get install -y nodejs
 
 # Install pnpm globally
 npm i -g pnpm
