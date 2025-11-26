@@ -37,9 +37,9 @@ npm i -g pnpm
 # Install workspace CLI (using npm for global installs)
 npm i -g @aspects-ai/workspace-cli
 
-# Install Archil client
-echo "📦 Installing Archil client..."
-curl -fsSL https://s3.amazonaws.com/archil-client/install | sh
+# Install Archil client (disabled)
+# echo "📦 Installing Archil client..."
+# curl -fsSL https://s3.amazonaws.com/archil-client/install | sh
 
 # Create workspace directories
 echo "📁 Creating workspace directories..."
@@ -111,73 +111,73 @@ EOF
 # Restart SSH to apply changes
 systemctl restart sshd || service ssh restart
 
-# Mount Archil if configured
-if [ "$STORAGE_TYPE" = "archil" ]; then
-    echo "🔗 Mounting Archil storage..."
-
-    if [ -z "$ARCHIL_API_KEY" ] || [ "$ARCHIL_API_KEY" = "__ARCHIL_API_KEY__" ]; then
-        echo "❌ ERROR: ARCHIL_API_KEY is required when STORAGE_TYPE=archil"
-        exit 1
-    fi
-
-    if [ -z "$ARCHIL_BUCKET" ] || [ "$ARCHIL_BUCKET" = "__ARCHIL_BUCKET__" ]; then
-        echo "❌ ERROR: ARCHIL_BUCKET is required when STORAGE_TYPE=archil"
-        exit 1
-    fi
-
-    # Build mount command (mount to -mounted directory as root)
-    MOUNT_CMD="sudo archil mount --force $ARCHIL_BUCKET ${ARCHIL_MOUNT_PATH}-mounted --auth-token $ARCHIL_API_KEY"
-
-    if [ -n "$ARCHIL_REGION" ] && [ "$ARCHIL_REGION" != "__ARCHIL_REGION__" ]; then
-        MOUNT_CMD="$MOUNT_CMD --region $ARCHIL_REGION"
-    fi
-
-    echo "📁 Mounting bucket '$ARCHIL_BUCKET' at ${ARCHIL_MOUNT_PATH}-mounted..."
-    if $MOUNT_CMD; then
-        echo "✅ Archil filesystem mounted successfully"
-
-        # Use bindfs to remap ownership to SSH user (if configured)
-        if [ -n "$SSH_USERNAME" ]; then
-            echo "🔗 Creating bindfs layer at $ARCHIL_MOUNT_PATH with ownership remapped to $SSH_USERNAME..."
-
-            # Mount with bindfs using ownership mapping (root -> SSH user)
-            # This bidirectionally maps root to SSH_USERNAME and root group to SSH_USERNAME group
-            bindfs --map=root/"$SSH_USERNAME":@root/@"$SSH_USERNAME" "${ARCHIL_MOUNT_PATH}-mounted" "$ARCHIL_MOUNT_PATH"
-
-            if [ $? -eq 0 ]; then
-                echo "✅ Bindfs layer created successfully"
-
-                # Make it persistent across reboots by adding to fstab
-                echo "📝 Adding bindfs mount to /etc/fstab for persistence..."
-                FSTAB_ENTRY="${ARCHIL_MOUNT_PATH}-mounted $ARCHIL_MOUNT_PATH fuse.bindfs map=root/$SSH_USERNAME:@root/@$SSH_USERNAME 0 0"
-
-                # Check if entry already exists to avoid duplicates
-                if ! grep -q "$ARCHIL_MOUNT_PATH" /etc/fstab; then
-                    echo "$FSTAB_ENTRY" >> /etc/fstab
-                    echo "✅ Added to /etc/fstab"
-                else
-                    echo "ℹ️  Entry already exists in /etc/fstab"
-                fi
-            else
-                echo "❌ ERROR: Failed to create bindfs layer"
-                exit 1
-            fi
-        else
-            echo "⚠️  No SSH user configured, Archil mount will be owned by root"
-            # If no SSH user, just symlink directly (fallback)
-            ln -s "${ARCHIL_MOUNT_PATH}-mounted" "$ARCHIL_MOUNT_PATH"
-        fi
-    else
-        echo "❌ ERROR: Failed to mount Archil filesystem"
-        exit 1
-    fi
-else
+# Mount Archil if configured (disabled)
+# if [ "$STORAGE_TYPE" = "archil" ]; then
+#     echo "🔗 Mounting Archil storage..."
+# 
+#     if [ -z "$ARCHIL_API_KEY" ] || [ "$ARCHIL_API_KEY" = "__ARCHIL_API_KEY__" ]; then
+#         echo "❌ ERROR: ARCHIL_API_KEY is required when STORAGE_TYPE=archil"
+#         exit 1
+#     fi
+# 
+#     if [ -z "$ARCHIL_BUCKET" ] || [ "$ARCHIL_BUCKET" = "__ARCHIL_BUCKET__" ]; then
+#         echo "❌ ERROR: ARCHIL_BUCKET is required when STORAGE_TYPE=archil"
+#         exit 1
+#     fi
+# 
+#     # Build mount command (mount to -mounted directory as root)
+#     MOUNT_CMD="sudo archil mount --force $ARCHIL_BUCKET ${ARCHIL_MOUNT_PATH}-mounted --auth-token $ARCHIL_API_KEY"
+# 
+#     if [ -n "$ARCHIL_REGION" ] && [ "$ARCHIL_REGION" != "__ARCHIL_REGION__" ]; then
+#         MOUNT_CMD="$MOUNT_CMD --region $ARCHIL_REGION"
+#     fi
+# 
+#     echo "📁 Mounting bucket '$ARCHIL_BUCKET' at ${ARCHIL_MOUNT_PATH}-mounted..."
+#     if $MOUNT_CMD; then
+#         echo "✅ Archil filesystem mounted successfully"
+# 
+#         # Use bindfs to remap ownership to SSH user (if configured)
+#         if [ -n "$SSH_USERNAME" ]; then
+#             echo "🔗 Creating bindfs layer at $ARCHIL_MOUNT_PATH with ownership remapped to $SSH_USERNAME..."
+# 
+#             # Mount with bindfs using ownership mapping (root -> SSH user)
+#             # This bidirectionally maps root to SSH_USERNAME and root group to SSH_USERNAME group
+#             bindfs --map=root/"$SSH_USERNAME":@root/@"$SSH_USERNAME" "${ARCHIL_MOUNT_PATH}-mounted" "$ARCHIL_MOUNT_PATH"
+# 
+#             if [ $? -eq 0 ]; then
+#                 echo "✅ Bindfs layer created successfully"
+# 
+#                 # Make it persistent across reboots by adding to fstab
+#                 echo "📝 Adding bindfs mount to /etc/fstab for persistence..."
+#                 FSTAB_ENTRY="${ARCHIL_MOUNT_PATH}-mounted $ARCHIL_MOUNT_PATH fuse.bindfs map=root/$SSH_USERNAME:@root/@$SSH_USERNAME 0 0"
+# 
+#                 # Check if entry already exists to avoid duplicates
+#                 if ! grep -q "$ARCHIL_MOUNT_PATH" /etc/fstab; then
+#                     echo "$FSTAB_ENTRY" >> /etc/fstab
+#                     echo "✅ Added to /etc/fstab"
+#                 else
+#                     echo "ℹ️  Entry already exists in /etc/fstab"
+#                 fi
+#             else
+#                 echo "❌ ERROR: Failed to create bindfs layer"
+#                 exit 1
+#             fi
+#         else
+#             echo "⚠️  No SSH user configured, Archil mount will be owned by root"
+#             # If no SSH user, just symlink directly (fallback)
+#             ln -s "${ARCHIL_MOUNT_PATH}-mounted" "$ARCHIL_MOUNT_PATH"
+#         fi
+#     else
+#         echo "❌ ERROR: Failed to mount Archil filesystem"
+#         exit 1
+#     fi
+# else
     echo "📁 Using local storage at $ARCHIL_MOUNT_PATH"
     # For local storage, set ownership to SSH user
     if [ -n "$SSH_USERNAME" ]; then
         chown -R "$SSH_USERNAME:$SSH_USERNAME" "$ARCHIL_MOUNT_PATH"
     fi
-fi
+# fi
 
 echo ""
 echo "✅ ConstellationFS VM Setup Complete!"
