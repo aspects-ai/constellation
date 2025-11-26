@@ -189,14 +189,14 @@ export class RemoteBackend implements FileSystemBackend {
    * Execute command in a specific workspace path (internal use by Workspace)
    * @param workspacePath - Absolute path to workspace directory
    * @param command - Command to execute
-   * @param encoding - Output encoding (currently only 'utf8' supported for remote)
+   * @param encoding - Output encoding: 'utf8' for string (default), 'buffer' for raw Buffer
    * @param customEnv - Optional custom environment variables
-   * @returns Promise resolving to command output
+   * @returns Promise resolving to command output as string or Buffer based on encoding
    */
   async execInWorkspace(
     workspacePath: string,
     command: string,
-    _encoding: 'utf8' | 'buffer' = 'utf8',
+    encoding: 'utf8' | 'buffer' = 'utf8',
     customEnv?: Record<string, string>
   ): Promise<string | Buffer> {
     // Safety check
@@ -205,7 +205,7 @@ export class RemoteBackend implements FileSystemBackend {
       if (this.options.preventDangerous && isDangerous(command)) {
         if (this.options.onDangerousOperation) {
           this.options.onDangerousOperation(command)
-          return ''
+          return encoding === 'buffer' ? Buffer.alloc(0) : ''
         } else {
           throw new DangerousOperationError(command)
         }
@@ -278,8 +278,9 @@ export class RemoteBackend implements FileSystemBackend {
           return
         }
 
-        let stdout = ''
-        let stderr = ''
+        // Collect output as Buffer chunks to properly support both encodings
+        const stdoutChunks: Buffer[] = []
+        const stderrChunks: Buffer[] = []
 
         stream.on('error', (streamErr: Error) => {
           if (completed) return
@@ -293,42 +294,56 @@ export class RemoteBackend implements FileSystemBackend {
         })
 
         stream.on('data', (data: Buffer) => {
-          const chunk = data.toString()
+          stdoutChunks.push(data)
           // Only log if it looks like text (not binary data)
-          if (process.env.CONSTELLATION_DEBUG_LOGGING === 'true' && /^[\x20-\x7E\s]*$/.test(chunk)) {
-            getLogger().debug(`[SSH stdout] ${chunk.trim()}`)
+          if (process.env.CONSTELLATION_DEBUG_LOGGING === 'true') {
+            const chunk = data.toString()
+            if (/^[\x20-\x7E\s]*$/.test(chunk)) {
+              getLogger().debug(`[SSH stdout] ${chunk.trim()}`)
+            }
           }
-          stdout += chunk
         })
 
         stream.stderr.on('data', (data: Buffer) => {
-          const chunk = data.toString()
+          stderrChunks.push(data)
           // Only log if it looks like text (not binary data)
-          if (process.env.CONSTELLATION_DEBUG_LOGGING === 'true' && /^[\x20-\x7E\s]*$/.test(chunk)) {
-            getLogger().debug(`[SSH stderr] ${chunk.trim()}`)
+          if (process.env.CONSTELLATION_DEBUG_LOGGING === 'true') {
+            const chunk = data.toString()
+            if (/^[\x20-\x7E\s]*$/.test(chunk)) {
+              getLogger().debug(`[SSH stderr] ${chunk.trim()}`)
+            }
           }
-          stderr += chunk
         })
 
         stream.on('close', (code: number) => {
           if (completed) return
           complete()
 
+          const stdoutBuffer = Buffer.concat(stdoutChunks)
+          const stderrBuffer = Buffer.concat(stderrChunks)
+
           if (code === 0) {
-            let output = stdout.trim()
+            if (encoding === 'buffer') {
+              // Return raw binary data as Buffer
+              resolve(stdoutBuffer)
+            } else {
+              // Return as UTF-8 string (default behavior)
+              let output = stdoutBuffer.toString('utf-8').trim()
 
-            // Apply output length limit if configured
-            if (this.options.maxOutputLength && output.length > this.options.maxOutputLength) {
-              const truncatedLength = this.options.maxOutputLength - 50
-              output = `${output.substring(0, truncatedLength)}\n\n... [Output truncated. Full output was ${output.length} characters, showing first ${truncatedLength}]`
+              // Apply output length limit if configured
+              if (this.options.maxOutputLength && output.length > this.options.maxOutputLength) {
+                const truncatedLength = this.options.maxOutputLength - 50
+                output = `${output.substring(0, truncatedLength)}\n\n... [Output truncated. Full output was ${output.length} characters, showing first ${truncatedLength}]`
+              }
+
+              resolve(output)
             }
-
-            resolve(output)
           } else {
+            const errorMessage = stderrBuffer.toString('utf-8').trim() || stdoutBuffer.toString('utf-8').trim()
             getLogger().error(`Command failed in workspace: ${workspacePath}, cwd: ${workspacePath}, exit code: ${code}`)
             reject(
               new FileSystemError(
-                `Command failed with exit code ${code}: ${stderr.trim() || stdout.trim()}`,
+                `Command failed with exit code ${code}: ${errorMessage}`,
                 ERROR_CODES.EXEC_FAILED,
                 command
               )
@@ -726,7 +741,7 @@ export class RemoteBackend implements FileSystemBackend {
     })
   }
 
-  async writeFile(remotePath: string, content: string | Buffer): Promise<void> {
+  async writeFile(remotePath: string, content: string | Buffer, encoding: BufferEncoding = 'utf8'): Promise<void> {
     const sftp = await this.getSftpSession()
 
     return new Promise((resolve, reject) => {
@@ -756,7 +771,7 @@ export class RemoteBackend implements FileSystemBackend {
           }
         })
       } else {
-        sftp.writeFile(remotePath, content, 'utf8', (writeErr) => {
+        sftp.writeFile(remotePath, content, encoding, (writeErr) => {
           if (completed) return
           completed = true
           clearTimeout(timeout)

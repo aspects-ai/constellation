@@ -99,12 +99,12 @@ export class RemoteWorkspace extends BaseWorkspace {
     return this.backend.readFile(remotePath)
   }
 
-  async writeFile(path: string, content: string | Buffer, _encoding?: NodeJS.BufferEncoding): Promise<void> {
+  async writeFile(path: string, content: string | Buffer, encoding: NodeJS.BufferEncoding = 'utf-8'): Promise<void> {
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
-    // Remote backend's writeFile handles both string and Buffer
-    return this.backend.writeFile(remotePath, content)
+    // Remote backend's writeFile handles both string and Buffer with encoding
+    return this.backend.writeFile(remotePath, content, encoding)
   }
 
   async delete(): Promise<void> {
