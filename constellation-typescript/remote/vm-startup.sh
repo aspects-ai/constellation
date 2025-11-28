@@ -28,6 +28,26 @@ apt-get install -y \
     fuse \
     bindfs
 
+sudo apt-get install -y chromium-browser --no-install-recommends || \
+sudo apt-get install -y chromium --no-install-recommends
+sudo apt-get install -y \
+  libatk1.0-0 \
+  libatk-bridge2.0-0 \
+  libcups2 \
+  libdrm2 \
+  libxkbcommon0 \
+  libxcomposite1 \
+  libxdamage1 \
+  libxfixes3 \
+  libxrandr2 \
+  libgbm1 \
+  libasound2 \
+  libpango-1.0-0 \
+  libcairo2 \
+  libnss3 \
+  libnspr4 \
+  libxss1
+
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
 apt-get install -y nodejs
 
@@ -35,7 +55,7 @@ apt-get install -y nodejs
 npm i -g pnpm
 
 # Install workspace CLI (using npm for global installs)
-npm i -g @aspects-ai/workspace-cli
+npm i -g @aspects-ai/workspace-cli && npm i -g @remotion/cli@4.0.356
 
 # Install Archil client (disabled)
 # echo "📦 Installing Archil client..."

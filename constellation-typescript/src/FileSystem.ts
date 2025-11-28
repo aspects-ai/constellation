@@ -120,6 +120,10 @@ export class FileSystem {
     return this.backend.listWorkspaces()
   }
 
+  get isRemote(): boolean {
+    return this.backendConfig.type === 'remote'
+  }
+
   /**
    * Get the backend configuration
    * @returns Backend configuration object
