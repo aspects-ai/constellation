@@ -285,7 +285,9 @@ export class RemoteBackend implements FileSystemBackend {
         stream.on('error', (streamErr: Error) => {
           if (completed) return
           complete()
-          getLogger().error(`[SSH exec] Stream error for command: ${command}`, streamErr)
+          const stdout = Buffer.concat(stdoutChunks).toString('utf-8')
+          const stderr = Buffer.concat(stderrChunks).toString('utf-8')
+          getLogger().error(`[SSH exec] Stream error for command: ${command}`, streamErr, { stdout, stderr })
           reject(new FileSystemError(
             `SSH stream error: ${streamErr.message}`,
             ERROR_CODES.EXEC_FAILED,
@@ -339,8 +341,10 @@ export class RemoteBackend implements FileSystemBackend {
               resolve(output)
             }
           } else {
-            const errorMessage = stderrBuffer.toString('utf-8').trim() || stdoutBuffer.toString('utf-8').trim()
-            getLogger().error(`Command failed in workspace: ${workspacePath}, cwd: ${workspacePath}, exit code: ${code}, command: ${command}`)
+            const stdout = stdoutBuffer.toString('utf-8').trim()
+            const stderr = stderrBuffer.toString('utf-8').trim()
+            const errorMessage = stderr || stdout
+            getLogger().error(`Command failed in workspace: ${workspacePath}, cwd: ${workspacePath}, exit code: ${code}, command: ${command}`, { stdout, stderr })
             reject(
               new FileSystemError(
                 `Command failed with exit code ${code}: ${errorMessage}`,
