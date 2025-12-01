@@ -98,7 +98,7 @@ export class RemoteBackend implements FileSystemBackend {
     // This allows reconnection with a fresh client if the connection drops
     this.connected = false
   }
-  
+
   /**
    * Extract username from auth configuration
    */
@@ -271,7 +271,7 @@ export class RemoteBackend implements FileSystemBackend {
         if (err) {
           if (completed) return
           complete()
-          getLogger().error(`[SSH exec] Command failed in workspace: ${workspacePath}, cwd: ${workspacePath}`, err)
+          getLogger().error(`[SSH exec] Command failed in workspace: ${workspacePath}, cwd: ${workspacePath}, command: ${command}`, err)
           reject(
             new FileSystemError(`SSH command failed: ${err.message}`, ERROR_CODES.EXEC_FAILED, command)
           )
@@ -340,7 +340,7 @@ export class RemoteBackend implements FileSystemBackend {
             }
           } else {
             const errorMessage = stderrBuffer.toString('utf-8').trim() || stdoutBuffer.toString('utf-8').trim()
-            getLogger().error(`Command failed in workspace: ${workspacePath}, cwd: ${workspacePath}, exit code: ${code}`)
+            getLogger().error(`Command failed in workspace: ${workspacePath}, cwd: ${workspacePath}, exit code: ${code}, command: ${command}`)
             reject(
               new FileSystemError(
                 `Command failed with exit code ${code}: ${errorMessage}`,
@@ -1285,7 +1285,7 @@ export class RemoteBackend implements FileSystemBackend {
       command,
     )
   }
-  
+
   /**
    * Clean up resources on destruction
    */
