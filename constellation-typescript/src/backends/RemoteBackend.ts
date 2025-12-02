@@ -271,9 +271,12 @@ export class RemoteBackend implements FileSystemBackend {
         if (err) {
           if (completed) return
           complete()
-          getLogger().error(`[SSH exec] Command failed in workspace: ${workspacePath}, cwd: ${workspacePath}, command: ${command}`, err)
           reject(
-            new FileSystemError(`SSH command failed: ${err.message}`, ERROR_CODES.EXEC_FAILED, command)
+            new FileSystemError(
+              `SSH command failed in workspace: ${workspacePath}, command: ${command}. Error: ${err.message}`,
+              ERROR_CODES.EXEC_FAILED,
+              command
+            )
           )
           return
         }
@@ -287,9 +290,8 @@ export class RemoteBackend implements FileSystemBackend {
           complete()
           const stdout = Buffer.concat(stdoutChunks).toString('utf-8')
           const stderr = Buffer.concat(stderrChunks).toString('utf-8')
-          getLogger().error(`[SSH exec] Stream error for command: ${command}`, streamErr, { stdout, stderr })
           reject(new FileSystemError(
-            `SSH stream error: ${streamErr.message}`,
+            `SSH stream error for command: ${command}. Error: ${streamErr.message}. Stdout: ${stdout}. Stderr: ${stderr}`,
             ERROR_CODES.EXEC_FAILED,
             command
           ))
@@ -344,10 +346,9 @@ export class RemoteBackend implements FileSystemBackend {
             const stdout = stdoutBuffer.toString('utf-8').trim()
             const stderr = stderrBuffer.toString('utf-8').trim()
             const errorMessage = stderr || stdout
-            getLogger().error(`Command failed in workspace: ${workspacePath}, cwd: ${workspacePath}, exit code: ${code}, command: ${command}`, { stdout, stderr })
             reject(
               new FileSystemError(
-                `Command failed with exit code ${code}: ${errorMessage}`,
+                `Command failed in workspace: ${workspacePath}, command: ${command}, exit code: ${code}: ${errorMessage}`,
                 ERROR_CODES.EXEC_FAILED,
                 command
               )
@@ -1274,17 +1275,15 @@ export class RemoteBackend implements FileSystemBackend {
       ? error.message
       : 'Unknown error occurred'
 
-    // Log the error with path context
+    let detailedMessage = `${operation} failed: ${message}`
     if (remotePath) {
-      getLogger().error(`${operation} failed for path: ${remotePath}${command ? `, command: ${command}` : ''}`, error)
+      detailedMessage = `${operation} failed for path: ${remotePath}${command ? `, command: ${command}` : ''}. Error: ${message}`
     } else if (command) {
-      getLogger().error(`${operation} failed, command: ${command}`, error)
-    } else {
-      getLogger().error(`${operation} failed`, error)
+      detailedMessage = `${operation} failed, command: ${command}. Error: ${message}`
     }
 
     return new FileSystemError(
-      `${operation} failed: ${message}`,
+      detailedMessage,
       errorCode,
       command,
     )
