@@ -150,7 +150,6 @@ export class LocalWorkspace extends BaseWorkspace {
       SHELL: this.detectShell(),
       // Force working directory
       PWD: this.workspacePath,
-      HOME: this.workspacePath,
       TMPDIR: join(this.workspacePath, '.tmp'),
       // Locale settings
       LANG: 'C',
