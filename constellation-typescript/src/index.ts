@@ -21,6 +21,20 @@ export {
   ClaudeCodeAdapter, type SDKAdapter
 } from './adapters/index.js'
 
+// Operations Logging
+export {
+  ArrayOperationsLogger,
+  ConsoleOperationsLogger,
+  MODIFYING_OPERATIONS,
+  shouldLogOperation,
+} from './logging/index.js'
+export type {
+  LoggingMode,
+  OperationLogEntry,
+  OperationsLogger,
+  OperationType,
+} from './logging/index.js'
+
 // Error Classes
 export { DangerousOperationError, FileSystemError } from './types.js'
 

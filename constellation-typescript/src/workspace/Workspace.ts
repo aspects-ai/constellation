@@ -1,6 +1,7 @@
 import type { Dirent, Stats } from 'fs'
 import type { FileSystemBackend } from '../backends/types.js'
 import { ERROR_CODES } from '../constants.js'
+import type { OperationsLogger } from '../logging/types.js'
 import { FileSystemError } from '../types.js'
 import { resolvePathSafely } from '../utils/pathValidator.js'
 
@@ -10,6 +11,9 @@ import { resolvePathSafely } from '../utils/pathValidator.js'
 export interface WorkspaceConfig {
   /** Custom environment variables to be available throughout the workspace lifecycle */
   env?: Record<string, string>
+
+  /** Optional operations logger for tracking workspace operations */
+  operationsLogger?: OperationsLogger
 }
 
 /**

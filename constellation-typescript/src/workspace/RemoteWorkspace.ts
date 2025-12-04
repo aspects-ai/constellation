@@ -1,6 +1,8 @@
 import type { Dirent, Stats } from 'fs'
 import type { RemoteBackend } from '../backends/RemoteBackend.js'
 import { ERROR_CODES } from '../constants.js'
+import type { OperationLogEntry, OperationsLogger, OperationType } from '../logging/types.js'
+import { shouldLogOperation } from '../logging/types.js'
 import { FileSystemError } from '../types.js'
 import { BaseWorkspace, type WorkspaceConfig } from './Workspace.js'
 
@@ -10,6 +12,7 @@ import { BaseWorkspace, type WorkspaceConfig } from './Workspace.js'
  */
 export class RemoteWorkspace extends BaseWorkspace {
   declare readonly backend: RemoteBackend
+  private readonly operationsLogger?: OperationsLogger
 
   constructor(
     backend: RemoteBackend,
@@ -19,47 +22,201 @@ export class RemoteWorkspace extends BaseWorkspace {
     config?: WorkspaceConfig
   ) {
     super(backend, userId, workspaceName, workspacePath, config)
+    this.operationsLogger = config?.operationsLogger
+  }
+
+  /**
+   * Check if an operation should be logged based on the logger's mode
+   */
+  private shouldLog(operation: OperationType): boolean {
+    if (!this.operationsLogger) return false
+    return shouldLogOperation(operation, this.operationsLogger.mode)
+  }
+
+  /**
+   * Log an operation to the operations logger
+   */
+  private async logOperation(entry: Omit<OperationLogEntry, 'userId' | 'workspaceName' | 'workspacePath'>): Promise<void> {
+    if (!this.operationsLogger) return
+
+    await this.operationsLogger.log({
+      ...entry,
+      userId: this.userId,
+      workspaceName: this.workspaceName,
+      workspacePath: this.workspacePath,
+    })
   }
 
   async exec(command: string, encoding: 'utf8' | 'buffer' = 'utf8'): Promise<string | Buffer> {
+    const startTime = Date.now()
+
     if (!command.trim()) {
       throw new FileSystemError('Command cannot be empty', ERROR_CODES.EMPTY_COMMAND)
     }
 
-    // Use RemoteBackend's SSH execution method
-    // (This is a RemoteBackend-specific method, not part of the FileSystemBackend interface)
-    return this.backend.execInWorkspace(this.workspacePath, command, encoding, this.customEnv)
+    try {
+      // Use RemoteBackend's SSH execution method
+      // (This is a RemoteBackend-specific method, not part of the FileSystemBackend interface)
+      const result = await this.backend.execInWorkspace(this.workspacePath, command, encoding, this.customEnv)
+
+      if (this.shouldLog('exec')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'exec',
+          command,
+          stdout: typeof result === 'string' ? result : result.toString('utf-8'),
+          success: true,
+          durationMs: Date.now() - startTime,
+        })
+      }
+
+      return result
+    } catch (error) {
+      if (this.shouldLog('exec')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'exec',
+          command,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startTime,
+        })
+      }
+      throw error
+    }
   }
 
   async write(path: string, content: string | Buffer): Promise<void> {
+    const startTime = Date.now()
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
-    // Use SFTP to write file
-    return this.backend.writeFile(remotePath, content)
+    try {
+      // Use SFTP to write file
+      await this.backend.writeFile(remotePath, content)
+
+      if (this.shouldLog('write')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'write',
+          command: path,
+          success: true,
+          durationMs: Date.now() - startTime,
+        })
+      }
+    } catch (error) {
+      if (this.shouldLog('write')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'write',
+          command: path,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startTime,
+        })
+      }
+      throw error
+    }
   }
 
   async mkdir(path: string, recursive = true): Promise<void> {
+    const startTime = Date.now()
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
-    // Use SSH exec to create directory
-    return this.backend.createDirectory(remotePath, recursive)
+    try {
+      // Use SSH exec to create directory
+      await this.backend.createDirectory(remotePath, recursive)
+
+      if (this.shouldLog('mkdir')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'mkdir',
+          command: path,
+          success: true,
+          durationMs: Date.now() - startTime,
+        })
+      }
+    } catch (error) {
+      if (this.shouldLog('mkdir')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'mkdir',
+          command: path,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startTime,
+        })
+      }
+      throw error
+    }
   }
 
   async touch(path: string): Promise<void> {
+    const startTime = Date.now()
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
-    // Use SSH exec to touch file
-    return this.backend.touchFile(remotePath)
+    try {
+      // Use SSH exec to touch file
+      await this.backend.touchFile(remotePath)
+
+      if (this.shouldLog('touch')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'touch',
+          command: path,
+          success: true,
+          durationMs: Date.now() - startTime,
+        })
+      }
+    } catch (error) {
+      if (this.shouldLog('touch')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'touch',
+          command: path,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startTime,
+        })
+      }
+      throw error
+    }
   }
 
   async exists(path: string): Promise<boolean> {
+    const startTime = Date.now()
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
-    return this.backend.pathExists(remotePath)
+    try {
+      const result = await this.backend.pathExists(remotePath)
+
+      if (this.shouldLog('exists')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'exists',
+          command: path,
+          success: true,
+          durationMs: Date.now() - startTime,
+        })
+      }
+
+      return result
+    } catch (error) {
+      if (this.shouldLog('exists')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'exists',
+          command: path,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startTime,
+        })
+      }
+      throw error
+    }
   }
 
   async fileExists(path: string): Promise<boolean> {
@@ -68,13 +225,41 @@ export class RemoteWorkspace extends BaseWorkspace {
   }
 
   async stat(path: string): Promise<Stats> {
+    const startTime = Date.now()
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
-    return this.backend.pathStat(remotePath)
+    try {
+      const result = await this.backend.pathStat(remotePath)
+
+      if (this.shouldLog('stat')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'stat',
+          command: path,
+          success: true,
+          durationMs: Date.now() - startTime,
+        })
+      }
+
+      return result
+    } catch (error) {
+      if (this.shouldLog('stat')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'stat',
+          command: path,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startTime,
+        })
+      }
+      throw error
+    }
   }
 
   async readdir(path: string, options?: { withFileTypes?: boolean }): Promise<string[] | Dirent[]> {
+    const startTime = Date.now()
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
@@ -86,34 +271,168 @@ export class RemoteWorkspace extends BaseWorkspace {
       )
     }
 
-    return this.backend.listDirectory(remotePath)
+    try {
+      const result = await this.backend.listDirectory(remotePath)
+
+      if (this.shouldLog('readdir')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'readdir',
+          command: path,
+          success: true,
+          durationMs: Date.now() - startTime,
+        })
+      }
+
+      return result
+    } catch (error) {
+      if (this.shouldLog('readdir')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'readdir',
+          command: path,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startTime,
+        })
+      }
+      throw error
+    }
   }
 
   async readFile(path: string, encoding?: NodeJS.BufferEncoding | null): Promise<string | Buffer> {
+    const startTime = Date.now()
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
-    if (encoding) {
-      return this.backend.readFile(remotePath, encoding)
+    try {
+      let result: string | Buffer
+      if (encoding) {
+        result = await this.backend.readFile(remotePath, encoding)
+      } else {
+        result = await this.backend.readFile(remotePath)
+      }
+
+      if (this.shouldLog('readFile')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'readFile',
+          command: path,
+          success: true,
+          durationMs: Date.now() - startTime,
+        })
+      }
+
+      return result
+    } catch (error) {
+      if (this.shouldLog('readFile')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'readFile',
+          command: path,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startTime,
+        })
+      }
+      throw error
     }
-    return this.backend.readFile(remotePath)
   }
 
   async writeFile(path: string, content: string | Buffer, encoding: NodeJS.BufferEncoding = 'utf-8'): Promise<void> {
+    const startTime = Date.now()
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
-    // Remote backend's writeFile handles both string and Buffer with encoding
-    return this.backend.writeFile(remotePath, content, encoding)
+    try {
+      // Remote backend's writeFile handles both string and Buffer with encoding
+      await this.backend.writeFile(remotePath, content, encoding)
+
+      if (this.shouldLog('writeFile')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'writeFile',
+          command: path,
+          success: true,
+          durationMs: Date.now() - startTime,
+        })
+      }
+    } catch (error) {
+      if (this.shouldLog('writeFile')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'writeFile',
+          command: path,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startTime,
+        })
+      }
+      throw error
+    }
   }
 
   async delete(): Promise<void> {
-    // Delete the entire workspace directory
-    return this.backend.deleteDirectory(this.workspacePath)
+    const startTime = Date.now()
+
+    try {
+      // Delete the entire workspace directory
+      await this.backend.deleteDirectory(this.workspacePath)
+
+      if (this.shouldLog('delete')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'delete',
+          command: this.workspaceName,
+          success: true,
+          durationMs: Date.now() - startTime,
+        })
+      }
+    } catch (error) {
+      if (this.shouldLog('delete')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'delete',
+          command: this.workspaceName,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startTime,
+        })
+      }
+      throw error
+    }
   }
 
   async list(): Promise<string[]> {
-    return this.backend.listDirectory(this.workspacePath)
+    const startTime = Date.now()
+
+    try {
+      const result = await this.backend.listDirectory(this.workspacePath)
+
+      if (this.shouldLog('list')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'list',
+          command: this.workspaceName,
+          success: true,
+          durationMs: Date.now() - startTime,
+        })
+      }
+
+      return result
+    } catch (error) {
+      if (this.shouldLog('list')) {
+        await this.logOperation({
+          timestamp: new Date(),
+          operation: 'list',
+          command: this.workspaceName,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+          durationMs: Date.now() - startTime,
+        })
+      }
+      throw error
+    }
   }
 
   // Synchronous methods are not supported for remote workspaces
