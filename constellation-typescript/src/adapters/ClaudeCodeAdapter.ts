@@ -253,7 +253,7 @@ export class ClaudeCodeAdapter extends BaseSDKAdapter {
    * @returns Promise resolving to command output as string or Buffer
    */
   async Bash(command: string, encoding?: 'utf8' | 'buffer'): Promise<string | Buffer> {
-    return this.workspace.exec(command, encoding)
+    return this.workspace.exec(command, { encoding })
   }
 
   /**

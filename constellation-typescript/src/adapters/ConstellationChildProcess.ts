@@ -99,7 +99,7 @@ export class ConstellationChildProcess extends EventEmitter implements ChildProc
       console.log(`📍 [ConstellationChildProcess] Workspace: ${(this._adapter as any).fs.workspace}`)
 
       // Execute command through adapter workspace with encoding
-      const output = await this._adapter.workspace.exec(this._fullCommand, this._encoding)
+      const output = await this._adapter.workspace.exec(this._fullCommand, { encoding: this._encoding })
 
       // Handle output
       if (this._isExec) {

@@ -4,7 +4,7 @@ import { ERROR_CODES } from '../constants.js'
 import type { OperationLogEntry, OperationsLogger, OperationType } from '../logging/types.js'
 import { shouldLogOperation } from '../logging/types.js'
 import { FileSystemError } from '../types.js'
-import { BaseWorkspace, type WorkspaceConfig } from './Workspace.js'
+import { BaseWorkspace, type ExecOptions, type WorkspaceConfig } from './Workspace.js'
 
 /**
  * Remote filesystem workspace implementation
@@ -47,17 +47,23 @@ export class RemoteWorkspace extends BaseWorkspace {
     })
   }
 
-  async exec(command: string, encoding: 'utf8' | 'buffer' = 'utf8'): Promise<string | Buffer> {
+  async exec(command: string, options?: ExecOptions): Promise<string | Buffer> {
+    const encoding = options?.encoding ?? 'utf8'
     const startTime = Date.now()
 
     if (!command.trim()) {
       throw new FileSystemError('Command cannot be empty', ERROR_CODES.EMPTY_COMMAND)
     }
 
+    // Merge workspace-level env with per-call env (per-call takes precedence)
+    const mergedEnv = options?.env
+      ? { ...this.customEnv, ...options.env }
+      : this.customEnv
+
     try {
       // Use RemoteBackend's SSH execution method
       // (This is a RemoteBackend-specific method, not part of the FileSystemBackend interface)
-      const result = await this.backend.execInWorkspace(this.workspacePath, command, encoding, this.customEnv)
+      const result = await this.backend.execInWorkspace(this.workspacePath, command, encoding, mergedEnv)
 
       if (this.shouldLog('exec')) {
         await this.logOperation({

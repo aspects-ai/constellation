@@ -8,7 +8,7 @@ import { isCommandSafe, isDangerous } from '../safety.js'
 import { DangerousOperationError, FileSystemError } from '../types.js'
 import { getLogger } from '../utils/logger.js'
 import { checkSymlinkSafety } from '../utils/pathValidator.js'
-import { BaseWorkspace, type WorkspaceConfig } from './Workspace.js'
+import { BaseWorkspace, type ExecOptions, type WorkspaceConfig } from './Workspace.js'
 
 /**
  * Local filesystem workspace implementation
@@ -73,7 +73,8 @@ export class LocalWorkspace extends BaseWorkspace {
     }
   }
 
-  async exec(command: string, encoding: 'utf8' | 'buffer' = 'utf8'): Promise<string | Buffer> {
+  async exec(command: string, options?: ExecOptions): Promise<string | Buffer> {
+    const encoding = options?.encoding ?? 'utf8'
     const startTime = Date.now()
     const shouldLogExec = this.shouldLog('exec')
 
@@ -103,7 +104,7 @@ export class LocalWorkspace extends BaseWorkspace {
     }
 
     const shell = this.detectShell()
-    const env = this.buildEnvironment()
+    const env = this.buildEnvironment(options?.env)
 
     return new Promise((resolve, reject) => {
       const child = this.backend.spawnProcess(shell, ['-c', command], {
@@ -248,8 +249,9 @@ export class LocalWorkspace extends BaseWorkspace {
   /**
    * Build environment variables for command execution
    * Merges safe defaults with validated custom environment variables
+   * @param execEnv - Per-call environment variables that override workspace-level env
    */
-  private buildEnvironment(): Record<string, string | undefined> {
+  private buildEnvironment(execEnv?: Record<string, string | undefined>): Record<string, string | undefined> {
     // Start with safe base environment
     const safeEnv: Record<string, string | undefined> = {
       // Start with minimal environment, including common npm/node locations
@@ -269,43 +271,94 @@ export class LocalWorkspace extends BaseWorkspace {
       DYLD_LIBRARY_PATH: undefined,
     }
 
-    // Validate and merge custom environment variables
+    // Validate and merge workspace-level custom environment variables
     if (this.customEnv && Object.keys(this.customEnv).length > 0) {
       const validatedCustomEnv = this.validateCustomEnv(this.customEnv)
       // Custom env vars override safe defaults (except blocked ones)
       Object.assign(safeEnv, validatedCustomEnv)
     }
 
+    // Validate and merge per-call environment variables (highest priority)
+    if (execEnv && Object.keys(execEnv).length > 0) {
+      const validatedExecEnv = this.validateExecEnv(execEnv)
+      // Per-call env vars override workspace-level env (except blocked ones)
+      Object.assign(safeEnv, validatedExecEnv)
+    }
+
     return safeEnv
   }
+
+  /**
+   * Blocked environment variables that could lead to code injection
+   */
+  private static readonly BLOCKED_VARS = [
+    'LD_PRELOAD',
+    'LD_LIBRARY_PATH',
+    'DYLD_INSERT_LIBRARIES',
+    'DYLD_LIBRARY_PATH',
+    'IFS',
+    'BASH_ENV',
+    'ENV',
+  ]
+
+  /**
+   * Protected environment variables that are allowed but should be used carefully
+   */
+  private static readonly PROTECTED_VARS = ['PATH', 'HOME', 'PWD', 'TMPDIR', 'TMP', 'SHELL', 'USER']
 
   /**
    * Validate custom environment variables for security
    */
   private validateCustomEnv(customEnv: Record<string, string>): Record<string, string> {
-    const BLOCKED_VARS = [
-      'LD_PRELOAD',
-      'LD_LIBRARY_PATH',
-      'DYLD_INSERT_LIBRARIES',
-      'DYLD_LIBRARY_PATH',
-      'IFS',
-      'BASH_ENV',
-      'ENV',
-    ]
-
-    const PROTECTED_VARS = ['PATH', 'HOME', 'PWD', 'TMPDIR', 'TMP', 'SHELL', 'USER']
-
     const validated: Record<string, string> = {}
 
     for (const [key, value] of Object.entries(customEnv)) {
       // Block dangerous variables that could lead to code injection
-      if (BLOCKED_VARS.includes(key)) {
+      if (LocalWorkspace.BLOCKED_VARS.includes(key)) {
         continue
       }
 
       // Warn about protected variables (allow but log)
-      if (PROTECTED_VARS.includes(key)) {
+      if (LocalWorkspace.PROTECTED_VARS.includes(key)) {
         // Could add logging here if needed
+      }
+
+      // Validate value doesn't contain null bytes or other dangerous chars
+      if (value.includes('\0')) {
+        throw new FileSystemError(
+          `Environment variable ${key} contains null byte`,
+          ERROR_CODES.INVALID_CONFIGURATION
+        )
+      }
+
+      validated[key] = value
+    }
+
+    return validated
+  }
+
+  /**
+   * Validate per-call exec environment variables for security
+   * Allows undefined values to unset environment variables
+   */
+  private validateExecEnv(execEnv: Record<string, string | undefined>): Record<string, string | undefined> {
+    const validated: Record<string, string | undefined> = {}
+
+    for (const [key, value] of Object.entries(execEnv)) {
+      // Block dangerous variables that could lead to code injection
+      if (LocalWorkspace.BLOCKED_VARS.includes(key)) {
+        continue
+      }
+
+      // Warn about protected variables (allow but log)
+      if (LocalWorkspace.PROTECTED_VARS.includes(key)) {
+        // Could add logging here if needed
+      }
+
+      // Allow undefined to unset variables
+      if (value === undefined) {
+        validated[key] = undefined
+        continue
       }
 
       // Validate value doesn't contain null bytes or other dangerous chars

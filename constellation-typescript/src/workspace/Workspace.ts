@@ -6,6 +6,16 @@ import { FileSystemError } from '../types.js'
 import { resolvePathSafely } from '../utils/pathValidator.js'
 
 /**
+ * Options for the exec command
+ */
+export interface ExecOptions {
+  /** Output encoding: 'utf8' for text (default) or 'buffer' for binary data */
+  encoding?: 'utf8' | 'buffer'
+  /** Custom environment variables for this specific command execution */
+  env?: Record<string, string | undefined>
+}
+
+/**
  * Configuration options for creating a workspace
  */
 export interface WorkspaceConfig {
@@ -39,10 +49,10 @@ export interface Workspace {
   /**
    * Execute a shell command in the workspace
    * @param command - The shell command to execute
-   * @param encoding - Output encoding: 'utf8' for text (default) or 'buffer' for binary data
+   * @param options - Exec options including encoding and custom environment variables
    * @returns Promise resolving to the command output as string or Buffer
    */
-  exec(command: string, encoding?: 'utf8' | 'buffer'): Promise<string | Buffer>
+  exec(command: string, options?: ExecOptions): Promise<string | Buffer>
 
   /**
    * Write content to a file
@@ -240,7 +250,7 @@ export abstract class BaseWorkspace implements Workspace {
   }
 
   // Abstract methods that must be implemented by concrete workspace types
-  abstract exec(command: string, encoding?: 'utf8' | 'buffer'): Promise<string | Buffer>
+  abstract exec(command: string, options?: ExecOptions): Promise<string | Buffer>
   abstract write(path: string, content: string | Buffer): Promise<void>
   abstract mkdir(path: string, recursive?: boolean): Promise<void>
   abstract touch(path: string): Promise<void>

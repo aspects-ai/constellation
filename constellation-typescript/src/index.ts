@@ -9,7 +9,7 @@ export { BackendFactory } from './backends/BackendFactory.js'
 export { LocalWorkspace } from './workspace/LocalWorkspace.js'
 export { RemoteWorkspace } from './workspace/RemoteWorkspace.js'
 export { BaseWorkspace } from './workspace/Workspace.js'
-export type { Workspace, WorkspaceConfig } from './workspace/Workspace.js'
+export type { ExecOptions, Workspace, WorkspaceConfig } from './workspace/Workspace.js'
 
 // Backend Classes
 export { LocalBackend } from './backends/LocalBackend.js'

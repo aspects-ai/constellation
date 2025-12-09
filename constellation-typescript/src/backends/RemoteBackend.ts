@@ -118,35 +118,47 @@ export class RemoteBackend implements FileSystemBackend {
   }
 
   /**
+   * Blocked environment variables that could lead to code injection
+   */
+  private static readonly BLOCKED_VARS = [
+    'LD_PRELOAD',
+    'LD_LIBRARY_PATH',
+    'DYLD_INSERT_LIBRARIES',
+    'DYLD_LIBRARY_PATH',
+    'IFS',
+    'BASH_ENV',
+    'ENV',
+  ]
+
+  /**
+   * Protected environment variables that are allowed but should be used carefully
+   */
+  private static readonly PROTECTED_VARS = ['PATH', 'HOME', 'PWD', 'TMPDIR', 'TMP', 'SHELL', 'USER']
+
+  /**
    * Validate custom environment variables for security
-   * @param customEnv - Custom environment variables to validate
+   * @param customEnv - Custom environment variables to validate (undefined values allowed to unset vars)
    * @returns Validated environment variables
    */
-  private validateCustomEnv(customEnv: Record<string, string>): Record<string, string> {
-    const BLOCKED_VARS = [
-      'LD_PRELOAD',
-      'LD_LIBRARY_PATH',
-      'DYLD_INSERT_LIBRARIES',
-      'DYLD_LIBRARY_PATH',
-      'IFS',
-      'BASH_ENV',
-      'ENV',
-    ]
-
-    const PROTECTED_VARS = ['PATH', 'HOME', 'PWD', 'TMPDIR', 'TMP', 'SHELL', 'USER']
-
-    const validated: Record<string, string> = {}
+  private validateCustomEnv(customEnv: Record<string, string | undefined>): Record<string, string | undefined> {
+    const validated: Record<string, string | undefined> = {}
 
     for (const [key, value] of Object.entries(customEnv)) {
       // Block dangerous variables
-      if (BLOCKED_VARS.includes(key)) {
+      if (RemoteBackend.BLOCKED_VARS.includes(key)) {
         getLogger().warn(`Blocked dangerous environment variable: ${key}`)
         continue
       }
 
       // Warn about protected variables (allow but log)
-      if (PROTECTED_VARS.includes(key)) {
+      if (RemoteBackend.PROTECTED_VARS.includes(key)) {
         getLogger().warn(`Overriding protected environment variable: ${key}`)
+      }
+
+      // Allow undefined to unset variables
+      if (value === undefined) {
+        validated[key] = undefined
+        continue
       }
 
       // Validate value doesn't contain null bytes or shell injection attempts
@@ -168,7 +180,7 @@ export class RemoteBackend implements FileSystemBackend {
    * @param customEnv - Optional custom environment variables
    * @returns Shell command prefix with environment variables
    */
-  private buildEnvPrefix(customEnv?: Record<string, string>): string {
+  private buildEnvPrefix(customEnv?: Record<string, string | undefined>): string {
     if (!customEnv || Object.keys(customEnv).length === 0) {
       return ''
     }
@@ -177,9 +189,14 @@ export class RemoteBackend implements FileSystemBackend {
     const envPairs: string[] = []
 
     for (const [key, value] of Object.entries(validatedEnv)) {
-      // Escape single quotes in values and wrap in single quotes
-      const escapedValue = value.replace(/'/g, "'\\''")
-      envPairs.push(`${key}='${escapedValue}'`)
+      if (value === undefined) {
+        // Unset the environment variable
+        envPairs.push(`unset ${key};`)
+      } else {
+        // Escape single quotes in values and wrap in single quotes
+        const escapedValue = value.replace(/'/g, "'\\''")
+        envPairs.push(`${key}='${escapedValue}'`)
+      }
     }
 
     return envPairs.length > 0 ? `${envPairs.join(' ')} ` : ''
@@ -197,7 +214,7 @@ export class RemoteBackend implements FileSystemBackend {
     workspacePath: string,
     command: string,
     encoding: 'utf8' | 'buffer' = 'utf8',
-    customEnv?: Record<string, string>
+    customEnv?: Record<string, string | undefined>
   ): Promise<string | Buffer> {
     // Safety check
     const safetyCheck = isCommandSafe(command)
