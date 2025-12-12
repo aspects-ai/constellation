@@ -65,10 +65,10 @@ export interface Workspace {
   /**
    * Create a directory
    * @param path - Relative path to the directory within the workspace
-   * @param recursive - Create parent directories if they don't exist (default: true)
+   * @param options - Options including recursive flag (default: { recursive: true })
    * @returns Promise that resolves when the directory is created
    */
-  mkdir(path: string, recursive?: boolean): Promise<void>
+  mkdir(path: string, options?: { recursive?: boolean }): Promise<void>
 
   /**
    * Create an empty file
@@ -252,7 +252,7 @@ export abstract class BaseWorkspace implements Workspace {
   // Abstract methods that must be implemented by concrete workspace types
   abstract exec(command: string, options?: ExecOptions): Promise<string | Buffer>
   abstract write(path: string, content: string | Buffer): Promise<void>
-  abstract mkdir(path: string, recursive?: boolean): Promise<void>
+  abstract mkdir(path: string, options?: { recursive?: boolean }): Promise<void>
   abstract touch(path: string): Promise<void>
   abstract exists(path: string): Promise<boolean>
   abstract fileExists(path: string): Promise<boolean>

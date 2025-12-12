@@ -125,8 +125,9 @@ export class RemoteWorkspace extends BaseWorkspace {
     }
   }
 
-  async mkdir(path: string, recursive = true): Promise<void> {
+  async mkdir(path: string, options?: { recursive?: boolean }): Promise<void> {
     const startTime = Date.now()
+    const recursive = options?.recursive ?? true
     this.validatePath(path)
     const remotePath = this.resolvePath(path)
 
