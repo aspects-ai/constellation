@@ -34,6 +34,12 @@ const RemoteBackendConfigSchema = BaseBackendConfigSchema.extend({
   }),
   host: z.string().min(1, 'host is required for remote backend'),
   port: z.number().positive().optional(),
+  /** Timeout for filesystem operations in milliseconds (default: 120000ms / 2 minutes) */
+  operationTimeoutMs: z.number().positive().optional(),
+  /** SSH keep-alive interval in milliseconds (default: 30000ms / 30 seconds) */
+  keepaliveIntervalMs: z.number().positive().optional(),
+  /** Number of missed keep-alives before considering connection dead (default: 3) */
+  keepaliveCountMax: z.number().positive().optional(),
 })
 
 export const BackendConfigSchema = z.discriminatedUnion('type', [

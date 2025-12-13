@@ -17,10 +17,10 @@ import type { FileSystemBackend, RemoteBackendConfig } from './types.js'
 const DEFAULT_OPERATION_TIMEOUT_MS = 120_000
 
 /** SSH keep-alive interval in milliseconds (30 seconds) */
-const SSH_KEEPALIVE_INTERVAL_MS = 30_000
+const DEFAULT_KEEPALIVE_INTERVAL_MS = 30_000
 
 /** Number of missed keep-alives before considering connection dead */
-const SSH_KEEPALIVE_COUNT_MAX = 3
+const DEFAULT_KEEPALIVE_COUNT_MAX = 3
 
 /**
  * Maximum concurrent SSH channels per connection.
@@ -71,6 +71,11 @@ export class RemoteBackend implements FileSystemBackend {
   private sftpSession: SFTPWrapper | null = null
   private sftpSessionPromise: Promise<SFTPWrapper> | null = null
 
+  /** Configurable timeout values */
+  private readonly operationTimeoutMs: number
+  private readonly keepaliveIntervalMs: number
+  private readonly keepaliveCountMax: number
+
   /**
    * Create a new RemoteBackend instance
    * @param options - Configuration for remote backend
@@ -79,6 +84,11 @@ export class RemoteBackend implements FileSystemBackend {
   constructor(options: RemoteBackendConfig) {
     this.options = options
     this.userId = options.userId
+
+    // Initialize configurable timeouts with defaults
+    this.operationTimeoutMs = options.operationTimeoutMs ?? DEFAULT_OPERATION_TIMEOUT_MS
+    this.keepaliveIntervalMs = options.keepaliveIntervalMs ?? DEFAULT_KEEPALIVE_INTERVAL_MS
+    this.keepaliveCountMax = options.keepaliveCountMax ?? DEFAULT_KEEPALIVE_COUNT_MAX
 
     // Validate userId for security
     RemoteWorkspaceUtils.validateUserId(options.userId)
@@ -275,14 +285,14 @@ export class RemoteBackend implements FileSystemBackend {
       const timeout = setTimeout(() => {
         if (!completed) {
           complete()
-          getLogger().error(`[SSH exec] Command timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${command}`)
+          getLogger().error(`[SSH exec] Command timed out after ${this.operationTimeoutMs}ms: ${command}`)
           reject(new FileSystemError(
-            `SSH command timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms`,
+            `SSH command timed out after ${this.operationTimeoutMs}ms`,
             ERROR_CODES.EXEC_FAILED,
             command
           ))
         }
-      }, DEFAULT_OPERATION_TIMEOUT_MS)
+      }, this.operationTimeoutMs)
 
       this.sshClient.exec(fullCommand, (err, stream) => {
         if (err) {
@@ -440,8 +450,8 @@ export class RemoteBackend implements FileSystemBackend {
       }
 
       // Enable client-side keep-alives to detect dead connections proactively
-      connectOptions.keepaliveInterval = SSH_KEEPALIVE_INTERVAL_MS
-      connectOptions.keepaliveCountMax = SSH_KEEPALIVE_COUNT_MAX
+      connectOptions.keepaliveInterval = this.keepaliveIntervalMs
+      connectOptions.keepaliveCountMax = this.keepaliveCountMax
 
       // Set up event handlers BEFORE connecting
       this.sshClient.on('ready', () => {
@@ -726,14 +736,14 @@ export class RemoteBackend implements FileSystemBackend {
       const timeout = setTimeout(() => {
         if (!completed) {
           completed = true
-          getLogger().error(`[SFTP] readFile timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${remotePath}`)
+          getLogger().error(`[SFTP] readFile timed out after ${this.operationTimeoutMs}ms: ${remotePath}`)
           reject(new FileSystemError(
-            `readFile timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms`,
+            `readFile timed out after ${this.operationTimeoutMs}ms`,
             ERROR_CODES.READ_FAILED,
             `read ${remotePath}`
           ))
         }
-      }, DEFAULT_OPERATION_TIMEOUT_MS)
+      }, this.operationTimeoutMs)
 
       if (encoding) {
         // Read as string with specified encoding
@@ -771,14 +781,14 @@ export class RemoteBackend implements FileSystemBackend {
       const timeout = setTimeout(() => {
         if (!completed) {
           completed = true
-          getLogger().error(`[SFTP] writeFile timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${remotePath}`)
+          getLogger().error(`[SFTP] writeFile timed out after ${this.operationTimeoutMs}ms: ${remotePath}`)
           reject(new FileSystemError(
-            `writeFile timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms`,
+            `writeFile timed out after ${this.operationTimeoutMs}ms`,
             ERROR_CODES.WRITE_FAILED,
             `write ${remotePath}`
           ))
         }
-      }, DEFAULT_OPERATION_TIMEOUT_MS)
+      }, this.operationTimeoutMs)
 
       // Handle Buffer or string content differently
       if (Buffer.isBuffer(content)) {
@@ -826,14 +836,14 @@ export class RemoteBackend implements FileSystemBackend {
         const timeout = setTimeout(() => {
           if (!completed) {
             completed = true
-            getLogger().error(`[SSH] mkdir timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${remotePath}`)
+            getLogger().error(`[SSH] mkdir timed out after ${this.operationTimeoutMs}ms: ${remotePath}`)
             reject(new FileSystemError(
-              `mkdir timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms`,
+              `mkdir timed out after ${this.operationTimeoutMs}ms`,
               ERROR_CODES.WRITE_FAILED,
               `mkdir ${remotePath}`
             ))
           }
-        }, DEFAULT_OPERATION_TIMEOUT_MS)
+        }, this.operationTimeoutMs)
 
         this.sshClient.exec(`mkdir -p "${remotePath}"`, (err, stream) => {
           if (err) {
@@ -887,14 +897,14 @@ export class RemoteBackend implements FileSystemBackend {
         const timeout = setTimeout(() => {
           if (!completed) {
             completed = true
-            getLogger().error(`[SFTP] mkdir timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${remotePath}`)
+            getLogger().error(`[SFTP] mkdir timed out after ${this.operationTimeoutMs}ms: ${remotePath}`)
             reject(new FileSystemError(
-              `mkdir timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms`,
+              `mkdir timed out after ${this.operationTimeoutMs}ms`,
               ERROR_CODES.WRITE_FAILED,
               `mkdir ${remotePath}`
             ))
           }
-        }, DEFAULT_OPERATION_TIMEOUT_MS)
+        }, this.operationTimeoutMs)
 
         sftp.mkdir(remotePath, (mkdirErr) => {
           if (completed) return
@@ -927,14 +937,14 @@ export class RemoteBackend implements FileSystemBackend {
       const timeout = setTimeout(() => {
         if (!completed) {
           completed = true
-          getLogger().error(`[SSH] touch timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${remotePath}`)
+          getLogger().error(`[SSH] touch timed out after ${this.operationTimeoutMs}ms: ${remotePath}`)
           reject(new FileSystemError(
-            `touch timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms`,
+            `touch timed out after ${this.operationTimeoutMs}ms`,
             ERROR_CODES.WRITE_FAILED,
             `touch ${remotePath}`
           ))
         }
-      }, DEFAULT_OPERATION_TIMEOUT_MS)
+      }, this.operationTimeoutMs)
 
       // Use touch command for creating empty files
       this.sshClient.exec(`touch "${remotePath}"`, (err, stream) => {
@@ -999,10 +1009,10 @@ export class RemoteBackend implements FileSystemBackend {
       const timeout = setTimeout(() => {
         if (!completed) {
           completed = true
-          getLogger().error(`[SSH] directoryExists timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${remotePath}`)
+          getLogger().error(`[SSH] directoryExists timed out after ${this.operationTimeoutMs}ms: ${remotePath}`)
           resolve(false) // Resolve as false on timeout rather than rejecting
         }
-      }, DEFAULT_OPERATION_TIMEOUT_MS)
+      }, this.operationTimeoutMs)
 
       this.sshClient.exec(`test -d "${remotePath}"`, (err, stream) => {
         if (err) {
@@ -1059,13 +1069,13 @@ export class RemoteBackend implements FileSystemBackend {
       const timeout = setTimeout(() => {
         if (!completed) {
           getLogger().error(
-            `[SSH] pathExists timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${remotePath}. ` +
+            `[SSH] pathExists timed out after ${this.operationTimeoutMs}ms: ${remotePath}. ` +
             `Diagnostics: execCallbackFired=${execCallbackFired}, streamCreated=${streamCreated}, ` +
             `isConnected=${this.isConnected}, sshClient=${!!this.sshClient}`
           )
           complete(false, 'timeout')
         }
-      }, DEFAULT_OPERATION_TIMEOUT_MS)
+      }, this.operationTimeoutMs)
 
       getLogger().debug(`[SSH] pathExists starting: ${remotePath}, isConnected=${this.isConnected}`)
 
@@ -1122,14 +1132,14 @@ export class RemoteBackend implements FileSystemBackend {
       const timeout = setTimeout(() => {
         if (!completed) {
           completed = true
-          getLogger().error(`[SFTP] pathStat timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${remotePath}`)
+          getLogger().error(`[SFTP] pathStat timed out after ${this.operationTimeoutMs}ms: ${remotePath}`)
           reject(new FileSystemError(
-            `pathStat timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms`,
+            `pathStat timed out after ${this.operationTimeoutMs}ms`,
             ERROR_CODES.READ_FAILED,
             `stat ${remotePath}`
           ))
         }
-      }, DEFAULT_OPERATION_TIMEOUT_MS)
+      }, this.operationTimeoutMs)
 
       sftp.stat(remotePath, (statErr, stats) => {
         if (completed) return
@@ -1163,14 +1173,14 @@ export class RemoteBackend implements FileSystemBackend {
       const timeout = setTimeout(() => {
         if (!completed) {
           completed = true
-          getLogger().error(`[SSH] deleteDirectory timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${remotePath}`)
+          getLogger().error(`[SSH] deleteDirectory timed out after ${this.operationTimeoutMs}ms: ${remotePath}`)
           reject(new FileSystemError(
-            `deleteDirectory timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms`,
+            `deleteDirectory timed out after ${this.operationTimeoutMs}ms`,
             ERROR_CODES.WRITE_FAILED,
             `rm -rf ${remotePath}`
           ))
         }
-      }, DEFAULT_OPERATION_TIMEOUT_MS)
+      }, this.operationTimeoutMs)
 
       this.sshClient.exec(`rm -rf "${remotePath}"`, (err, stream) => {
         if (err) {
@@ -1227,14 +1237,14 @@ export class RemoteBackend implements FileSystemBackend {
       const timeout = setTimeout(() => {
         if (!completed) {
           completed = true
-          getLogger().error(`[SSH] listDirectory timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms: ${remotePath}`)
+          getLogger().error(`[SSH] listDirectory timed out after ${this.operationTimeoutMs}ms: ${remotePath}`)
           reject(new FileSystemError(
-            `listDirectory timed out after ${DEFAULT_OPERATION_TIMEOUT_MS}ms`,
+            `listDirectory timed out after ${this.operationTimeoutMs}ms`,
             ERROR_CODES.READ_FAILED,
             `ls ${remotePath}`
           ))
         }
-      }, DEFAULT_OPERATION_TIMEOUT_MS)
+      }, this.operationTimeoutMs)
 
       this.sshClient.exec(`ls -1 "${remotePath}"`, (err, stream) => {
         if (err) {
