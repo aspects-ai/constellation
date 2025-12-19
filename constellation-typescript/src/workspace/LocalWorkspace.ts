@@ -606,7 +606,7 @@ export class LocalWorkspace extends BaseWorkspace {
           durationMs: Date.now() - startTime,
         })
       }
-      throw this.wrapError(error, 'Stat file', ERROR_CODES.READ_FAILED, `stat ${path}`)
+      throw this.wrapError(error, 'Stat file', ERROR_CODES.READ_FAILED, `stat ${path}`, false)
     }
   }
 
@@ -1097,7 +1097,8 @@ export class LocalWorkspace extends BaseWorkspace {
     error: unknown,
     operation: string,
     errorCode: string,
-    command?: string
+    command?: string,
+    shouldLogError = true
   ): FileSystemError {
     // If it's already our error type, re-throw as-is
     if (error instanceof FileSystemError) {
@@ -1108,7 +1109,9 @@ export class LocalWorkspace extends BaseWorkspace {
     const message = error instanceof Error ? error.message : 'Unknown error occurred'
 
     // Log the error with workspace context
-    getLogger().error(`${operation} failed in workspace: ${this.workspacePath}${command ? `, command: ${command}` : ''}`, error)
+    if (shouldLogError) {
+      getLogger().error(`${operation} failed in workspace: ${this.workspacePath}${command ? `, command: ${command}` : ''}`, error)
+    }
 
     return new FileSystemError(`${operation} failed: ${message}`, errorCode, command)
   }
