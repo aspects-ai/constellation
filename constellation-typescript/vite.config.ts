@@ -11,14 +11,26 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: path.resolve(__dirname, 'src/index.ts'),
-      name: 'ConstellationFS',
-      fileName: 'index',
+      entry: {
+        index: path.resolve(__dirname, 'src/index.ts'),
+        'mcp/index': path.resolve(__dirname, 'src/mcp/index.ts'),
+        'mcp/server': path.resolve(__dirname, 'src/mcp/server.ts'),
+      },
       formats: ['es', 'cjs']
     },
     sourcemap: true,
     rollupOptions: {
-      external: ['fs', 'fs/promises', 'path', 'child_process', 'os', 'url', 'ssh2', 'node-fuse-bindings', 'util', 'events'],
+      external: [
+        'fs', 'fs/promises', 'path', 'child_process', 'os', 'url', 'crypto',
+        'ssh2', 'node-fuse-bindings', 'util', 'events',
+        '@modelcontextprotocol/sdk/server/mcp.js',
+        '@modelcontextprotocol/sdk/server/stdio.js',
+        '@modelcontextprotocol/sdk/server/streamableHttp.js',
+        '@modelcontextprotocol/sdk/client/index.js',
+        '@modelcontextprotocol/sdk/client/stdio.js',
+        '@modelcontextprotocol/sdk/client/streamableHttp.js',
+        'express', 'zod', 'minimatch'
+      ],
       output: {
         exports: 'auto',
         sourcemapExcludeSources: false

@@ -2,9 +2,6 @@
  * ConstellationFS CLI Main Dispatcher
  */
 
-import { buildNative } from './build-native.js'
-import { getNativeLibraryPath } from './path.js'
-import { getLDPreloadPath } from './native-path.js'
 import { dockerRun } from './docker-run.js'
 import { startRemote, stopRemote } from './remote.js'
 
@@ -17,14 +14,6 @@ export async function main(args) {
   }
   
   switch (command) {
-    case 'build-native':
-      await handleBuildNative(args.slice(1))
-      break
-      
-    case 'path':
-      handlePath()
-      break
-      
     case 'docker-run':
       await handleDockerRun(args.slice(1))
       break
@@ -37,10 +26,6 @@ export async function main(args) {
       await handleStopRemote()
       break
       
-    case 'docker-dev':
-      await handleDockerDev(args.slice(1))
-      break
-      
     case 'help':
     case '--help':
     case '-h':
@@ -51,34 +36,6 @@ export async function main(args) {
       console.error(`Unknown command: ${command}`)
       printHelp()
       process.exit(1)
-  }
-}
-
-async function handleBuildNative(args) {
-  let outputDir = './dist-native'
-  
-  // Parse --output argument
-  const outputIndex = args.indexOf('--output')
-  if (outputIndex !== -1 && args[outputIndex + 1]) {
-    outputDir = args[outputIndex + 1]
-  }
-  
-  try {
-    const libraryPath = await buildNative({ output: outputDir })
-    console.log(`✅ Native library built successfully: ${libraryPath}`)
-  } catch (error) {
-    console.error(`❌ Build failed: ${error.message}`)
-    process.exit(1)
-  }
-}
-
-function handlePath() {
-  try {
-    const path = getNativeLibraryPath()
-    console.log(path)
-  } catch (error) {
-    console.error(`❌ ${error.message}`)
-    process.exit(1)
   }
 }
 
@@ -125,12 +82,6 @@ Usage:
   npx constellationfs <command> [options]
 
 Commands:
-  build-native [--output DIR]    Build native library for current platform
-                                 Linux: Uses local build tools
-                                 macOS/Windows: Uses Docker
-                                 
-  path                          Show path to built native library
-  
   start-remote [--build]        Start ConstellationFS remote backend service
                                 (Docker-based SSH filesystem service)
                                 --build: Force rebuild the Docker image
@@ -143,12 +94,6 @@ Commands:
   help                          Show this help message
 
 Examples:
-  # Build native library
-  npx constellationfs build-native --output ./build/
-  
-  # Find built library path  
-  npx constellationfs path
-  
   # Start remote backend service
   npx constellationfs start-remote
   
