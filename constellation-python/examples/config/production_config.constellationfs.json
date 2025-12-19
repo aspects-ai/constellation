@@ -1,9 +1,0 @@
-{
-  "workspace_root": "/var/lib/constellationfs/workspaces/",
-  "default_user_id": "guest",
-  "auto_create_workspace": true,
-  "workspace_permissions": 750,
-  "max_workspace_size_mb": 500,
-  "cleanup_on_exit": true,
-  "log_level": "WARNING"
-}
