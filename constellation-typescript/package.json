@@ -1,6 +1,6 @@
 {
   "name": "constellationfs",
-  "version": "0.4.19",
+  "version": "0.5.0",
   "description": "A filesystem abstraction for AI agents that provides familiar bash commands instead of custom APIs",
   "type": "module",
   "main": "dist/index.js",
@@ -20,7 +20,6 @@
   ],
   "scripts": {
     "build": "vite build",
-    "build:native": "node scripts/build-native.js",
     "dev": "vite build --watch",
     "test": "vitest",
     "test:run": "vitest run",
@@ -28,7 +27,7 @@
     "lint:fix": "eslint src --fix",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build && npm run build:native"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "filesystem",

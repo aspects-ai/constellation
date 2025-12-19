@@ -5,7 +5,6 @@
  */
 
 import { execSync, spawn } from 'child_process'
-import { getNativeLibraryPath } from './path.js'
 
 /**
  * Run a command using Docker with ConstellationFS setup
@@ -26,29 +25,15 @@ export async function dockerRun(command, options = {}) {
     )
   }
   
-  // Find native library path
-  let nativeLibPath
-  try {
-    nativeLibPath = getNativeLibraryPath()
-  } catch (error) {
-    throw new Error(
-      'Native library not found. Run: npx constellationfs build-native --output ./build/'
-    )
-  }
-  
   // Get relative path for Docker mounting
   const currentDir = process.cwd()
-  const relativePath = getRelativePath(nativeLibPath, currentDir)
-  
-  console.log(`   Native library: ${relativePath}`)
   
   // Build Docker command
   const dockerCmd = [
     'docker', 'run', '--rm', '-i',
     '-v', `${currentDir}:/app`,
     '-w', '/app',
-    '-e', `LD_PRELOAD=/app/${relativePath}`,
-    '-p', '3000:3000', // Common development port
+    '-p', '3000:3000',
     ...getEnvironmentVariables(),
     options.image || 'node:18',
     '/bin/bash', '-c', command
