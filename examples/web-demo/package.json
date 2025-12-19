@@ -10,6 +10,8 @@
     "postinstall": "echo 'Using Codebuff SDK for AI agent integration'"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^1.0.0",
+    "ai": "^4.0.0",
     "@codebuff/sdk": "^0.4.4",
     "@codesandbox/sandpack-react": "^2.19.9",
     "@emotion/react": "^11.14.0",

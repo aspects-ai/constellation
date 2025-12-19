@@ -11,6 +11,36 @@ export function initConstellationFS() {
 }
 
 /**
+ * Check if MCP mode is enabled
+ */
+export function isMCPMode(): boolean {
+  return process.env.USE_MCP === 'true'
+}
+
+/**
+ * Get MCP server command and args for spawning the constellation-fs-mcp server.
+ * Used by Vercel AI SDK's stdio transport.
+ *
+ * Requires `constellationfs` to be installed globally: `npm install -g constellationfs`
+ */
+export function getMCPServerCommand(sessionId: string): {
+  command: string
+  args: string[]
+} {
+  // Use the globally installed constellation-fs-mcp CLI command
+  // This avoids path resolution issues with Next.js build output
+  return {
+    command: 'npx',
+    args: [
+      'constellation-fs-mcp',
+      '--appId', 'web-demo',
+      '--userId', sessionId,
+      '--workspace', 'default'
+    ]
+  }
+}
+
+/**
  * Create a FileSystem instance with proper backend configuration
  */
 export function createFileSystem(sessionId: string): FileSystem {
@@ -26,6 +56,7 @@ export function createFileSystem(sessionId: string): FileSystem {
       type: 'remote',
       host: remoteHost,
       userId: sessionId,
+      preventDangerous: true,
       auth: {
         type: 'password',
         credentials: {
@@ -48,7 +79,10 @@ export function createFileSystem(sessionId: string): FileSystem {
   } else {
     const backendConfig: LocalBackendConfig = {
       type: 'local',
-      userId: sessionId
+      userId: sessionId,
+      shell: 'auto',
+      validateUtils: false,
+      preventDangerous: true
     }
     console.log('Using local backend config')
     return new FileSystem(backendConfig)

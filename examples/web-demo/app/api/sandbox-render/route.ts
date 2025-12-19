@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     try {
       const workspace = await fs.getWorkspace('default')
-      const componentCode = await workspace.readFile(filePath, 'utf-8')
+      const componentCode = await workspace.readFile(filePath, 'utf-8') as string
       const html = generateEnhancedSandboxHTML(componentCode, filePath)
       
       return new NextResponse(html, {
