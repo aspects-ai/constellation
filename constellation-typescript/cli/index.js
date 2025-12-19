@@ -4,6 +4,7 @@
 
 import { dockerRun } from './docker-run.js'
 import { startRemote, stopRemote } from './remote.js'
+import { startMcpServer } from './mcp-server.js'
 
 export async function main(args) {
   const command = args[0]
@@ -25,7 +26,11 @@ export async function main(args) {
     case 'stop-remote':
       await handleStopRemote()
       break
-      
+
+    case 'mcp-server':
+      await startMcpServer(args.slice(1))
+      break
+
     case 'help':
     case '--help':
     case '-h':
@@ -82,15 +87,23 @@ Usage:
   npx constellationfs <command> [options]
 
 Commands:
+  mcp-server                    Start MCP server for AI agent filesystem access
+                                --appId <id>       Application identifier (required)
+                                --userId <id>      User identifier (required for stdio)
+                                --workspace <name> Workspace name (required for stdio)
+                                --http             Run in HTTP mode (multi-session)
+                                --port <port>      HTTP port (default: 3000)
+                                --authToken <tok>  Auth token (required for HTTP)
+
   start-remote [--build]        Start ConstellationFS remote backend service
                                 (Docker-based SSH filesystem service)
                                 --build: Force rebuild the Docker image
-  
+
   stop-remote                   Stop ConstellationFS remote backend service
-  
+
   docker-run "COMMAND"          Run command with ConstellationFS Docker setup
                                 (Experimental - for advanced usage)
-  
+
   help                          Show this help message
 
 Examples:

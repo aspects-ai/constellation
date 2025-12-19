@@ -144,8 +144,8 @@ async function destroySession(sessionId: string): Promise<void> {
 // Main Entry Point
 // ─────────────────────────────────────────────────────────────────
 
-async function main() {
-  const config = parseArgs(process.argv.slice(2))
+export async function main(args: string[]) {
+  const config = parseArgs(args)
 
   // Initialize ConstellationFS configuration
   ConstellationFS.setConfig({ appId: config.appId })
@@ -249,7 +249,11 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error('Fatal error:', err)
-  process.exit(1)
-})
+// Auto-run if this module is the entry point (for backwards compatibility with bin/constellation-fs-mcp.js)
+const isMainModule = process.argv[1]?.includes('mcp/server') || process.argv[1]?.includes('constellation-fs-mcp')
+if (isMainModule) {
+  main(process.argv.slice(2)).catch((err) => {
+    console.error('Fatal error:', err)
+    process.exit(1)
+  })
+}

@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ES2024",
+    "checkJs": false,
+    "types": ["node"]
+  },
+  "include": ["./**/*.js"]
+}

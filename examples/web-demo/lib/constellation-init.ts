@@ -21,18 +21,18 @@ export function isMCPMode(): boolean {
  * Get MCP server command and args for spawning the constellation-fs-mcp server.
  * Used by Vercel AI SDK's stdio transport.
  *
- * Requires `constellationfs` to be installed globally: `npm install -g constellationfs`
+ * Uses `npx constellationfs mcp-server` which works in any environment
+ * where the constellationfs package is available.
  */
 export function getMCPServerCommand(sessionId: string): {
   command: string
   args: string[]
 } {
-  // Use the globally installed constellation-fs-mcp CLI command
-  // This avoids path resolution issues with Next.js build output
   return {
     command: 'npx',
     args: [
-      'constellation-fs-mcp',
+      'constellationfs',
+      'mcp-server',
       '--appId', 'web-demo',
       '--userId', sessionId,
       '--workspace', 'default'
