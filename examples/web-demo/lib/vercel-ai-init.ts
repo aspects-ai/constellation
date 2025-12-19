@@ -1,6 +1,6 @@
-import { experimental_createMCPClient as createMCPClient } from 'ai'
-import { Experimental_StdioMCPTransport as StdioMCPTransport } from 'ai/mcp-stdio'
-import { anthropic } from '@ai-sdk/anthropic'
+import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp'
+import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio'
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { getMCPServerCommand } from './constellation-init'
 
 /**
@@ -40,10 +40,14 @@ export async function createMCPToolsClient(sessionId: string): Promise<MCPToolsC
 }
 
 /**
- * Get the Anthropic model for use with Vercel AI SDK.
+ * Get the model for use with Vercel AI SDK via OpenRouter.
+ * Uses OPENROUTER_API_KEY environment variable.
  */
 export function getModel() {
-  return anthropic('claude-sonnet-4-20250514')
+  const openrouter = createOpenRouter({
+    apiKey: process.env.OPENROUTER_API_KEY,
+  })
+  return openrouter('anthropic/claude-sonnet-4')
 }
 
 /**

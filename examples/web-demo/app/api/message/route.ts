@@ -1,5 +1,5 @@
 import { CodebuffClient } from "@codebuff/sdk";
-import { streamText } from "ai";
+import { streamText, stepCountIs } from "ai";
 import type { FileSystem } from "constellationfs";
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
@@ -169,7 +169,7 @@ async function processWithVercelAI(
       system: SYSTEM_PROMPT,
       tools: mcpClient.tools,
       messages,
-      maxSteps: 10, // Allow multi-step tool use
+      stopWhen: stepCountIs(10), // Allow multi-step tool use
     });
 
     // Process the stream and broadcast events
@@ -178,17 +178,17 @@ async function processWithVercelAI(
         case 'text-delta':
           broadcastToStream(sessionId, {
             type: "assistant_delta",
-            text: part.textDelta,
+            text: part.text,
           });
           break;
 
         case 'tool-call':
-          console.log("[VERCEL-AI] Tool call:", part.toolName, part.args);
+          console.log("[VERCEL-AI] Tool call:", part.toolName, part.input);
           broadcastToStream(sessionId, {
             type: "tool_use",
             id: part.toolCallId,
             toolName: part.toolName,
-            params: part.args,
+            params: part.input,
           });
           break;
 
@@ -198,7 +198,7 @@ async function processWithVercelAI(
             type: "tool_result",
             id: part.toolCallId,
             toolName: part.toolName,
-            output: part.result,
+            output: part.output,
           });
           break;
 
