@@ -18,6 +18,22 @@ export function isMCPMode(): boolean {
 }
 
 /**
+ * Get remote MCP server configuration from environment variables.
+ * Returns null if remote MCP is not configured.
+ */
+export function getRemoteMCPConfig(): {
+  url: string
+  authToken: string
+} | null {
+  const mcpUrl = process.env.REMOTE_MCP_URL
+  const mcpAuthToken = process.env.REMOTE_MCP_AUTH_TOKEN
+
+  if (!mcpUrl || !mcpAuthToken) return null
+
+  return { url: mcpUrl, authToken: mcpAuthToken }
+}
+
+/**
  * Get MCP server command and args for spawning the constellation-fs-mcp server.
  * Used by Vercel AI SDK's stdio transport.
  *
@@ -28,12 +44,14 @@ export function getMCPServerCommand(sessionId: string): {
   command: string
   args: string[]
 } {
+  const workspaceRoot = process.env.CONSTELLATION_WORKSPACE_ROOT || '/tmp/constellation'
   return {
     command: 'npx',
     args: [
       'constellationfs',
       'mcp-server',
       '--appId', 'web-demo',
+      '--workspaceRoot', workspaceRoot,
       '--userId', sessionId,
       '--workspace', 'default'
     ]

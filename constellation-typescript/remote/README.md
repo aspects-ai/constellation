@@ -1,6 +1,6 @@
 # ConstellationFS Remote Backend
 
-This directory contains the Docker configuration for the ConstellationFS remote backend service - a deployable POSIX filesystem accessible via SSH.
+This directory contains the Docker configuration for the ConstellationFS remote backend service - a deployable POSIX filesystem accessible via SSH and MCP (Model Context Protocol).
 
 ## Quick Start
 
@@ -14,13 +14,15 @@ docker-compose up -d
 ### Using Docker Run
 
 ```bash
-# Build the image
+# Build the image (from constellation-typescript directory)
 docker build -f remote/Dockerfile.runtime -t constellationfs/remote-backend .
 
 # Run the container
 docker run -d \
   -p 2222:22 \
+  -p 3001:3001 \
   -v $(pwd)/workspace:/workspace \
+  -e MCP_AUTH_TOKEN=your-secure-token \
   --name constellation-remote-backend \
   constellationfs/remote-backend
 ```
@@ -35,6 +37,8 @@ docker run -d \
 | `SSH_PUBLIC_KEY` | SSH public key for key-based authentication | None |
 | `WORKSPACE_ROOT` | Root directory for workspaces | `/workspace` |
 | `ENABLE_LOGGING` | Enable verbose SSH logging | `false` |
+| `MCP_PORT` | Port for MCP server | `3001` |
+| `MCP_AUTH_TOKEN` | Auth token for MCP server (required to enable MCP) | None |
 
 ### Example Configurations
 
@@ -52,9 +56,50 @@ volumes:
   - ~/.ssh/id_rsa.pub:/keys/id_rsa.pub:ro
 ```
 
+#### MCP Server Setup
+```yaml
+environment:
+  - MCP_PORT=3001
+  - MCP_AUTH_TOKEN=your-secure-auth-token
+ports:
+  - "3001:3001"
+```
+
 ## Usage with ConstellationFS
 
-### Development Setup
+### Using MCP (Recommended for AI Applications)
+
+The MCP server provides a standardized interface for AI applications to interact with the filesystem.
+
+1. Start the remote backend with MCP enabled:
+   ```bash
+   cd remote/
+   # Edit docker-compose.yml to set MCP_AUTH_TOKEN
+   docker-compose up -d
+   ```
+
+2. Test the MCP server:
+   ```bash
+   curl http://localhost:3001/health
+   # Returns: {"status":"ok","sessions":0}
+   ```
+
+3. Configure web-demo to use remote MCP:
+   ```bash
+   # In examples/web-demo/.env.local
+   USE_MCP=true
+   REMOTE_MCP_URL=http://localhost:3001
+   REMOTE_MCP_AUTH_TOKEN=your-secure-auth-token
+   OPENROUTER_API_KEY=your-openrouter-key
+   ```
+
+4. Start the web-demo:
+   ```bash
+   cd examples/web-demo
+   npm run dev
+   ```
+
+### Development Setup (SSH Backend)
 
 1. Start the remote backend:
    ```bash

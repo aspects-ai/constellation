@@ -9,7 +9,8 @@ services:
     image: constellationfs/remote-backend:latest
     container_name: constellation-remote-backend
     ports:
-      - "2222:22"  # SSH port mapping
+      - "2222:22"   # SSH port mapping
+      - "3001:3001" # MCP server port
     volumes:
       - ./workspace:/workspace  # Persistent workspace
       # - ./keys:/keys:ro        # SSH keys (uncomment if needed)
@@ -30,6 +31,10 @@ services:
       # Workspace configuration
       - WORKSPACE_ROOT=/workspace
       - ENABLE_LOGGING=true
+
+      # MCP server configuration
+      - MCP_PORT=3001
+      - MCP_AUTH_TOKEN=your-secure-auth-token  # Change this!
 
       # SSH key configuration (optional)
       # - SSH_PUBLIC_KEY=ssh-rsa AAAAB3N...your-key-here

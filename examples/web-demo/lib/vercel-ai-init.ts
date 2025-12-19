@@ -1,7 +1,8 @@
 import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp'
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { getMCPServerCommand } from './constellation-init'
+import { getMCPServerCommand, getRemoteMCPConfig } from './constellation-init'
 
 /**
  * MCP client wrapper that holds the client and tools.
@@ -16,15 +17,40 @@ export interface MCPToolsClient {
  * Create an MCP client connected to the ConstellationFS MCP server.
  * Returns tools that can be passed to Vercel AI SDK's streamText/generateText.
  *
+ * Supports two modes:
+ * - Remote MCP: If REMOTE_MCP_URL and REMOTE_MCP_AUTH_TOKEN are set, connects via HTTP
+ * - Local MCP: Otherwise, spawns a local MCP server process via stdio
+ *
  * @param sessionId - Session ID for workspace isolation
  * @returns MCP tools client with tools and close method
  */
 export async function createMCPToolsClient(sessionId: string): Promise<MCPToolsClient> {
-  const { command, args } = getMCPServerCommand(sessionId)
+  const remoteMCPConfig = getRemoteMCPConfig()
 
-  console.log('[VERCEL-AI] Creating MCP client with command:', command, args.join(' '))
+  let transport: StdioMCPTransport | StreamableHTTPClientTransport
 
-  const transport = new StdioMCPTransport({ command, args })
+  if (remoteMCPConfig) {
+    // Remote MCP via HTTP
+    console.log('[VERCEL-AI] Using remote MCP at:', remoteMCPConfig.url)
+    transport = new StreamableHTTPClientTransport(
+      new URL('/mcp', remoteMCPConfig.url),
+      {
+        requestInit: {
+          headers: {
+            'Authorization': `Bearer ${remoteMCPConfig.authToken}`,
+            'X-User-ID': sessionId,
+            'X-Workspace': 'default',
+          },
+        },
+      }
+    )
+  } else {
+    // Local MCP via stdio (existing behavior)
+    const { command, args } = getMCPServerCommand(sessionId)
+    console.log('[VERCEL-AI] Using local MCP with command:', command, args.join(' '))
+    transport = new StdioMCPTransport({ command, args })
+  }
+
   const mcpClient = await createMCPClient({ transport })
   const tools = await mcpClient.tools()
 

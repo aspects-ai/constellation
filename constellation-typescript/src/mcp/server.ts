@@ -9,11 +9,58 @@ import type { Workspace } from '../workspace/Workspace.js'
 import { registerTools } from './tools.js'
 
 // ─────────────────────────────────────────────────────────────────
+// ConstellationFS MCP Server
+// ─────────────────────────────────────────────────────────────────
+//
+// This server exposes ConstellationFS tools via the Model Context Protocol (MCP).
+// It supports two transport modes with different scoping:
+//
+// STDIO MODE (Single-session)
+// ---------------------------
+// - User and workspace are bound at server startup
+// - One MCP server process per user/workspace combination
+// - Best for: Local development, AI coding assistants (Claude Code, Cursor, etc.)
+// - The AI spawns one server per session, so single-session is appropriate
+//
+// Example:
+//   npx constellationfs mcp-server \
+//     --appId my-app \
+//     --workspaceRoot /home/user/.constellationfs \
+//     --userId user123 \
+//     --workspace default
+//
+// HTTP MODE (Multi-session)
+// -------------------------
+// - User and workspace are specified per-request via headers (X-User-ID, X-Workspace)
+// - One server handles multiple users/workspaces concurrently
+// - Best for: Cloud deployments, shared services, multi-tenant applications
+// - Requires auth token to prevent unauthorized access
+//
+// Example:
+//   npx constellationfs mcp-server \
+//     --appId my-app \
+//     --workspaceRoot /data/workspaces \
+//     --http \
+//     --port 3000 \
+//     --authToken secret123
+//
+// CHOOSING A MODE
+// ---------------
+// - If each user/session spawns its own MCP server process → use stdio mode
+// - If you want a single MCP server handling multiple users → use HTTP mode
+//
+// Both modes provide identical tool functionality; they differ only in how
+// the user/workspace context is established.
+//
+// ─────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────
 // CLI Argument Parsing
 // ─────────────────────────────────────────────────────────────────
 
 interface ServerConfig {
   appId: string
+  workspaceRoot: string
   // Stdio mode (single workspace)
   userId?: string
   workspace?: string
@@ -24,7 +71,7 @@ interface ServerConfig {
 }
 
 function parseArgs(args: string[]): ServerConfig {
-  const config: ServerConfig = { appId: '' }
+  const config: Partial<ServerConfig> = {}
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
@@ -33,6 +80,10 @@ function parseArgs(args: string[]): ServerConfig {
     switch (arg) {
       case '--appId':
         config.appId = next || ''
+        i++
+        break
+      case '--workspaceRoot':
+        config.workspaceRoot = next
         i++
         break
       case '--userId':
@@ -64,6 +115,12 @@ function parseArgs(args: string[]): ServerConfig {
     process.exit(1)
   }
 
+  if (!config.workspaceRoot) {
+    console.error('--workspaceRoot is required')
+    printUsage()
+    process.exit(1)
+  }
+
   if (config.http) {
     if (!config.authToken) {
       console.error('--authToken is required in HTTP mode')
@@ -78,17 +135,17 @@ function parseArgs(args: string[]): ServerConfig {
     }
   }
 
-  return config
+  return config as ServerConfig
 }
 
 function printUsage(): void {
   console.error(`
 Usage:
   Stdio mode (single workspace):
-    constellation-fs-mcp --appId <appId> --userId <userId> --workspace <workspace>
+    constellation-fs-mcp --appId <appId> --workspaceRoot <path> --userId <userId> --workspace <workspace>
 
   HTTP mode (multi-session):
-    constellation-fs-mcp --appId <appId> --http --port <port> --authToken <token>
+    constellation-fs-mcp --appId <appId> --workspaceRoot <path> --http --port <port> --authToken <token>
 `)
 }
 
@@ -148,7 +205,10 @@ export async function main(args: string[]) {
   const config = parseArgs(args)
 
   // Initialize ConstellationFS configuration
-  ConstellationFS.setConfig({ appId: config.appId })
+  ConstellationFS.setConfig({
+    appId: config.appId,
+    workspaceRoot: config.workspaceRoot,
+  })
 
   // Create MCP server
   const mcpServer = new McpServer({

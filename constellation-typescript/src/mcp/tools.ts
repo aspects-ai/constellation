@@ -152,13 +152,15 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
   // READ OPERATIONS
   // ─────────────────────────────────────────────────────────────────
 
-  server.tool(
+  server.registerTool(
     'read_text_file',
-    'Read complete contents of a file as text',
     {
-      path: z.string().describe('Path to the file'),
-      head: z.number().optional().describe('Return only the first N lines'),
-      tail: z.number().optional().describe('Return only the last N lines'),
+      description: 'Read complete contents of a file as text',
+      inputSchema: {
+        path: z.string().describe('Path to the file'),
+        head: z.number().optional().describe('Return only the first N lines'),
+        tail: z.number().optional().describe('Return only the last N lines'),
+      },
     },
     async ({ path: filePath, head, tail }, { sessionId }) => {
       // Cannot specify both head and tail
@@ -181,11 +183,13 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
     }
   )
 
-  server.tool(
+  server.registerTool(
     'read_media_file',
-    'Read an image or audio file, returns base64 data with MIME type',
     {
-      path: z.string().describe('Path to the media file'),
+      description: 'Read an image or audio file, returns base64 data with MIME type',
+      inputSchema: {
+        path: z.string().describe('Path to the media file'),
+      },
     },
     async ({ path: filePath }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
@@ -212,16 +216,18 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
     }
   )
 
-  server.tool(
+  server.registerTool(
     'read_multiple_files',
-    'Read several files simultaneously. Failed reads for individual files won\'t stop the entire operation.',
     {
-      paths: z.array(z.string()).min(1).describe('Array of file paths to read'),
+      description: 'Read several files simultaneously. Failed reads for individual files won\'t stop the entire operation.',
+      inputSchema: {
+        paths: z.array(z.string()).min(1).describe('Array of file paths to read'),
+      },
     },
     async ({ paths }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
       const results = await Promise.all(
-        paths.map(async (filePath) => {
+        paths.map(async (filePath: string) => {
           try {
             const content = await workspace.readFile(filePath, 'utf-8')
             return `${filePath}:\n${content}\n`
@@ -243,12 +249,14 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
   // WRITE OPERATIONS
   // ─────────────────────────────────────────────────────────────────
 
-  server.tool(
+  server.registerTool(
     'write_file',
-    'Create new file or completely overwrite existing file with new content. Parent directories are created automatically if they don\'t exist.',
     {
-      path: z.string().describe('Path to the file'),
-      content: z.string().describe('Content to write'),
+      description: 'Create new file or completely overwrite existing file with new content. Parent directories are created automatically if they don\'t exist.',
+      inputSchema: {
+        path: z.string().describe('Path to the file'),
+        content: z.string().describe('Content to write'),
+      },
     },
     async ({ path: filePath, content }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
@@ -270,17 +278,19 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
     }
   )
 
-  server.tool(
+  server.registerTool(
     'edit_file',
-    'Make selective edits using exact text matching. Each edit replaces exact text sequences. Returns a unified diff showing changes made.',
     {
-      path: z.string().describe('Path to the file'),
-      edits: z.array(z.object({
-        oldText: z.string().describe('Text to search for - must match exactly'),
-        newText: z.string().describe('Text to replace with'),
-      })).describe('Array of edits to apply'),
-      dryRun: z.boolean().optional().default(false)
-        .describe('Preview changes using git-style diff format'),
+      description: 'Make selective edits using exact text matching. Each edit replaces exact text sequences. Returns a unified diff showing changes made.',
+      inputSchema: {
+        path: z.string().describe('Path to the file'),
+        edits: z.array(z.object({
+          oldText: z.string().describe('Text to search for - must match exactly'),
+          newText: z.string().describe('Text to replace with'),
+        })).describe('Array of edits to apply'),
+        dryRun: z.boolean().optional().default(false)
+          .describe('Preview changes using git-style diff format'),
+      },
     },
     async ({ path: filePath, edits, dryRun }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
@@ -322,11 +332,13 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
   // DIRECTORY OPERATIONS
   // ─────────────────────────────────────────────────────────────────
 
-  server.tool(
+  server.registerTool(
     'create_directory',
-    'Create new directory or ensure it exists. Creates parent directories automatically.',
     {
-      path: z.string().describe('Path to the directory'),
+      description: 'Create new directory or ensure it exists. Creates parent directories automatically.',
+      inputSchema: {
+        path: z.string().describe('Path to the directory'),
+      },
     },
     async ({ path: dirPath }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
@@ -337,11 +349,13 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
     }
   )
 
-  server.tool(
+  server.registerTool(
     'list_directory',
-    'List directory contents with [FILE] or [DIR] prefixes',
     {
-      path: z.string().describe('Path to the directory'),
+      description: 'List directory contents with [FILE] or [DIR] prefixes',
+      inputSchema: {
+        path: z.string().describe('Path to the directory'),
+      },
     },
     async ({ path: dirPath }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
@@ -365,13 +379,15 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
     }
   )
 
-  server.tool(
+  server.registerTool(
     'list_directory_with_sizes',
-    'List directory contents with prefixes, file sizes, and summary statistics',
     {
-      path: z.string().describe('Path to the directory'),
-      sortBy: z.enum(['name', 'size']).optional().default('name')
-        .describe('Sort entries by name or size (descending)'),
+      description: 'List directory contents with prefixes, file sizes, and summary statistics',
+      inputSchema: {
+        path: z.string().describe('Path to the directory'),
+        sortBy: z.enum(['name', 'size']).optional().default('name')
+          .describe('Sort entries by name or size (descending)'),
+      },
     },
     async ({ path: dirPath, sortBy }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
@@ -418,13 +434,15 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
     }
   )
 
-  server.tool(
+  server.registerTool(
     'directory_tree',
-    'Get recursive JSON tree structure of directory contents. Each entry includes name, type (file/directory), and children for directories.',
     {
-      path: z.string().describe('Path to the directory'),
-      excludePatterns: z.array(z.string()).optional().default([])
-        .describe('Glob patterns to exclude (e.g., "node_modules", "*.log")'),
+      description: 'Get recursive JSON tree structure of directory contents. Each entry includes name, type (file/directory), and children for directories.',
+      inputSchema: {
+        path: z.string().describe('Path to the directory'),
+        excludePatterns: z.array(z.string()).optional().default([])
+          .describe('Glob patterns to exclude (e.g., "node_modules", "*.log")'),
+      },
     },
     async ({ path: dirPath, excludePatterns }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
@@ -445,7 +463,7 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
           const relativePath = path.relative(dirPath, entryPath)
 
           // Use minimatch for proper glob pattern matching (matches official server behavior)
-          const shouldExclude = excludePatterns.some(pattern => {
+          const shouldExclude = excludePatterns.some((pattern: string) => {
             // Support both exact matches and glob patterns
             if (pattern.includes('*')) {
               return minimatch(relativePath, pattern, { dot: true })
@@ -492,12 +510,14 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
   // FILE OPERATIONS
   // ─────────────────────────────────────────────────────────────────
 
-  server.tool(
+  server.registerTool(
     'move_file',
-    'Move or rename files and directories. Fails if destination exists. Both source and destination must be within the workspace.',
     {
-      source: z.string().describe('Source path'),
-      destination: z.string().describe('Destination path'),
+      description: 'Move or rename files and directories. Fails if destination exists. Both source and destination must be within the workspace.',
+      inputSchema: {
+        source: z.string().describe('Source path'),
+        destination: z.string().describe('Destination path'),
+      },
     },
     async ({ source, destination }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
@@ -527,14 +547,16 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
     }
   )
 
-  server.tool(
+  server.registerTool(
     'search_files',
-    'Recursively search for files and directories matching a glob pattern. Patterns match against paths relative to the search directory.',
     {
-      path: z.string().describe('Starting directory path'),
-      pattern: z.string().describe('Glob pattern to match (e.g., "*.ts", "**/*.js", "src/**/*.tsx")'),
-      excludePatterns: z.array(z.string()).optional().default([])
-        .describe('Patterns to exclude from results'),
+      description: 'Recursively search for files and directories matching a glob pattern. Patterns match against paths relative to the search directory.',
+      inputSchema: {
+        path: z.string().describe('Starting directory path'),
+        pattern: z.string().describe('Glob pattern to match (e.g., "*.ts", "**/*.js", "src/**/*.tsx")'),
+        excludePatterns: z.array(z.string()).optional().default([])
+          .describe('Patterns to exclude from results'),
+      },
     },
     async ({ path: searchPath, pattern, excludePatterns }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
@@ -549,7 +571,7 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
           const relativePath = path.relative(searchPath, fullPath)
 
           // Check if this path should be excluded
-          const shouldExclude = excludePatterns.some(excludePattern =>
+          const shouldExclude = excludePatterns.some((excludePattern: string) =>
             minimatch(relativePath, excludePattern, { dot: true })
           )
           if (shouldExclude) continue
@@ -579,11 +601,13 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
     }
   )
 
-  server.tool(
+  server.registerTool(
     'get_file_info',
-    'Get detailed metadata: size, timestamps, type, permissions',
     {
-      path: z.string().describe('Path to the file or directory'),
+      description: 'Get detailed metadata: size, timestamps, type, permissions',
+      inputSchema: {
+        path: z.string().describe('Path to the file or directory'),
+      },
     },
     async ({ path: filePath }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
@@ -605,11 +629,13 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
     }
   )
 
-  server.tool(
+  server.registerTool(
     'list_allowed_directories',
-    'List all directories the server is allowed to access',
-    {},
-    async (_, { sessionId }) => {
+    {
+      description: 'List all directories the server is allowed to access',
+      inputSchema: {},
+    },
+    async (_args, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
       return {
         content: [{
@@ -624,13 +650,15 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
   // CONSTELLATIONFS EXTENSIONS
   // ─────────────────────────────────────────────────────────────────
 
-  server.tool(
+  server.registerTool(
     'exec',
-    'Execute a shell command in the workspace directory',
     {
-      command: z.string().describe('Shell command to execute'),
-      env: z.record(z.string(), z.string()).optional()
-        .describe('Environment variables to set for this command'),
+      description: 'Execute a shell command in the workspace directory',
+      inputSchema: {
+        command: z.string().describe('Shell command to execute'),
+        env: z.record(z.string(), z.string()).optional()
+          .describe('Environment variables to set for this command'),
+      },
     },
     async ({ command, env }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)

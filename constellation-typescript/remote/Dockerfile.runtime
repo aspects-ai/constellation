@@ -1,12 +1,12 @@
 # ConstellationFS Remote Backend Service
-# Provides POSIX filesystem access via SSH for ConstellationFS
+# Provides POSIX filesystem access via SSH and MCP server for ConstellationFS
 
 FROM ubuntu:22.04
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install SSH server and essential tools
+# Install base packages and SSH server
 RUN apt-get update && apt-get install -y \
     openssh-server \
     sudo \
@@ -15,10 +15,43 @@ RUN apt-get update && apt-get install -y \
     tree \
     ripgrep \
     git \
+    fuse \
+    bindfs \
     libfuse2 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl https://s3.amazonaws.com/archil-client/install | sh
+# Install Chromium and dependencies for headless browser support
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium-browser || apt-get install -y --no-install-recommends chromium
+RUN apt-get update && apt-get install -y \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libnss3 \
+    libnspr4 \
+    libxss1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install global npm packages
+RUN npm i -g pnpm && \
+    npm i -g constellationfs && \
+    npm i -g @aspects-ai/workspace-cli && \
+    npm i -g @remotion/cli@4.0.356
 
 # Create workspace directory
 RUN mkdir -p /workspace
@@ -38,6 +71,16 @@ RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/
     sed -i 's/#Port 22/Port 22/' /etc/ssh/sshd_config && \
     sed -i 's/#AddressFamily any/AddressFamily any/' /etc/ssh/sshd_config && \
     sed -i 's/#ListenAddress 0.0.0.0/ListenAddress 0.0.0.0/' /etc/ssh/sshd_config
+
+# SSH performance tuning for ConstellationFS workloads
+RUN mkdir -p /etc/ssh/sshd_config.d && \
+    echo 'PasswordAuthentication yes' > /etc/ssh/sshd_config.d/constellation.conf && \
+    echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config.d/constellation.conf && \
+    echo 'ChallengeResponseAuthentication yes' >> /etc/ssh/sshd_config.d/constellation.conf && \
+    echo 'MaxSessions 64' >> /etc/ssh/sshd_config.d/constellation.conf && \
+    echo 'MaxStartups 10:30:100' >> /etc/ssh/sshd_config.d/constellation.conf && \
+    echo 'ClientAliveInterval 60' >> /etc/ssh/sshd_config.d/constellation.conf && \
+    echo 'ClientAliveCountMax 3' >> /etc/ssh/sshd_config.d/constellation.conf
 
 # SSH login fix for PAM
 RUN sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd
@@ -59,8 +102,8 @@ RUN chmod +x /entrypoint.sh
 RUN chmod 755 /workspace && \
     chown -R root:root /workspace
 
-# Expose SSH port
-EXPOSE 22
+# Expose SSH port and MCP server port
+EXPOSE 22 3001
 
 # Health check to ensure SSH is running
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

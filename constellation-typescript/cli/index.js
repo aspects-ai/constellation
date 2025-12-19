@@ -88,12 +88,20 @@ Usage:
 
 Commands:
   mcp-server                    Start MCP server for AI agent filesystem access
-                                --appId <id>       Application identifier (required)
-                                --userId <id>      User identifier (required for stdio)
-                                --workspace <name> Workspace name (required for stdio)
-                                --http             Run in HTTP mode (multi-session)
-                                --port <port>      HTTP port (default: 3000)
-                                --authToken <tok>  Auth token (required for HTTP)
+
+                                Stdio mode (default): One server per user/workspace.
+                                Best for local dev and AI assistants that spawn per-session.
+                                  --appId <id>         Application identifier (required)
+                                  --workspaceRoot <path> Base directory for workspaces (required)
+                                  --userId <id>        User identifier (required)
+                                  --workspace <name>   Workspace name (required)
+
+                                HTTP mode: Single server handles multiple users/workspaces.
+                                User/workspace specified via X-User-ID and X-Workspace headers.
+                                Best for cloud deployments and multi-tenant services.
+                                  --http               Enable HTTP mode
+                                  --port <port>        HTTP port (default: 3000)
+                                  --authToken <tok>    Auth token (required)
 
   start-remote [--build]        Start ConstellationFS remote backend service
                                 (Docker-based SSH filesystem service)
