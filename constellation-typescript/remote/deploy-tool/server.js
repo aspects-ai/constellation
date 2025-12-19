@@ -1,9 +1,10 @@
-import express from "express";
 import { spawn } from "child_process";
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from "fs";
+import express from "express";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "fs";
+import { randomBytes } from "crypto";
+import { tmpdir } from "os";
 import path from "path";
 import { fileURLToPath } from "url";
-import { tmpdir } from "os";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -35,8 +36,8 @@ app.use(express.urlencoded({ extended: true }));
 app.get("/env-defaults", (req, res) => {
   res.json({
     sshUser: envConfig.SSH_USER || "",
-    hasArchilKey: !!envConfig.ARCHIL_API_KEY,
     hasSshPassword: !!envConfig.SSH_PASSWORD,
+    hasMcpAuthToken: !!envConfig.MCP_AUTH_TOKEN,
   });
 });
 
@@ -106,14 +107,10 @@ app.get("/", (req, res) => {
       color: #888;
       margin-top: 4px;
     }
-    .conditional-section {
+    .cloud-section {
       display: none;
-      background: #f9f9f9;
-      padding: 16px;
-      border-radius: 4px;
-      margin-top: 12px;
     }
-    .conditional-section.visible { display: block; }
+    .cloud-section.visible { display: block; }
     button {
       width: 100%;
       padding: 14px;
@@ -153,61 +150,77 @@ app.get("/", (req, res) => {
       background: #e8f4fd;
       border-radius: 4px;
     }
+    .env-hint {
+      color: #28a745;
+    }
   </style>
 </head>
 <body>
   <h1>ConstellationFS Deploy Tool</h1>
-  <p class="subtitle">Deploy a ConstellationFS remote backend VM to GCP</p>
+  <p class="subtitle">Deploy a ConstellationFS remote backend VM</p>
 
   <form id="deployForm">
     <fieldset>
-      <legend>GCP Configuration</legend>
+      <legend>Cloud Provider</legend>
       <div class="form-group">
-        <label for="gcpProject">GCP Project ID *</label>
-        <input type="text" id="gcpProject" name="gcpProject" required placeholder="my-project-id">
-      </div>
-      <div class="form-group">
-        <label for="vmName">VM Instance Name *</label>
-        <input type="text" id="vmName" name="vmName" required placeholder="constellation-remote">
-      </div>
-      <div class="form-group">
-        <label for="vmZone">VM Zone *</label>
-        <input type="text" id="vmZone" name="vmZone" value="us-central1-a" placeholder="us-central1-a">
-      </div>
-      <div class="form-group">
-        <label for="machineType">Machine Type</label>
-        <input type="text" id="machineType" name="machineType" value="e2-medium" placeholder="e2-medium">
-      </div>
-    </fieldset>
-
-    <fieldset>
-      <legend>Storage Configuration</legend>
-      <div class="form-group">
-        <label for="storageType">Storage Type *</label>
-        <select id="storageType" name="storageType">
-          <option value="local">Local (VM disk)</option>
-          <option value="archil">Archil (GCP Bucket)</option>
+        <label for="cloudProvider">Provider *</label>
+        <select id="cloudProvider" name="cloudProvider">
+          <option value="azure">Azure</option>
+          <option value="gcp">Google Cloud Platform</option>
         </select>
       </div>
-
-      <div id="archilConfig" class="conditional-section">
-        <div class="form-group">
-          <label for="archilApiKey">Archil API Key *</label>
-          <input type="password" id="archilApiKey" name="archilApiKey" placeholder="your-api-key">
-          <div class="help-text env-hint" id="archilApiKeyHint" style="display:none; color:#28a745;">✓ Using value from .env</div>
-        </div>
-        <div class="form-group">
-          <label for="archilBucket">Archil Bucket *</label>
-          <input type="text" id="archilBucket" name="archilBucket" placeholder="user@bucket-name">
-          <div class="help-text">Format: user@bucket-name</div>
-        </div>
-        <div class="form-group">
-          <label for="archilRegion">Archil Region</label>
-          <input type="text" id="archilRegion" name="archilRegion" placeholder="gcp-us-central1">
-          <div class="help-text">Optional. e.g., gcp-us-central1</div>
-        </div>
-      </div>
     </fieldset>
+
+    <!-- Azure Configuration -->
+    <div id="azureConfig" class="cloud-section">
+      <fieldset>
+        <legend>Azure Configuration</legend>
+        <div class="form-group">
+          <label for="azureSubscription">Subscription ID *</label>
+          <input type="text" id="azureSubscription" name="azureSubscription" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        </div>
+        <div class="form-group">
+          <label for="azureResourceGroup">Resource Group *</label>
+          <input type="text" id="azureResourceGroup" name="azureResourceGroup" placeholder="my-resource-group">
+        </div>
+        <div class="form-group">
+          <label for="azureVmName">VM Name *</label>
+          <input type="text" id="azureVmName" name="azureVmName" value="constellation-remote" placeholder="constellation-remote">
+        </div>
+        <div class="form-group">
+          <label for="azureLocation">Location</label>
+          <input type="text" id="azureLocation" name="azureLocation" value="westus2" placeholder="westus2">
+        </div>
+        <div class="form-group">
+          <label for="azureVmSize">VM Size</label>
+          <input type="text" id="azureVmSize" name="azureVmSize" value="Standard_B1ms" placeholder="Standard_B1ms">
+          <div class="help-text">Standard_B1s (~$8/mo), Standard_B1ms (~$15/mo), Standard_B2s (~$30/mo)</div>
+        </div>
+      </fieldset>
+    </div>
+
+    <!-- GCP Configuration -->
+    <div id="gcpConfig" class="cloud-section">
+      <fieldset>
+        <legend>GCP Configuration</legend>
+        <div class="form-group">
+          <label for="gcpProject">GCP Project ID *</label>
+          <input type="text" id="gcpProject" name="gcpProject" placeholder="my-project-id">
+        </div>
+        <div class="form-group">
+          <label for="gcpVmName">VM Instance Name *</label>
+          <input type="text" id="gcpVmName" name="gcpVmName" value="constellation-remote" placeholder="constellation-remote">
+        </div>
+        <div class="form-group">
+          <label for="gcpZone">Zone</label>
+          <input type="text" id="gcpZone" name="gcpZone" value="us-central1-a" placeholder="us-central1-a">
+        </div>
+        <div class="form-group">
+          <label for="gcpMachineType">Machine Type</label>
+          <input type="text" id="gcpMachineType" name="gcpMachineType" value="e2-medium" placeholder="e2-medium">
+        </div>
+      </fieldset>
+    </div>
 
     <fieldset>
       <legend>SSH Configuration</legend>
@@ -219,7 +232,21 @@ app.get("/", (req, res) => {
       <div class="form-group">
         <label for="sshPassword">SSH Password *</label>
         <input type="password" id="sshPassword" name="sshPassword" placeholder="secure-password">
-        <div class="help-text env-hint" id="sshPasswordHint" style="display:none; color:#28a745;">✓ Using value from .env</div>
+        <div class="help-text env-hint" id="sshPasswordHint" style="display:none;">Using value from .env</div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>MCP Server Configuration</legend>
+      <div class="form-group">
+        <label for="mcpPort">MCP Port</label>
+        <input type="text" id="mcpPort" name="mcpPort" value="3001" placeholder="3001">
+      </div>
+      <div class="form-group">
+        <label for="mcpAuthToken">MCP Auth Token *</label>
+        <input type="text" id="mcpAuthToken" name="mcpAuthToken" placeholder="(will auto-generate if empty)">
+        <div class="help-text env-hint" id="mcpAuthTokenHint" style="display:none;">Using value from .env</div>
+        <div class="help-text">Leave empty to auto-generate a secure token</div>
       </div>
     </fieldset>
 
@@ -232,16 +259,25 @@ app.get("/", (req, res) => {
     const form = document.getElementById('deployForm');
     const output = document.getElementById('output');
     const submitBtn = document.getElementById('submitBtn');
-    const storageType = document.getElementById('storageType');
-    const archilConfig = document.getElementById('archilConfig');
+    const cloudProvider = document.getElementById('cloudProvider');
+    const azureConfig = document.getElementById('azureConfig');
+    const gcpConfig = document.getElementById('gcpConfig');
 
     // Fields to persist (exclude sensitive fields)
     const STORAGE_KEY = 'constellation-deploy-config';
     const PERSIST_FIELDS = [
-      'gcpProject', 'vmName', 'vmZone', 'machineType',
-      'storageType', 'archilBucket', 'archilRegion',
-      'sshUser'
+      'cloudProvider',
+      'azureSubscription', 'azureResourceGroup', 'azureVmName', 'azureLocation', 'azureVmSize',
+      'gcpProject', 'gcpVmName', 'gcpZone', 'gcpMachineType',
+      'sshUser', 'mcpPort'
     ];
+
+    // Show/hide cloud-specific sections
+    function updateCloudSections() {
+      const provider = cloudProvider.value;
+      azureConfig.classList.toggle('visible', provider === 'azure');
+      gcpConfig.classList.toggle('visible', provider === 'gcp');
+    }
 
     // Load saved values on page load
     function loadSavedValues() {
@@ -253,8 +289,7 @@ app.get("/", (req, res) => {
             el.value = saved[field];
           }
         });
-        // Trigger change events to show/hide conditional sections
-        storageType.dispatchEvent(new Event('change'));
+        updateCloudSections();
       } catch (e) {
         console.error('Failed to load saved values:', e);
       }
@@ -274,13 +309,12 @@ app.get("/", (req, res) => {
       }
     }
 
-    // Set up event listeners first
-    storageType.addEventListener('change', () => {
-      archilConfig.classList.toggle('visible', storageType.value === 'archil');
-    });
+    // Set up event listeners
+    cloudProvider.addEventListener('change', updateCloudSections);
 
     // Load saved values after listeners are registered
     loadSavedValues();
+    updateCloudSections();
 
     // Check for env defaults and show hints
     let envDefaults = {};
@@ -288,13 +322,13 @@ app.get("/", (req, res) => {
       .then(r => r.json())
       .then(data => {
         envDefaults = data;
-        if (data.hasArchilKey) {
-          document.getElementById('archilApiKeyHint').style.display = 'block';
-          document.getElementById('archilApiKey').placeholder = '(using .env value)';
-        }
         if (data.hasSshPassword) {
           document.getElementById('sshPasswordHint').style.display = 'block';
           document.getElementById('sshPassword').placeholder = '(using .env value)';
+        }
+        if (data.hasMcpAuthToken) {
+          document.getElementById('mcpAuthTokenHint').style.display = 'block';
+          document.getElementById('mcpAuthToken').placeholder = '(using .env value)';
         }
         if (data.sshUser) {
           document.getElementById('sshUser').value = data.sshUser;
@@ -304,25 +338,14 @@ app.get("/", (req, res) => {
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      // Save non-sensitive values
       saveValues();
 
       const formData = new FormData(form);
       const data = Object.fromEntries(formData.entries());
 
       // Mark if we should use env values
-      data.useEnvArchilKey = envDefaults.hasArchilKey && !data.archilApiKey;
       data.useEnvSshPassword = envDefaults.hasSshPassword && !data.sshPassword;
-
-      // Validation
-      if (data.storageType === 'archil') {
-        const hasArchilKey = data.archilApiKey || data.useEnvArchilKey;
-        if (!hasArchilKey || !data.archilBucket) {
-          alert('Archil API Key and Bucket are required when using Archil storage');
-          return;
-        }
-      }
+      data.useEnvMcpAuthToken = envDefaults.hasMcpAuthToken && !data.mcpAuthToken;
 
       output.classList.add('visible');
       output.textContent = 'Starting VM creation...\\n';
@@ -361,24 +384,36 @@ app.get("/", (req, res) => {
 // Handle deployment
 app.post("/deploy", async (req, res) => {
   const {
+    cloudProvider,
+    // Azure
+    azureSubscription,
+    azureResourceGroup,
+    azureVmName,
+    azureLocation = "westus2",
+    azureVmSize = "Standard_B1ms",
+    // GCP
     gcpProject,
-    vmName,
-    vmZone = "us-central1-a",
-    machineType = "e2-medium",
-    storageType = "local",
-    archilApiKey: formArchilApiKey = "",
-    archilBucket = "",
-    archilRegion = "",
+    gcpVmName,
+    gcpZone = "us-central1-a",
+    gcpMachineType = "e2-medium",
+    // Common
     sshUser: formSshUser = "dev",
     sshPassword: formSshPassword,
-    useEnvArchilKey,
+    mcpPort = "3001",
+    mcpAuthToken: formMcpAuthToken,
     useEnvSshPassword,
+    useEnvMcpAuthToken,
   } = req.body;
 
   // Use env values if flagged
-  const archilApiKey = useEnvArchilKey ? envConfig.ARCHIL_API_KEY : formArchilApiKey;
   const sshUser = envConfig.SSH_USER || formSshUser;
   const sshPassword = useEnvSshPassword ? envConfig.SSH_PASSWORD : formSshPassword;
+  let mcpAuthToken = useEnvMcpAuthToken ? envConfig.MCP_AUTH_TOKEN : formMcpAuthToken;
+
+  // Auto-generate MCP auth token if not provided
+  if (!mcpAuthToken) {
+    mcpAuthToken = randomBytes(32).toString('hex');
+  }
 
   res.setHeader("Content-Type", "text/plain");
   res.setHeader("Transfer-Encoding", "chunked");
@@ -387,75 +422,111 @@ app.post("/deploy", async (req, res) => {
   const logError = (msg) => res.write(`[ERROR] ${msg}\n`);
   const logSuccess = (msg) => res.write(`[SUCCESS] ${msg}\n`);
 
-  log(`=== ConstellationFS VM Deploy ===`);
-  log(`Project: ${gcpProject}`);
-  log(`VM: ${vmName} (${machineType}) in ${vmZone}`);
-  log(`Storage: ${storageType}`);
-  if (useEnvArchilKey) log(`Using Archil API key from .env`);
-  if (useEnvSshPassword) log(`Using SSH password from .env`);
+  if (cloudProvider === "azure") {
+    await deployAzure({
+      subscription: azureSubscription,
+      resourceGroup: azureResourceGroup,
+      vmName: azureVmName,
+      location: azureLocation,
+      vmSize: azureVmSize,
+      sshUser,
+      sshPassword,
+      mcpPort,
+      mcpAuthToken,
+      log,
+      logError,
+      logSuccess,
+    });
+  } else if (cloudProvider === "gcp") {
+    await deployGCP({
+      project: gcpProject,
+      vmName: gcpVmName,
+      zone: gcpZone,
+      machineType: gcpMachineType,
+      sshUser,
+      sshPassword,
+      mcpPort,
+      mcpAuthToken,
+      log,
+      logError,
+      logSuccess,
+    });
+  } else {
+    logError(`Unknown cloud provider: ${cloudProvider}`);
+  }
+
+  res.end();
+});
+
+// Azure deployment
+async function deployAzure({
+  subscription,
+  resourceGroup,
+  vmName,
+  location,
+  vmSize,
+  sshUser,
+  sshPassword,
+  mcpPort,
+  mcpAuthToken,
+  log,
+  logError,
+  logSuccess,
+}) {
+  log(`=== ConstellationFS Azure VM Deploy ===`);
+  log(`Subscription: ${subscription}`);
+  log(`Resource Group: ${resourceGroup}`);
+  log(`VM: ${vmName} (${vmSize}) in ${location}`);
+  log(`MCP Port: ${mcpPort}`);
   log(``);
 
   // Load and customize startup script
   log(`Preparing startup script...`);
-  const startupScriptPath = path.join(__dirname, "..", "vm-startup.sh");
+  const startupScriptPath = path.join(__dirname, "..", "azure-vm-startup.sh");
   let startupScript;
   try {
     startupScript = readFileSync(startupScriptPath, "utf-8");
   } catch (err) {
     logError(`Failed to read startup script: ${err.message}`);
-    return res.end();
+    return;
   }
 
-  // Get mount path from env or default
-  const archilMountPath = envConfig.ARCHIL_MOUNT_PATH || "/workspace";
-
-  // Replace placeholders with actual values
+  // Replace placeholders
   startupScript = startupScript
-    .replace("__STORAGE_TYPE__", storageType)
-    .replace("__ARCHIL_API_KEY__", archilApiKey)
-    .replace("__ARCHIL_BUCKET__", archilBucket)
-    .replace("__ARCHIL_REGION__", archilRegion)
-    .replace("__ARCHIL_MOUNT_PATH__", archilMountPath)
-    .replace("__SSH_USERS__", `${sshUser}:${sshPassword}`);
+    .replace(/__MCP_AUTH_TOKEN__/g, mcpAuthToken)
+    .replace(/__MCP_PORT__/g, mcpPort)
+    .replace(/__SSH_USERS__/g, `${sshUser}:${sshPassword}`);
 
-  // Write startup script to temp file (avoids shell escaping issues)
-  const tempScriptPath = path.join(tmpdir(), `constellation-startup-${Date.now()}.sh`);
+  // Write startup script to temp file
+  const tempScriptPath = path.join(tmpdir(), `constellation-azure-startup-${Date.now()}.sh`);
   writeFileSync(tempScriptPath, startupScript);
   log(`Startup script written to temp file`);
 
-  // Check if VM already exists and delete it
+  // Check if VM already exists
   log(`Checking if VM ${vmName} already exists...`);
-  const existsCheck = await runCommandCapture("gcloud", [
-    "compute",
-    "instances",
-    "describe",
-    vmName,
-    "--zone",
-    vmZone,
-    "--project",
-    gcpProject,
-    "--format",
-    "value(name)",
+  const existsCheck = await runCommandCapture("az", [
+    "vm", "show",
+    "--subscription", subscription,
+    "--resource-group", resourceGroup,
+    "--name", vmName,
+    "--query", "name",
+    "-o", "tsv",
   ]);
 
   if (existsCheck.trim() === vmName) {
     log(`VM ${vmName} exists. Deleting...`);
-    const deleteSuccess = await runCommand("gcloud", [
-      "compute",
-      "instances",
-      "delete",
-      vmName,
-      "--zone",
-      vmZone,
-      "--project",
-      gcpProject,
-      "--quiet",
+    const deleteSuccess = await runCommand("az", [
+      "vm", "delete",
+      "--subscription", subscription,
+      "--resource-group", resourceGroup,
+      "--name", vmName,
+      "--yes",
     ], log);
 
     if (!deleteSuccess) {
       logError("Failed to delete existing VM");
-      try { unlinkSync(tempScriptPath); } catch (e) {}
-      return res.end();
+      try { unlinkSync(tempScriptPath); } catch (e) { }
+      return;
     }
     logSuccess(`Deleted existing VM ${vmName}`);
     log(``);
@@ -466,30 +537,172 @@ app.post("/deploy", async (req, res) => {
   log(`Creating VM ${vmName}...`);
   log(``);
 
-  // Create VM with startup script from file
+  // Create VM
   const createVmArgs = [
-    "compute",
-    "instances",
-    "create",
+    "vm", "create",
+    "--subscription", subscription,
+    "--resource-group", resourceGroup,
+    "--name", vmName,
+    "--location", location,
+    "--size", vmSize,
+    "--image", "Ubuntu2204",
+    "--admin-username", "azureuser",
+    "--generate-ssh-keys",
+    "--public-ip-sku", "Standard",
+    "--custom-data", tempScriptPath,
+  ];
+
+  const vmSuccess = await runCommand("az", createVmArgs, log);
+
+  // Clean up temp file
+  try {
+    unlinkSync(tempScriptPath);
+  } catch (e) {
+    // Ignore cleanup errors
+  }
+
+  if (!vmSuccess) {
+    logError("VM creation failed!");
+    return;
+  }
+
+  logSuccess(`VM ${vmName} created!`);
+  log(``);
+
+  // Open ports for SSH (2222) and MCP in a single call
+  // Use priority 900 to avoid conflict with Azure's default-allow-ssh rule at priority 1000
+  log(`Opening ports 2222 (SSH) and ${mcpPort} (MCP)...`);
+  await runCommand("az", [
+    "vm", "open-port",
+    "--subscription", subscription,
+    "--resource-group", resourceGroup,
+    "--name", vmName,
+    "--port", `2222,${mcpPort}`,
+    "--priority", "900",
+  ], log);
+
+  // Get public IP
+  log(`Getting VM public IP...`);
+  const ipResult = await runCommandCapture("az", [
+    "vm", "show",
+    "--subscription", subscription,
+    "--resource-group", resourceGroup,
+    "--name", vmName,
+    "--show-details",
+    "--query", "publicIps",
+    "-o", "tsv",
+  ]);
+
+  const publicIp = ipResult.trim();
+  log(`Public IP: ${publicIp}`);
+  log(``);
+
+  log(`=== Setup Complete ===`);
+  log(``);
+  log(`The VM is starting up and running the setup script.`);
+  log(`This may take 2-3 minutes for Docker to install and start.`);
+  log(``);
+  log(`Once ready, connect via:`);
+  log(`  SSH: ssh ${sshUser}@${publicIp} -p 2222`);
+  log(`  MCP: http://${publicIp}:${mcpPort}/health`);
+  log(``);
+  log(`MCP Auth Token: ${mcpAuthToken}`);
+  log(``);
+  log(`For web-demo, set these environment variables:`);
+  log(`  REMOTE_MCP_URL=http://${publicIp}:${mcpPort}`);
+  log(`  REMOTE_MCP_AUTH_TOKEN=${mcpAuthToken}`);
+  log(``);
+}
+
+// GCP deployment
+async function deployGCP({
+  project,
+  vmName,
+  zone,
+  machineType,
+  sshUser,
+  sshPassword,
+  mcpPort,
+  mcpAuthToken,
+  log,
+  logError,
+  logSuccess,
+}) {
+  log(`=== ConstellationFS GCP VM Deploy ===`);
+  log(`Project: ${project}`);
+  log(`VM: ${vmName} (${machineType}) in ${zone}`);
+  log(`MCP Port: ${mcpPort}`);
+  log(``);
+
+  // Load and customize startup script
+  log(`Preparing startup script...`);
+  const startupScriptPath = path.join(__dirname, "..", "gcp-vm-startup.sh");
+  let startupScript;
+  try {
+    startupScript = readFileSync(startupScriptPath, "utf-8");
+  } catch (err) {
+    logError(`Failed to read startup script: ${err.message}`);
+    return;
+  }
+
+  // Replace placeholders
+  startupScript = startupScript
+    .replace(/__MCP_AUTH_TOKEN__/g, mcpAuthToken)
+    .replace(/__MCP_PORT__/g, mcpPort)
+    .replace(/__SSH_USERS__/g, `${sshUser}:${sshPassword}`);
+
+  // Write startup script to temp file
+  const tempScriptPath = path.join(tmpdir(), `constellation-gcp-startup-${Date.now()}.sh`);
+  writeFileSync(tempScriptPath, startupScript);
+  log(`Startup script written to temp file`);
+
+  // Check if VM already exists
+  log(`Checking if VM ${vmName} already exists...`);
+  const existsCheck = await runCommandCapture("gcloud", [
+    "compute", "instances", "describe",
     vmName,
-    "--project",
-    gcpProject,
-    "--zone",
-    vmZone,
-    "--machine-type",
-    machineType,
-    "--image-family",
-    "ubuntu-2204-lts",
-    "--image-project",
-    "ubuntu-os-cloud",
-    "--boot-disk-size",
-    "20GB",
-    "--tags",
-    "constellation-ssh",
-    "--scopes",
-    "storage-full",
-    "--metadata-from-file",
-    `startup-script=${tempScriptPath}`,
+    "--zone", zone,
+    "--project", project,
+    "--format", "value(name)",
+  ]);
+
+  if (existsCheck.trim() === vmName) {
+    log(`VM ${vmName} exists. Deleting...`);
+    const deleteSuccess = await runCommand("gcloud", [
+      "compute", "instances", "delete",
+      vmName,
+      "--zone", zone,
+      "--project", project,
+      "--quiet",
+    ], log);
+
+    if (!deleteSuccess) {
+      logError("Failed to delete existing VM");
+      try { unlinkSync(tempScriptPath); } catch (e) { }
+      return;
+    }
+    logSuccess(`Deleted existing VM ${vmName}`);
+    log(``);
+  } else {
+    log(`No existing VM found, proceeding with creation...`);
+  }
+
+  log(`Creating VM ${vmName}...`);
+  log(``);
+
+  // Create VM
+  const createVmArgs = [
+    "compute", "instances", "create",
+    vmName,
+    "--project", project,
+    "--zone", zone,
+    "--machine-type", machineType,
+    "--image-family", "ubuntu-2204-lts",
+    "--image-project", "ubuntu-os-cloud",
+    "--boot-disk-size", "20GB",
+    "--tags", "constellation-ssh,constellation-mcp",
+    "--scopes", "storage-full",
+    "--metadata-from-file", `startup-script=${tempScriptPath}`,
   ];
 
   const vmSuccess = await runCommand("gcloud", createVmArgs, log);
@@ -503,7 +716,7 @@ app.post("/deploy", async (req, res) => {
 
   if (!vmSuccess) {
     logError("VM creation failed!");
-    return res.end();
+    return;
   }
 
   logSuccess(`VM ${vmName} created!`);
@@ -512,16 +725,11 @@ app.post("/deploy", async (req, res) => {
   // Get external IP
   log(`Getting VM external IP...`);
   const ipResult = await runCommandCapture("gcloud", [
-    "compute",
-    "instances",
-    "describe",
+    "compute", "instances", "describe",
     vmName,
-    "--zone",
-    vmZone,
-    "--project",
-    gcpProject,
-    "--format",
-    "get(networkInterfaces[0].accessConfigs[0].natIP)",
+    "--zone", zone,
+    "--project", project,
+    "--format", "get(networkInterfaces[0].accessConfigs[0].natIP)",
   ]);
 
   const externalIp = ipResult.trim();
@@ -531,32 +739,38 @@ app.post("/deploy", async (req, res) => {
   log(`=== Setup Complete ===`);
   log(``);
   log(`The VM is starting up and running the setup script.`);
-  log(`This may take 1-2 minutes. You can monitor progress with:`);
-  log(`  gcloud compute ssh ${vmName} --zone=${vmZone} --project=${gcpProject} -- tail -f /var/log/syslog`);
+  log(`This may take 2-3 minutes for Docker to install and start.`);
   log(``);
   log(`Once ready, connect via:`);
-  log(`  ssh ${sshUser}@${externalIp}`);
+  log(`  SSH: ssh ${sshUser}@${externalIp} -p 2222`);
+  log(`  MCP: http://${externalIp}:${mcpPort}/health`);
   log(``);
-  log(`If SSH connection is refused, ensure the firewall rule exists:`);
+  log(`MCP Auth Token: ${mcpAuthToken}`);
+  log(``);
+  log(`If ports are blocked, create firewall rules:`);
   log(`  gcloud compute firewall-rules create allow-constellation-ssh \\`);
-  log(`    --allow tcp:22 --target-tags constellation-ssh --project ${gcpProject}`);
+  log(`    --allow tcp:2222 --target-tags constellation-ssh --project ${project}`);
+  log(`  gcloud compute firewall-rules create allow-constellation-mcp \\`);
+  log(`    --allow tcp:${mcpPort} --target-tags constellation-mcp --project ${project}`);
   log(``);
-
-  res.end();
-});
+  log(`For web-demo, set these environment variables:`);
+  log(`  REMOTE_MCP_URL=http://${externalIp}:${mcpPort}`);
+  log(`  REMOTE_MCP_AUTH_TOKEN=${mcpAuthToken}`);
+  log(``);
+}
 
 // Helper to run a command and stream output
 function runCommand(cmd, args, log) {
   return new Promise((resolve) => {
-    const fullCommand = `${cmd} ${args.map((a) => `'${a}'`).join(" ")}`;
-    log(`> ${cmd} ${args.slice(0, 6).join(" ")} ...`);
+    log(`> ${cmd} ${args.slice(0, 8).join(" ")}${args.length > 8 ? ' ...' : ''}`);
     log(``);
 
-    // Source zshrc to get PATH, then run command
-    const wrappedCommand = `source ~/.zshrc 2>/dev/null; ${fullCommand}`;
+    // Source shell config to get PATH
+    const fullCommand = `${cmd} ${args.map((a) => `'${a}'`).join(" ")}`;
+    const wrappedCommand = `source ~/.zshrc 2>/dev/null || source ~/.bashrc 2>/dev/null; ${fullCommand}`;
     const proc = spawn(wrappedCommand, [], {
       stdio: ["ignore", "pipe", "pipe"],
-      shell: "/bin/zsh",
+      shell: process.env.SHELL || "/bin/bash",
     });
 
     proc.stdout.on("data", (data) => log(data.toString()));
@@ -577,12 +791,12 @@ function runCommand(cmd, args, log) {
 function runCommandCapture(cmd, args) {
   return new Promise((resolve) => {
     const fullCommand = `${cmd} ${args.map((a) => `'${a}'`).join(" ")}`;
-    const wrappedCommand = `source ~/.zshrc 2>/dev/null; ${fullCommand}`;
+    const wrappedCommand = `source ~/.zshrc 2>/dev/null || source ~/.bashrc 2>/dev/null; ${fullCommand}`;
 
     let output = "";
     const proc = spawn(wrappedCommand, [], {
       stdio: ["ignore", "pipe", "pipe"],
-      shell: "/bin/zsh",
+      shell: process.env.SHELL || "/bin/bash",
     });
 
     proc.stdout.on("data", (data) => {
