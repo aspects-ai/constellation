@@ -41,6 +41,20 @@ app.get("/env-defaults", (req, res) => {
   });
 });
 
+// Endpoint to get constellationfs version from npm
+app.get("/version-info", async (req, res) => {
+  try {
+    const response = await fetch("https://registry.npmjs.org/constellationfs/latest");
+    const data = await response.json();
+    res.json({
+      npmVersion: data.version,
+      imageTag: `v${data.version}`,
+    });
+  } catch (err) {
+    res.json({ npmVersion: "unknown", imageTag: "latest", error: err.message });
+  }
+});
+
 // Serve the HTML form
 app.get("/", (req, res) => {
   res.send(`
@@ -153,10 +167,24 @@ app.get("/", (req, res) => {
     .env-hint {
       color: #28a745;
     }
+    .version-info {
+      display: inline-block;
+      background: #e8f4fd;
+      color: #0066cc;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-left: 8px;
+    }
+    .version-info.loading {
+      background: #f0f0f0;
+      color: #999;
+    }
   </style>
 </head>
 <body>
-  <h1>ConstellationFS Deploy Tool</h1>
+  <h1>ConstellationFS Deploy Tool <span id="versionBadge" class="version-info loading">loading...</span></h1>
   <p class="subtitle">Deploy a ConstellationFS remote backend VM</p>
 
   <form id="deployForm">
@@ -315,6 +343,18 @@ app.get("/", (req, res) => {
     // Load saved values after listeners are registered
     loadSavedValues();
     updateCloudSections();
+
+    // Fetch and display constellationfs version
+    fetch('/version-info')
+      .then(r => r.json())
+      .then(data => {
+        const badge = document.getElementById('versionBadge');
+        badge.textContent = 'v' + data.npmVersion;
+        badge.classList.remove('loading');
+      })
+      .catch(() => {
+        document.getElementById('versionBadge').textContent = 'unknown';
+      });
 
     // Check for env defaults and show hints
     let envDefaults = {};
