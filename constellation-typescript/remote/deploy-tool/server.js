@@ -1,7 +1,7 @@
 import { spawn } from "child_process";
+import { randomBytes } from "crypto";
 import express from "express";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "fs";
-import { randomBytes } from "crypto";
 import { tmpdir } from "os";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -44,16 +44,17 @@ app.get("/env-defaults", (req, res) => {
 // Endpoint to get constellationfs version from GHCR
 app.get("/version-info", async (req, res) => {
   try {
-    const ghcrToken = process.env.GHCR_TOKEN || envConfig.GHCR_TOKEN;
-    const headers = {};
-    if (ghcrToken) {
-      headers['Authorization'] = `Bearer ${ghcrToken}`;
-    }
+    // Get anonymous bearer token for public package
+    const tokenResponse = await fetch(
+      "https://ghcr.io/token?scope=repository:aspects-ai/constellation-remote:pull"
+    );
+    const tokenData = await tokenResponse.json();
+    const token = tokenData.token;
 
     // Fetch tags from GHCR
     const response = await fetch(
       "https://ghcr.io/v2/aspects-ai/constellation-remote/tags/list",
-      { headers }
+      { headers: { 'Authorization': `Bearer ${token}` } }
     );
 
     if (!response.ok) {
@@ -382,6 +383,7 @@ app.get("/", (req, res) => {
           badge.textContent = 'v' + data.version;
         } else {
           badge.textContent = data.error ? 'auth required' : 'unknown';
+          console.log(data.error);
         }
         badge.classList.remove('loading');
       })
