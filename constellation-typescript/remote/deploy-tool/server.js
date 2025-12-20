@@ -1,7 +1,7 @@
 import { spawn } from "child_process";
+import { randomBytes } from "crypto";
 import express from "express";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "fs";
-import { randomBytes } from "crypto";
 import { tmpdir } from "os";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -41,17 +41,47 @@ app.get("/env-defaults", (req, res) => {
   });
 });
 
-// Endpoint to get constellationfs version from npm
+// Endpoint to get constellationfs version from GHCR
 app.get("/version-info", async (req, res) => {
   try {
-    const response = await fetch("https://registry.npmjs.org/constellationfs/latest");
+    // Get anonymous bearer token for public package
+    const tokenResponse = await fetch(
+      "https://ghcr.io/token?scope=repository:aspects-ai/constellation-remote:pull"
+    );
+    const tokenData = await tokenResponse.json();
+    const token = tokenData.token;
+
+    // Fetch tags from GHCR
+    const response = await fetch(
+      "https://ghcr.io/v2/aspects-ai/constellation-remote/tags/list",
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+
+    if (!response.ok) {
+      throw new Error(`GHCR API returned ${response.status}`);
+    }
+
     const data = await response.json();
+    const tags = data.tags || [];
+
+    // Find the version tag (e.g., "v0.5.6") - prefer highest version
+    const versionTags = tags
+      .filter(t => /^v\d+\.\d+\.\d+$/.test(t))
+      .sort((a, b) => {
+        const [aMajor, aMinor, aPatch] = a.slice(1).split('.').map(Number);
+        const [bMajor, bMinor, bPatch] = b.slice(1).split('.').map(Number);
+        return bMajor - aMajor || bMinor - aMinor || bPatch - aPatch;
+      });
+
+    const latestVersion = versionTags[0] || null;
+
     res.json({
-      npmVersion: data.version,
-      imageTag: `v${data.version}`,
+      version: latestVersion ? latestVersion.slice(1) : "unknown",
+      imageTag: latestVersion || "latest",
+      allTags: tags,
     });
   } catch (err) {
-    res.json({ npmVersion: "unknown", imageTag: "latest", error: err.message });
+    res.json({ version: "unknown", imageTag: "latest", error: err.message });
   }
 });
 
@@ -344,12 +374,17 @@ app.get("/", (req, res) => {
     loadSavedValues();
     updateCloudSections();
 
-    // Fetch and display constellationfs version
+    // Fetch and display constellationfs version from GHCR
     fetch('/version-info')
       .then(r => r.json())
       .then(data => {
         const badge = document.getElementById('versionBadge');
-        badge.textContent = 'v' + data.npmVersion;
+        if (data.version && data.version !== 'unknown') {
+          badge.textContent = 'v' + data.version;
+        } else {
+          badge.textContent = data.error ? 'auth required' : 'unknown';
+          console.log(data.error);
+        }
         badge.classList.remove('loading');
       })
       .catch(() => {
