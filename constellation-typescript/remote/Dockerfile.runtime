@@ -47,11 +47,14 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-# Install global npm packages
+# Install global npm packages (non-versioned)
 RUN npm i -g pnpm && \
-    npm i -g constellationfs && \
     npm i -g @aspects-ai/workspace-cli && \
     npm i -g @remotion/cli@4.0.356
+
+# Install constellationfs - version arg busts Docker cache when npm version changes
+ARG CONSTELLATIONFS_VERSION=latest
+RUN npm i -g constellationfs@${CONSTELLATIONFS_VERSION}
 
 # Create workspace directory
 RUN mkdir -p /workspace

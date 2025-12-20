@@ -6,7 +6,8 @@ on:
       - production
     paths:
       - 'constellation-typescript/remote/**'
-      - 'constellation-typescript/src/mcp/**'
+      - 'constellation-typescript/src/**'
+      - 'constellation-typescript/package.json'
       - '.github/workflows/publish-remote-backend.yml'
   workflow_dispatch:  # Allow manual trigger
 
@@ -64,5 +65,7 @@ jobs:
             ${{ steps.meta.outputs.labels }}
             org.opencontainers.image.version=${{ steps.npm-version.outputs.version }}
             com.constellationfs.version=${{ steps.npm-version.outputs.version }}
+          build-args: |
+            CONSTELLATIONFS_VERSION=${{ steps.npm-version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
