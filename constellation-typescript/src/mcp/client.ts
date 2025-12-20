@@ -38,10 +38,30 @@ export interface ConstellationMCPClientOptions {
  * await mcpClient.close()
  * ```
  */
-export async function createConstellationMCPClient(
+/**
+ * Create an HTTP transport for connecting to a ConstellationFS MCP server.
+ * Use this with Vercel AI SDK's createMCPClient.
+ *
+ * @example
+ * ```typescript
+ * import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp'
+ * import { createConstellationMCPTransport } from 'constellationfs'
+ *
+ * const transport = createConstellationMCPTransport({
+ *   url: 'http://your-server:3001',
+ *   authToken: 'your-token',
+ *   userId: 'user123',
+ *   workspace: 'default',
+ * })
+ *
+ * const mcpClient = await createMCPClient({ transport })
+ * const tools = await mcpClient.tools()
+ * ```
+ */
+export function createConstellationMCPTransport(
   options: ConstellationMCPClientOptions
-): Promise<Client> {
-  const transport = new StreamableHTTPClientTransport(
+): StreamableHTTPClientTransport {
+  return new StreamableHTTPClientTransport(
     new URL('/mcp', options.url),
     {
       requestInit: {
@@ -53,6 +73,12 @@ export async function createConstellationMCPClient(
       },
     }
   )
+}
+
+export async function createConstellationMCPClient(
+  options: ConstellationMCPClientOptions
+): Promise<Client> {
+  const transport = createConstellationMCPTransport(options)
 
   const client = new Client({
     name: 'constellation-mcp-client',

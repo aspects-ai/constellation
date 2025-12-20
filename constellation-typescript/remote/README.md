@@ -137,24 +137,61 @@ The MCP server provides a standardized interface for AI applications to interact
    await fs.exec('ls -la')  // Executes on remote backend
    ```
 
-### Production Deployment
+### Cloud Deployment (Azure/GCP)
 
-1. Deploy the service on your server:
-   ```bash
-   # On your production server
-   docker run -d \
-     -p 22:22 \
-     -v /data/workspaces:/workspace \
-     -e SSH_USERS=app:secure-password \
-     constellationfs/remote-backend
-   ```
+Use the deploy tool for one-click VM deployment:
 
-2. Configure your application:
-   ```bash
-   REMOTE_VM_HOST=app@your-server.com:22 \
-   LD_PRELOAD=./build/libintercept.so \
-   npm start
-   ```
+```bash
+# From constellation-typescript directory
+./deploy-tool.sh
+# Opens http://localhost:3456 with deployment UI
+```
+
+Or run manually:
+
+```bash
+cd remote/deploy-tool
+npm install
+node server.js
+```
+
+The deploy tool:
+- Creates a VM with Docker pre-installed
+- Pulls `ghcr.io/aspects-ai/constellation-remote:latest`
+- Configures SSH (port 2222) and MCP (port 3001)
+- Auto-generates MCP auth token if not provided
+
+**After deployment, configure your host app:**
+```bash
+# Environment variables for your application
+REMOTE_MCP_URL=http://<vm-ip>:3001
+REMOTE_MCP_AUTH_TOKEN=<token-from-deploy-output>
+```
+
+**Connect via MCP from host application:**
+```typescript
+import { createConstellationMCPClient } from 'constellationfs'
+
+const mcpClient = await createConstellationMCPClient({
+  url: process.env.REMOTE_MCP_URL,
+  authToken: process.env.REMOTE_MCP_AUTH_TOKEN,
+  userId: sessionId,
+  workspace: 'default',
+})
+
+// Call tools directly
+const result = await mcpClient.callTool({
+  name: 'exec',
+  arguments: { command: 'ls -la' }
+})
+
+await mcpClient.close()
+```
+
+**SSH access (for debugging):**
+```bash
+ssh <user>@<vm-ip> -p 2222
+```
 
 ## Security Considerations
 
@@ -220,14 +257,19 @@ docker exec constellation-remote-backend service ssh status
 
 ## Building and Publishing
 
-### Build Image
+Images are automatically published to GitHub Container Registry on push to `production` branch.
+
+### Manual Build
 ```bash
-docker build -f remote/Dockerfile.runtime -t constellationfs/remote-backend:latest .
+docker build -f remote/Dockerfile.runtime -t ghcr.io/aspects-ai/constellation-remote:latest .
 ```
 
-### Tag and Push
+### Manual Push
 ```bash
-docker tag constellationfs/remote-backend:latest constellationfs/remote-backend:v1.0.0
-docker push constellationfs/remote-backend:latest
-docker push constellationfs/remote-backend:v1.0.0
+docker push ghcr.io/aspects-ai/constellation-remote:latest
+```
+
+### Pull Image
+```bash
+docker pull ghcr.io/aspects-ai/constellation-remote:latest
 ```

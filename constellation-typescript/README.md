@@ -41,19 +41,14 @@ const files = await fs.ls('*.txt')
 Remote backend allows execution on a separate machine or container via SSH.
 
 **1. Start the remote container (optional for testing):**
-This command will spin up a lightweight server that simply runs SSH daemon (see remote/Dockerfile.runtime).
 ```bash
 npx constellationfs start-remote
 ```
 
 **2. Set environment variables:**
 ```bash
-# Required for remote backend
 export REMOTE_VM_HOST=root@localhost:2222    # SSH connection string
 export REMOTE_VM_PASSWORD=constellation       # Or use SSH keys
-
-# Optional performance enhancement (Linux only)
-export USE_LD_PRELOAD=true                   # Enable LD_PRELOAD intercept
 ```
 
 **3. Use remote backend in your code:**
@@ -71,10 +66,70 @@ await fs.exec('uname -a')
 await fs.write('remote-file.txt', 'This runs remotely!')
 ```
 
-**Environment Variables:**
-- `REMOTE_VM_HOST`: SSH target (format: `user@host:port`)
-- `REMOTE_VM_PASSWORD`: SSH password (optional if using keys)
-- `USE_LD_PRELOAD`: Enable native intercept for better performance (Linux only, optional)
+### MCP Server Mode
+
+ConstellationFS can run as an MCP (Model Context Protocol) server, allowing AI applications to connect via HTTP+SSE.
+
+**Start MCP server locally:**
+```bash
+npx constellationfs mcp-server \
+  --appId my-app \
+  --workspaceRoot /tmp/workspaces \
+  --http \
+  --port 3001 \
+  --authToken your-secret-token
+```
+
+**Connect from a host application:**
+```typescript
+import { createConstellationMCPClient } from 'constellationfs'
+
+const mcpClient = await createConstellationMCPClient({
+  url: 'http://your-server:3001',
+  authToken: 'your-secret-token',
+  userId: 'user-123',
+  workspace: 'default',
+})
+
+// List available tools
+const { tools } = await mcpClient.listTools()
+
+// Call tools directly
+const result = await mcpClient.callTool({
+  name: 'read_text_file',
+  arguments: { path: 'package.json' }
+})
+
+// Clean up when done
+await mcpClient.close()
+```
+
+**With Vercel AI SDK:**
+```typescript
+import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp'
+import { createConstellationMCPTransport } from 'constellationfs'
+
+const transport = createConstellationMCPTransport({
+  url: 'http://your-server:3001',
+  authToken: 'your-secret-token',
+  userId: 'user-123',
+  workspace: 'default',
+})
+
+const mcpClient = await createMCPClient({ transport })
+const tools = await mcpClient.tools()
+
+// Use tools with streamText/generateText
+await mcpClient.close()
+```
+
+**Available MCP tools:**
+- `read_text_file`, `read_multiple_files` - Read files
+- `write_file`, `edit_file` - Write/edit files
+- `list_directory`, `directory_tree` - Browse filesystem
+- `create_directory`, `move_file` - Manage files
+- `search_files`, `get_file_info` - Search and inspect
+- `exec` - Execute shell commands
 
 ## 🚀 Interactive Demo
 
