@@ -246,7 +246,8 @@ export async function main(args: string[]) {
       const sessionId = req.headers['mcp-session-id'] as string | undefined
 
       if (sessionId && transports[sessionId]) {
-        await transports[sessionId].handleRequest(req, res)
+        // Pass req.body as parsedBody since express.json() already consumed the stream
+        await transports[sessionId].handleRequest(req, res, req.body)
         return
       }
 
@@ -277,7 +278,8 @@ export async function main(args: string[]) {
       })
 
       await mcpServer.connect(transport)
-      await transport.handleRequest(req, res)
+      // Pass req.body as parsedBody since express.json() already consumed the stream
+      await transport.handleRequest(req, res, req.body)
     })
 
     app.get('/health', (_: Request, res: Response) => {
