@@ -75,23 +75,27 @@ export function createFileSystem(sessionId: string): FileSystem {
       host: remoteHost,
       userId: sessionId,
       preventDangerous: true,
-      auth: {
+      sshAuth: {
         type: 'password',
         credentials: {
           username: process.env.REMOTE_VM_USER || 'root',
           password: process.env.REMOTE_VM_PASSWORD || 'constellation'
         }
-      }
+      },
+      sshPort: process.env.REMOTE_VM_SSH_PORT ? parseInt(process.env.REMOTE_VM_SSH_PORT) : 2222,
+      mcpAuth: process.env.REMOTE_MCP_AUTH_TOKEN ? { token: process.env.REMOTE_MCP_AUTH_TOKEN } : undefined,
+      mcpPort: process.env.REMOTE_MCP_PORT ? parseInt(process.env.REMOTE_MCP_PORT) : 3001,
     }
     console.log('Using remote backend config:', {
       ...backendConfig,
-      auth: {
-        ...backendConfig.auth,
+      sshAuth: {
+        ...backendConfig.sshAuth,
         credentials: {
-          username: (backendConfig.auth.credentials as any).username,
+          username: (backendConfig.sshAuth.credentials as any).username,
           password: '[REDACTED]'
         }
-      }
+      },
+      mcpAuth: backendConfig.mcpAuth ? { token: '[REDACTED]' } : undefined
     })
     return new FileSystem(backendConfig)
   } else {

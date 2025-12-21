@@ -28,12 +28,20 @@ const LocalBackendConfigSchema = BaseBackendConfigSchema.extend({
 
 const RemoteBackendConfigSchema = BaseBackendConfigSchema.extend({
   type: z.literal('remote'),
-  auth: z.object({
+  host: z.string().min(1, 'host is required for remote backend'),
+  /** SSH authentication credentials */
+  sshAuth: z.object({
     type: z.enum(AUTH_TYPES),
     credentials: z.record(z.string(), z.unknown()),
   }),
-  host: z.string().min(1, 'host is required for remote backend'),
-  port: z.number().positive().optional(),
+  /** SSH port (default: 2222) */
+  sshPort: z.number().positive().optional(),
+  /** MCP authentication token */
+  mcpAuth: z.object({
+    token: z.string(),
+  }).optional(),
+  /** MCP server port (default: 3001) */
+  mcpPort: z.number().positive().optional(),
   /** Timeout for filesystem operations in milliseconds (default: 120000ms / 2 minutes) */
   operationTimeoutMs: z.number().positive().optional(),
   /** SSH keep-alive interval in milliseconds (default: 30000ms / 30 seconds) */

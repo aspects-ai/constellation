@@ -111,7 +111,7 @@ if [ -f /keys/id_rsa.pub ]; then
 fi
 
 # Set workspace root from environment
-WORKSPACE_ROOT="${WORKSPACE_ROOT:-/workspace}"
+WORKSPACE_ROOT="${WORKSPACE_ROOT:-/constellationfs}"
 echo "📁 Setting workspace root to: $WORKSPACE_ROOT"
 mkdir -p "$WORKSPACE_ROOT"
 chmod 755 "$WORKSPACE_ROOT"

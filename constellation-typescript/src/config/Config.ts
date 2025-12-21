@@ -8,22 +8,20 @@ import { getLogger } from '../utils/logger'
 export interface LibraryConfig {
   /** Application identifier for isolating workspaces */
   appId: string
-  /** Base directory for all user workspaces */
-  workspaceRoot: string
+  /** Base mount directory for all ConstellationFS workspaces. Defaults to /constellationfs */
+  workspaceRoot?: string
 }
 
 /**
- * Singleton configuration manager for ConstellationFS library.
+ * Configuration manager for ConstellationFS library.
  * Supports programmatic configuration via setConfig() or automatic loading from .constellationfs.json
  */
 export class ConstellationFS {
-  private static instance: ConstellationFS | null = null
   private static programmaticConfig: Partial<LibraryConfig> | null = null
   private config: LibraryConfig
   private appId: string
 
   private constructor() {
-    // Programmatic config must be set via setConfig() before getInstance()
     if (!ConstellationFS.programmaticConfig) {
       throw new Error(
         'ConstellationFS configuration must be set via ConstellationFS.setConfig() before use'
@@ -47,26 +45,12 @@ export class ConstellationFS {
   }
 
   /**
-   * Get the singleton instance
-   * @returns ConstellationFS instance
-   * @throws {Error} if setConfig() has not been called first
-   */
-  static getInstance(): ConstellationFS {
-    if (!ConstellationFS.instance) {
-      ConstellationFS.instance = new ConstellationFS()
-    }
-    return ConstellationFS.instance
-  }
-
-  /**
    * Set configuration programmatically
    * This will override any configuration file settings for all future getInstance calls
    * @param config Partial configuration to apply
    */
   static setConfig(config: Partial<LibraryConfig>): void {
     ConstellationFS.programmaticConfig = config
-    // Reset the instance so next getInstance call will use the new config
-    ConstellationFS.instance = null
     getLogger().info('ConstellationFS configuration set programmatically')
   }
 
@@ -74,7 +58,7 @@ export class ConstellationFS {
    * Get the workspace root directory. Always has APP ID appended.
    */
   get workspaceRoot(): string {
-    return join(this.config.workspaceRoot, this.appId)
+    return join(this.config.workspaceRoot || '/constellationfs', this.appId)
   }
 
   /**
@@ -85,11 +69,21 @@ export class ConstellationFS {
   }
 
   /**
-   * Reset the singleton instance (useful for testing)
-   * Also clears any programmatic configuration
+   * Get the configured app ID.
+   * @returns The app ID from programmatic configuration
+   * @throws {Error} If setConfig has not been called with an appId
+   */
+  static getAppId(): string {
+    if (!ConstellationFS.programmaticConfig?.appId) {
+      throw new Error('ConstellationFS.setConfig must be called with appId before use')
+    }
+    return ConstellationFS.programmaticConfig.appId
+  }
+
+  /**
+   * Reset the programmatic configuration (useful for testing)
    */
   static reset(): void {
-    ConstellationFS.instance = null
     ConstellationFS.programmaticConfig = null
   }
 }

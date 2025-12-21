@@ -164,13 +164,25 @@ const sessions = new Map<string, SessionContext>()
 
 async function initializeSession(
   sessionId: string,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  expectedAppId: string
 ): Promise<SessionContext> {
   const userId = headers['x-user-id']
   const workspaceName = headers['x-workspace']
+  const clientAppId = headers['x-app-id']
 
   if (!userId || !workspaceName) {
     throw new Error('Missing required headers: X-User-ID and X-Workspace')
+  }
+
+  // Verify app ID
+  if (!clientAppId) {
+    throw new Error('Missing required header: X-App-ID')
+  }
+  if (clientAppId !== expectedAppId) {
+    throw new Error(
+      `App ID mismatch: client requested '${clientAppId}' but server is configured for '${expectedAppId}'`
+    )
   }
 
   const fs = new FileSystem({ userId, type: 'local' })
@@ -265,7 +277,7 @@ export async function main(args: string[]) {
             if (typeof v === 'string') headers[k.toLowerCase()] = v
           }
           try {
-            await initializeSession(sid, headers)
+            await initializeSession(sid, headers, config.appId)
             transports[sid] = transport
           } catch (err) {
             console.error('Session init failed:', err)

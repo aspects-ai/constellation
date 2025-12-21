@@ -29,7 +29,7 @@ services:
       - SSH_USERS=dev:devpassword,admin:adminpassword
 
       # Workspace configuration
-      - WORKSPACE_ROOT=/workspace
+      - WORKSPACE_ROOT=/constellationfs
       - ENABLE_LOGGING=true
 
       # MCP server configuration

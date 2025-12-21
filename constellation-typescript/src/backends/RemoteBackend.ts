@@ -110,10 +110,10 @@ export class RemoteBackend implements FileSystemBackend {
   }
 
   /**
-   * Extract username from auth configuration
+   * Extract username from SSH auth configuration
    */
   private getUserFromAuth(): string {
-    const auth = this.options.auth
+    const auth = this.options.sshAuth
     if (auth.type === 'password' && auth.credentials.username) {
       return auth.credentials.username as string
     } else if (auth.type === 'key' && auth.credentials.username) {
@@ -121,9 +121,9 @@ export class RemoteBackend implements FileSystemBackend {
     }
 
     throw new FileSystemError(
-      'Username is required in auth credentials',
+      'Username is required in sshAuth credentials',
       ERROR_CODES.INVALID_CONFIGURATION,
-      'Provide username in auth.credentials.username'
+      'Provide username in sshAuth.credentials.username'
     )
   }
 
@@ -426,10 +426,10 @@ export class RemoteBackend implements FileSystemBackend {
       }
       this.sshClient = new Client()
 
-      const auth = this.options.auth
+      const sshAuth = this.options.sshAuth
       const connectOptions: ConnectConfig = {
         host: this.options.host,
-        port: this.options.port,
+        port: this.options.sshPort ?? 2222,
         username: this.getUserFromAuth(),
         // Try both password and keyboard-interactive authentication
         tryKeyboard: true
@@ -440,12 +440,12 @@ export class RemoteBackend implements FileSystemBackend {
         connectOptions.debug = (message) => getLogger().debug(`[ConstellationFS] ${message}`)
       }
 
-      if (auth.type === 'password') {
-        connectOptions.password = auth.credentials.password as string
-      } else if (auth.type === 'key') {
-        connectOptions.privateKey = auth.credentials.privateKey as string
-        if (auth.credentials.passphrase) {
-          connectOptions.passphrase = auth.credentials.passphrase as string
+      if (sshAuth.type === 'password') {
+        connectOptions.password = sshAuth.credentials.password as string
+      } else if (sshAuth.type === 'key') {
+        connectOptions.privateKey = sshAuth.credentials.privateKey as string
+        if (sshAuth.credentials.passphrase) {
+          connectOptions.passphrase = sshAuth.credentials.passphrase as string
         }
       }
 
@@ -482,11 +482,11 @@ export class RemoteBackend implements FileSystemBackend {
 
       // Handle keyboard-interactive authentication (required by some SSH servers)
       // This must be set up before connect() is called
-      if (auth.type === 'password') {
+      if (sshAuth.type === 'password') {
         this.sshClient.on('keyboard-interactive', (_name, _instructions, _instructionsLang, prompts, finish) => {
           getLogger().debug(`[ConstellationFS] Keyboard-interactive auth requested with ${prompts.length} prompt(s)`)
           // Respond to all prompts with the password
-          const responses = prompts.map(() => auth.credentials.password as string)
+          const responses = prompts.map(() => sshAuth.credentials.password as string)
           finish(responses)
         })
       }

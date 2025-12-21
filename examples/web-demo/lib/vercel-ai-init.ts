@@ -38,6 +38,7 @@ export async function createMCPToolsClient(sessionId: string): Promise<MCPToolsC
         requestInit: {
           headers: {
             'Authorization': `Bearer ${remoteMCPConfig.authToken}`,
+            'X-App-ID': 'web-demo',
             'X-User-ID': sessionId,
             'X-Workspace': 'default',
           },

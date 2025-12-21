@@ -66,7 +66,7 @@ export class BackendFactory {
           ...baseConfig,
           type: 'remote',
           // host is now specified via REMOTE_VM_HOST environment variable
-          auth: {
+          sshAuth: {
             type: 'key' as const,
             credentials: {},
           },

@@ -1,5 +1,9 @@
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { BackendFactory } from './backends/index.js'
-import type { BackendConfig, FileSystemBackend, LocalBackendConfig } from './types.js'
+import { ConstellationFS } from './config/Config.js'
+import { createConstellationMCPClient } from './mcp/client.js'
+import { createLocalConstellationMCPClient } from './mcp/local-client.js'
+import type { BackendConfig, FileSystemBackend, LocalBackendConfig, RemoteBackendConfig } from './types.js'
 import { getLogger } from './utils/logger.js'
 import type { Workspace, WorkspaceConfig } from './workspace/Workspace.js'
 
@@ -138,6 +142,68 @@ export class FileSystem {
    */
   get userId(): string {
     return this.backendConfig.userId
+  }
+
+  /**
+   * Get an MCP client for this filesystem.
+   *
+   * For local backends: Spawns a local MCP server process via stdio transport.
+   * For remote backends: Connects to the remote MCP server via HTTP (requires mcpAuth).
+   *
+   * @param workspace - Workspace name to scope MCP operations to
+   * @returns Promise resolving to an MCP Client instance
+   * @throws {Error} When using remote backend without mcpAuth configured
+   *
+   * @example
+   * ```typescript
+   * // Local backend - spawns MCP server as child process
+   * const localFs = new FileSystem({ userId: 'user123' })
+   * const localMcp = await localFs.getMCPClient('my-project')
+   *
+   * // Remote backend - connects to remote MCP server
+   * const remoteFs = new FileSystem({
+   *   type: 'remote',
+   *   host: 'server.com',
+   *   userId: 'user123',
+   *   sshAuth: { type: 'key', credentials: { username: 'user', privateKey: '...' } },
+   *   mcpAuth: { token: 'my-mcp-token' },
+   * })
+   * const remoteMcp = await remoteFs.getMCPClient('my-project')
+   *
+   * // Use MCP tools (same API for both)
+   * const { tools } = await localMcp.listTools()
+   * await localMcp.callTool({ name: 'read_text_file', arguments: { path: 'package.json' } })
+   *
+   * // When done
+   * await localMcp.close()
+   * ```
+   */
+  async getMCPClient(workspace: string): Promise<Client> {
+    const appId = ConstellationFS.getAppId()
+
+    if (this.backendConfig.type === 'local') {
+      return createLocalConstellationMCPClient({
+        appId,
+        userId: this.userId,
+        workspace,
+      })
+    }
+
+    // Remote backend
+    const remoteConfig = this.backendConfig as RemoteBackendConfig
+    if (!remoteConfig.mcpAuth?.token) {
+      throw new Error('mcpAuth.token is required to use getMCPClient with remote backend')
+    }
+
+    const mcpPort = remoteConfig.mcpPort ?? 3001
+
+    return createConstellationMCPClient({
+      url: `http://${remoteConfig.host}:${mcpPort}`,
+      authToken: remoteConfig.mcpAuth.token,
+      appId,
+      userId: this.userId,
+      workspace,
+    })
   }
 
   /**

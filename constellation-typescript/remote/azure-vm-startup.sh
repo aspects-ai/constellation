@@ -42,7 +42,7 @@ docker run -d \
   -e MCP_AUTH_TOKEN="${MCP_AUTH_TOKEN}" \
   -e MCP_PORT="${MCP_PORT}" \
   -e SSH_USERS="${SSH_USERS}" \
-  -e WORKSPACE_ROOT=/workspace \
+  -e WORKSPACE_ROOT=/constellationfs \
   ghcr.io/aspects-ai/constellation-remote:latest
 
 # Wait for container to start
