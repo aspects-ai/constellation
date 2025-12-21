@@ -15,9 +15,8 @@ export class RemoteWorkspaceUtils {
    * @returns Absolute path to the user's workspace on remote system
    */
   static getUserWorkspacePath(path: string): string {
-    const libraryConfig = ConstellationFS.getInstance()
     // Use POSIX path joining for remote systems (same structure as local)
-    return `${libraryConfig.workspaceRoot}/${path}`
+    return `${ConstellationFS.getWorkspaceRoot()}/${path}`
   }
 
   /**

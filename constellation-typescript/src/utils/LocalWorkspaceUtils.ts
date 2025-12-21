@@ -12,8 +12,7 @@ export class LocalWorkspaceUtils {
    * @returns Absolute path to the user's workspace
    */
   static getUserWorkspacePath(path: string): string {
-    const libraryConfig = ConstellationFS.getInstance()
-    return join(libraryConfig.workspaceRoot, path)
+    return join(ConstellationFS.getWorkspaceRoot(), path)
   }
 
   /**
