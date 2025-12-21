@@ -10,6 +10,7 @@ echo "=== ConstellationFS GCP VM Setup Starting ==="
 MCP_AUTH_TOKEN="__MCP_AUTH_TOKEN__"
 MCP_PORT="__MCP_PORT__"
 SSH_USERS="__SSH_USERS__"
+WORKSPACE_ROOT="__WORKSPACE_ROOT__"
 
 # Install Docker
 echo "[1/5] Installing Docker..."
@@ -42,7 +43,7 @@ docker run -d \
   -e MCP_AUTH_TOKEN="${MCP_AUTH_TOKEN}" \
   -e MCP_PORT="${MCP_PORT}" \
   -e SSH_USERS="${SSH_USERS}" \
-  -e WORKSPACE_ROOT=/constellationfs \
+  -e WORKSPACE_ROOT="${WORKSPACE_ROOT}" \
   ghcr.io/aspects-ai/constellation-remote:latest
 
 # Wait for container to start

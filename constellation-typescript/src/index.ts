@@ -51,3 +51,15 @@ export type {
   RemoteBackendConfig
 } from './types.js'
 
+// MCP Client
+export {
+  createConstellationMCPClient,
+  createConstellationMCPTransport,
+  type ConstellationMCPClientOptions,
+} from './mcp/client.js'
+export {
+  createLocalConstellationMCPClient,
+  createLocalConstellationMCPTransportOptions,
+  type LocalConstellationMCPClientOptions,
+} from './mcp/local-client.js'
+

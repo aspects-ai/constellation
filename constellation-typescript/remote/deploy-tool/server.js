@@ -306,6 +306,11 @@ app.get("/", (req, res) => {
         <div class="help-text env-hint" id="mcpAuthTokenHint" style="display:none;">Using value from .env</div>
         <div class="help-text">Leave empty to auto-generate a secure token</div>
       </div>
+      <div class="form-group">
+        <label for="workspaceRoot">Workspace Root</label>
+        <input type="text" id="workspaceRoot" name="workspaceRoot" value="/constellationfs" placeholder="/constellationfs">
+        <div class="help-text">Base directory for workspaces. Must match CONSTELLATION_WORKSPACE_ROOT in your client.</div>
+      </div>
     </fieldset>
 
     <button type="submit" id="submitBtn">Create VM</button>
@@ -327,7 +332,7 @@ app.get("/", (req, res) => {
       'cloudProvider',
       'azureSubscription', 'azureResourceGroup', 'azureVmName', 'azureLocation', 'azureVmSize',
       'gcpProject', 'gcpVmName', 'gcpZone', 'gcpMachineType',
-      'sshUser', 'mcpPort'
+      'sshUser', 'mcpPort', 'workspaceRoot'
     ];
 
     // Show/hide cloud-specific sections
@@ -476,6 +481,7 @@ app.post("/deploy", async (req, res) => {
     sshPassword: formSshPassword,
     mcpPort = "3001",
     mcpAuthToken: formMcpAuthToken,
+    workspaceRoot = "/constellationfs",
     useEnvSshPassword,
     useEnvMcpAuthToken,
   } = req.body;
@@ -508,6 +514,7 @@ app.post("/deploy", async (req, res) => {
       sshPassword,
       mcpPort,
       mcpAuthToken,
+      workspaceRoot,
       log,
       logError,
       logSuccess,
@@ -522,6 +529,7 @@ app.post("/deploy", async (req, res) => {
       sshPassword,
       mcpPort,
       mcpAuthToken,
+      workspaceRoot,
       log,
       logError,
       logSuccess,
@@ -544,6 +552,7 @@ async function deployAzure({
   sshPassword,
   mcpPort,
   mcpAuthToken,
+  workspaceRoot,
   log,
   logError,
   logSuccess,
@@ -553,6 +562,7 @@ async function deployAzure({
   log(`Resource Group: ${resourceGroup}`);
   log(`VM: ${vmName} (${vmSize}) in ${location}`);
   log(`MCP Port: ${mcpPort}`);
+  log(`Workspace Root: ${workspaceRoot}`);
   log(``);
 
   // Load and customize startup script
@@ -570,7 +580,8 @@ async function deployAzure({
   startupScript = startupScript
     .replace(/__MCP_AUTH_TOKEN__/g, mcpAuthToken)
     .replace(/__MCP_PORT__/g, mcpPort)
-    .replace(/__SSH_USERS__/g, `${sshUser}:${sshPassword}`);
+    .replace(/__SSH_USERS__/g, `${sshUser}:${sshPassword}`)
+    .replace(/__WORKSPACE_ROOT__/g, workspaceRoot);
 
   // Write startup script to temp file
   const tempScriptPath = path.join(tmpdir(), `constellation-azure-startup-${Date.now()}.sh`);
@@ -699,6 +710,7 @@ async function deployGCP({
   sshPassword,
   mcpPort,
   mcpAuthToken,
+  workspaceRoot,
   log,
   logError,
   logSuccess,
@@ -707,6 +719,7 @@ async function deployGCP({
   log(`Project: ${project}`);
   log(`VM: ${vmName} (${machineType}) in ${zone}`);
   log(`MCP Port: ${mcpPort}`);
+  log(`Workspace Root: ${workspaceRoot}`);
   log(``);
 
   // Load and customize startup script
@@ -724,7 +737,8 @@ async function deployGCP({
   startupScript = startupScript
     .replace(/__MCP_AUTH_TOKEN__/g, mcpAuthToken)
     .replace(/__MCP_PORT__/g, mcpPort)
-    .replace(/__SSH_USERS__/g, `${sshUser}:${sshPassword}`);
+    .replace(/__SSH_USERS__/g, `${sshUser}:${sshPassword}`)
+    .replace(/__WORKSPACE_ROOT__/g, workspaceRoot);
 
   // Write startup script to temp file
   const tempScriptPath = path.join(tmpdir(), `constellation-gcp-startup-${Date.now()}.sh`);

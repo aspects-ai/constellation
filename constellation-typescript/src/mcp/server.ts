@@ -149,10 +149,11 @@ interface SessionContext {
 
 const sessions = new Map<string, SessionContext>()
 
-async function initializeSession(
-  sessionId: string,
-  headers: Record<string, string>,
-): Promise<SessionContext> {
+/**
+ * Validate session headers before creating a session.
+ * This is called upfront to give clear error messages before MCP handshake completes.
+ */
+function validateSessionHeaders(headers: Record<string, string>): void {
   const clientWorkspaceRoot = headers['x-workspace-root']
   const userId = headers['x-user-id']
   const workspaceName = headers['x-workspace']
@@ -161,16 +162,25 @@ async function initializeSession(
     throw new Error('Missing required headers: X-User-ID and X-Workspace')
   }
 
-  // Validate workspace root matches server configuration
   if (!clientWorkspaceRoot) {
     throw new Error('Missing required header: X-Workspace-Root')
   }
+
   const serverWorkspaceRoot = ConstellationFS.getWorkspaceRoot()
   if (clientWorkspaceRoot !== serverWorkspaceRoot) {
     throw new Error(
       `Workspace root mismatch: client sent '${clientWorkspaceRoot}' but server is configured for '${serverWorkspaceRoot}'`
     )
   }
+}
+
+async function initializeSession(
+  sessionId: string,
+  headers: Record<string, string>,
+): Promise<SessionContext> {
+  // Headers are already validated by validateSessionHeaders, but extract values
+  const userId = headers['x-user-id']!
+  const workspaceName = headers['x-workspace']!
 
   const fs = new FileSystem({ userId, type: 'local' })
   const workspace = await fs.getWorkspace(workspaceName)
@@ -243,6 +253,8 @@ export async function main(args: string[]) {
     app.post('/mcp', async (req: Request, res: Response) => {
       const sessionId = req.headers['mcp-session-id'] as string | undefined
 
+      console.log(`[MCP] POST /mcp - sessionId: ${sessionId}, method: ${req.body?.method}`)
+
       if (sessionId && transports[sessionId]) {
         // Pass req.body as parsedBody since express.json() already consumed the stream
         await transports[sessionId].handleRequest(req, res, req.body)
@@ -250,7 +262,24 @@ export async function main(args: string[]) {
       }
 
       if (req.body?.method !== 'initialize') {
+        console.log(`[MCP] Session not found - no sessionId or method not 'initialize'. Body:`, JSON.stringify(req.body).slice(0, 200))
         res.status(400).json({ error: 'Session not found' })
+        return
+      }
+
+      // Validate headers upfront before creating the session
+      // This gives a clear error message if workspace root doesn't match
+      const headers: Record<string, string> = {}
+      for (const [k, v] of Object.entries(req.headers)) {
+        if (typeof v === 'string') headers[k.toLowerCase()] = v
+      }
+
+      try {
+        validateSessionHeaders(headers)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Invalid session headers'
+        console.error('[MCP] Header validation failed:', message)
+        res.status(400).json({ error: message })
         return
       }
 
@@ -258,14 +287,12 @@ export async function main(args: string[]) {
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         onsessioninitialized: async (sid: string) => {
-          const headers: Record<string, string> = {}
-          for (const [k, v] of Object.entries(req.headers)) {
-            if (typeof v === 'string') headers[k.toLowerCase()] = v
-          }
           try {
             await initializeSession(sid, headers)
             transports[sid] = transport
           } catch (err) {
+            // This shouldn't happen since we validated headers above,
+            // but log just in case
             console.error('Session init failed:', err)
           }
         },

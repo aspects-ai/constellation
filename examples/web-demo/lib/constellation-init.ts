@@ -4,8 +4,11 @@ import { ConstellationFS, FileSystem, type LocalBackendConfig, type RemoteBacken
  * Initialize ConstellationFS configuration (call once at startup)
  */
 export function initConstellationFS() {
+  if (!process.env.CONSTELLATION_WORKSPACE_ROOT) {
+    throw new Error("Missing CONSTELLATION_WORKSPACE_ROOT environment variable")
+  }
   ConstellationFS.setConfig({
-    workspaceRoot: process.env.CONSTELLATION_WORKSPACE_ROOT || '/constellationfs'
+    workspaceRoot: process.env.CONSTELLATION_WORKSPACE_ROOT
   })
 }
 
