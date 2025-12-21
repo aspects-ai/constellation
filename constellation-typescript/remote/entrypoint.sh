@@ -140,14 +140,12 @@ if [ -n "$MCP_AUTH_TOKEN" ]; then
   # Start MCP server in background
   if [ "$MCP_USER" != "root" ]; then
     su - "$MCP_USER" -c "npx constellationfs mcp-server \
-      --appId constellation-remote \
       --workspaceRoot $WORKSPACE_ROOT \
       --http \
       --port $MCP_PORT \
       --authToken $MCP_AUTH_TOKEN" &
   else
     npx constellationfs mcp-server \
-      --appId constellation-remote \
       --workspaceRoot "$WORKSPACE_ROOT" \
       --http \
       --port "$MCP_PORT" \

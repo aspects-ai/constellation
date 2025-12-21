@@ -1,13 +1,58 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { ConstellationFS } from '../config/Config.js'
 
 export interface LocalConstellationMCPClientOptions {
-  /** Application ID for workspace isolation (used by ConstellationFS.setConfig) */
-  appId: string
   /** User ID for workspace isolation */
   userId: string
   /** Workspace name to scope operations to */
   workspace: string
+  /** Workspace root directory (optional - defaults to ConstellationFS.getWorkspaceRoot()) */
+  workspaceRoot?: string
+}
+
+/**
+ * Stdio transport options for spawning a local ConstellationFS MCP server.
+ * Compatible with Vercel AI SDK's StdioMCPTransport.
+ */
+export interface LocalMCPTransportOptions {
+  command: string
+  args: string[]
+}
+
+/**
+ * Get stdio transport options for spawning a local ConstellationFS MCP server.
+ * Use this with Vercel AI SDK's StdioMCPTransport.
+ *
+ * @example
+ * ```typescript
+ * import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp'
+ * import { Experimental_StdioMCPTransport as StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio'
+ * import { createLocalConstellationMCPTransportOptions } from 'constellationfs'
+ *
+ * const transportOptions = createLocalConstellationMCPTransportOptions({
+ *   userId: 'user123',
+ *   workspace: 'default',
+ * })
+ *
+ * const transport = new StdioMCPTransport(transportOptions)
+ * const mcpClient = await createMCPClient({ transport })
+ * const tools = await mcpClient.tools()
+ * ```
+ */
+export function createLocalConstellationMCPTransportOptions(
+  options: LocalConstellationMCPClientOptions
+): LocalMCPTransportOptions {
+  const workspaceRoot = options.workspaceRoot ?? ConstellationFS.getWorkspaceRoot()
+  return {
+    command: 'npx',
+    args: [
+      'constellation-fs-mcp',
+      '--workspaceRoot', workspaceRoot,
+      '--userId', options.userId,
+      '--workspace', options.workspace,
+    ],
+  }
 }
 
 /**
@@ -17,7 +62,6 @@ export interface LocalConstellationMCPClientOptions {
  * @example
  * ```typescript
  * const mcpClient = await createLocalConstellationMCPClient({
- *   appId: 'my-app',
  *   userId: 'user123',
  *   workspace: 'my-project',
  * })
@@ -38,15 +82,8 @@ export interface LocalConstellationMCPClientOptions {
 export async function createLocalConstellationMCPClient(
   options: LocalConstellationMCPClientOptions
 ): Promise<Client> {
-  const transport = new StdioClientTransport({
-    command: 'npx',
-    args: [
-      'constellation-fs-mcp',
-      '--appId', options.appId,
-      '--userId', options.userId,
-      '--workspace', options.workspace,
-    ],
-  })
+  const transportOptions = createLocalConstellationMCPTransportOptions(options)
+  const transport = new StdioClientTransport(transportOptions)
 
   const client = new Client({
     name: 'constellation-mcp-client-local',

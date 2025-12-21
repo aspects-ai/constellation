@@ -20,3 +20,13 @@ export async function startMcpServer(args) {
   const serverModule = await import(join(__dirname, '..', 'dist', 'mcp', 'server.js'))
   await serverModule.main(args)
 }
+
+// Auto-run when this module is imported directly from bin/constellation-fs-mcp.js
+// The bin script imports this file, which triggers the auto-run
+const args = process.argv.slice(2)
+if (args.length > 0 || process.argv[1]?.includes('constellation-fs-mcp')) {
+  startMcpServer(args).catch((err) => {
+    console.error('[constellation-fs-mcp] Fatal error:', err.message || err)
+    process.exit(1)
+  })
+}

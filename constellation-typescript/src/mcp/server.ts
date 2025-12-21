@@ -1,8 +1,8 @@
-import { randomUUID } from 'crypto'
-import express, { type NextFunction, type Request, type Response } from 'express'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import { randomUUID } from 'crypto'
+import express, { type NextFunction, type Request, type Response } from 'express'
 import { ConstellationFS } from '../config/Config.js'
 import { FileSystem } from '../FileSystem.js'
 import type { Workspace } from '../workspace/Workspace.js'
@@ -24,7 +24,6 @@ import { registerTools } from './tools.js'
 //
 // Example:
 //   npx constellationfs mcp-server \
-//     --appId my-app \
 //     --workspaceRoot /home/user/.constellationfs \
 //     --userId user123 \
 //     --workspace default
@@ -38,7 +37,6 @@ import { registerTools } from './tools.js'
 //
 // Example:
 //   npx constellationfs mcp-server \
-//     --appId my-app \
 //     --workspaceRoot /data/workspaces \
 //     --http \
 //     --port 3000 \
@@ -59,7 +57,6 @@ import { registerTools } from './tools.js'
 // ─────────────────────────────────────────────────────────────────
 
 interface ServerConfig {
-  appId: string
   workspaceRoot: string
   // Stdio mode (single workspace)
   userId?: string
@@ -78,10 +75,6 @@ function parseArgs(args: string[]): ServerConfig {
     const next = args[i + 1]
 
     switch (arg) {
-      case '--appId':
-        config.appId = next || ''
-        i++
-        break
       case '--workspaceRoot':
         config.workspaceRoot = next
         i++
@@ -109,12 +102,6 @@ function parseArgs(args: string[]): ServerConfig {
   }
 
   // Validation
-  if (!config.appId) {
-    console.error('--appId is required')
-    printUsage()
-    process.exit(1)
-  }
-
   if (!config.workspaceRoot) {
     console.error('--workspaceRoot is required')
     printUsage()
@@ -142,10 +129,10 @@ function printUsage(): void {
   console.error(`
 Usage:
   Stdio mode (single workspace):
-    constellation-fs-mcp --appId <appId> --workspaceRoot <path> --userId <userId> --workspace <workspace>
+    constellation-fs-mcp --workspaceRoot <path> --userId <userId> --workspace <workspace>
 
   HTTP mode (multi-session):
-    constellation-fs-mcp --appId <appId> --workspaceRoot <path> --http --port <port> --authToken <token>
+    constellation-fs-mcp --workspaceRoot <path> --http --port <port> --authToken <token>
 `)
 }
 
@@ -165,23 +152,23 @@ const sessions = new Map<string, SessionContext>()
 async function initializeSession(
   sessionId: string,
   headers: Record<string, string>,
-  expectedAppId: string
 ): Promise<SessionContext> {
+  const clientWorkspaceRoot = headers['x-workspace-root']
   const userId = headers['x-user-id']
   const workspaceName = headers['x-workspace']
-  const clientAppId = headers['x-app-id']
 
   if (!userId || !workspaceName) {
     throw new Error('Missing required headers: X-User-ID and X-Workspace')
   }
 
-  // Verify app ID
-  if (!clientAppId) {
-    throw new Error('Missing required header: X-App-ID')
+  // Validate workspace root matches server configuration
+  if (!clientWorkspaceRoot) {
+    throw new Error('Missing required header: X-Workspace-Root')
   }
-  if (clientAppId !== expectedAppId) {
+  const serverWorkspaceRoot = ConstellationFS.getWorkspaceRoot()
+  if (clientWorkspaceRoot !== serverWorkspaceRoot) {
     throw new Error(
-      `App ID mismatch: client requested '${clientAppId}' but server is configured for '${expectedAppId}'`
+      `Workspace root mismatch: client sent '${clientWorkspaceRoot}' but server is configured for '${serverWorkspaceRoot}'`
     )
   }
 
@@ -218,7 +205,6 @@ export async function main(args: string[]) {
 
   // Initialize ConstellationFS configuration
   ConstellationFS.setConfig({
-    appId: config.appId,
     workspaceRoot: config.workspaceRoot,
   })
 
@@ -277,7 +263,7 @@ export async function main(args: string[]) {
             if (typeof v === 'string') headers[k.toLowerCase()] = v
           }
           try {
-            await initializeSession(sid, headers, config.appId)
+            await initializeSession(sid, headers)
             transports[sid] = transport
           } catch (err) {
             console.error('Session init failed:', err)
@@ -308,26 +294,30 @@ export async function main(args: string[]) {
     // Stdio Mode: Single workspace, bound at startup
     // ─────────────────────────────────────────────────────────────
 
+    // Log to stderr so it doesn't interfere with JSON-RPC over stdout
+    console.error('[constellation-fs-mcp] Starting stdio server...')
+    console.error(`[constellation-fs-mcp] workspaceRoot=${ConstellationFS.getWorkspaceRoot()}`)
+    console.error(`[constellation-fs-mcp] userId=${config.userId}, workspace=${config.workspace}`)
+
     const fs = new FileSystem({ userId: config.userId!, type: 'local' })
     const workspace = await fs.getWorkspace(config.workspace!)
+
+    console.error(`[constellation-fs-mcp] Workspace initialized: ${workspace.workspacePath}`)
 
     registerTools(mcpServer, () => workspace)
 
     const transport = new StdioServerTransport()
     await mcpServer.connect(transport)
 
+    console.error('[constellation-fs-mcp] MCP server connected and ready')
+
     process.on('SIGINT', async () => {
+      console.error('[constellation-fs-mcp] Shutting down...')
       await fs.destroy()
       process.exit(0)
     })
   }
 }
 
-// Auto-run if this module is the entry point (for backwards compatibility with bin/constellation-fs-mcp.js)
-const isMainModule = process.argv[1]?.includes('mcp/server') || process.argv[1]?.includes('constellation-fs-mcp')
-if (isMainModule) {
-  main(process.argv.slice(2)).catch((err) => {
-    console.error('Fatal error:', err)
-    process.exit(1)
-  })
-}
+// Note: Auto-run logic is now in cli/mcp-server.js which calls main() after importing this module.
+// This ensures the server only starts once when invoked via the CLI.

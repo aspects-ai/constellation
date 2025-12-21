@@ -73,8 +73,7 @@ ConstellationFS can run as an MCP (Model Context Protocol) server, allowing AI a
 **Start MCP server locally:**
 ```bash
 npx constellationfs mcp-server \
-  --appId my-app \
-  --workspaceRoot /tmp/workspaces \
+  --workspaceRoot /constellationfs \
   --http \
   --port 3001 \
   --authToken your-secret-token

@@ -5,10 +5,10 @@
  *
  * Usage:
  *   Stdio mode (single workspace):
- *     constellation-fs-mcp --appId <appId> --userId <userId> --workspace <workspace>
+ *     constellation-fs-mcp --userId <userId> --workspace <workspace>
  *
  *   HTTP mode (multi-session):
- *     constellation-fs-mcp --appId <appId> --http --port <port> --authToken <token>
+ *     constellation-fs-mcp --http --port <port> --authToken <token>
  */
 
 import { dirname, join } from 'path'

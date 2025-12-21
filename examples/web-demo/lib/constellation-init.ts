@@ -5,8 +5,7 @@ import { ConstellationFS, FileSystem, type LocalBackendConfig, type RemoteBacken
  */
 export function initConstellationFS() {
   ConstellationFS.setConfig({
-    appId: 'web-demo',
-    workspaceRoot: process.env.CONSTELLATION_WORKSPACE_ROOT || '/tmp/constellation'
+    workspaceRoot: process.env.CONSTELLATION_WORKSPACE_ROOT || '/constellationfs'
   })
 }
 
@@ -18,48 +17,10 @@ export function isMCPMode(): boolean {
 }
 
 /**
- * Get remote MCP server configuration from environment variables.
- * Returns null if remote MCP is not configured.
- */
-export function getRemoteMCPConfig(): {
-  url: string
-  authToken: string
-} | null {
-  const mcpUrl = process.env.REMOTE_MCP_URL
-  const mcpAuthToken = process.env.REMOTE_MCP_AUTH_TOKEN
-
-  if (!mcpUrl || !mcpAuthToken) return null
-
-  return { url: mcpUrl, authToken: mcpAuthToken }
-}
-
-/**
- * Get MCP server command and args for spawning the constellation-fs-mcp server.
- * Used by Vercel AI SDK's stdio transport.
+ * Create a FileSystem instance with proper backend configuration.
  *
- * Uses `npx constellationfs mcp-server` which works in any environment
- * where the constellationfs package is available.
- */
-export function getMCPServerCommand(sessionId: string): {
-  command: string
-  args: string[]
-} {
-  const workspaceRoot = process.env.CONSTELLATION_WORKSPACE_ROOT || '/tmp/constellation'
-  return {
-    command: 'npx',
-    args: [
-      'constellationfs',
-      'mcp-server',
-      '--appId', 'web-demo',
-      '--workspaceRoot', workspaceRoot,
-      '--userId', sessionId,
-      '--workspace', 'default'
-    ]
-  }
-}
-
-/**
- * Create a FileSystem instance with proper backend configuration
+ * For remote backends, also configures MCP auth if REMOTE_MCP_AUTH_TOKEN is set,
+ * enabling use of fs.getMCPTransport() for Vercel AI SDK integration.
  */
 export function createFileSystem(sessionId: string): FileSystem {
   const backendType = (process.env.NEXT_PUBLIC_CONSTELLATION_BACKEND_TYPE as 'local' | 'remote') || 'local'
@@ -91,7 +52,7 @@ export function createFileSystem(sessionId: string): FileSystem {
       sshAuth: {
         ...backendConfig.sshAuth,
         credentials: {
-          username: (backendConfig.sshAuth.credentials as any).username,
+          username: (backendConfig.sshAuth.credentials as Record<string, unknown>).username,
           password: '[REDACTED]'
         }
       },

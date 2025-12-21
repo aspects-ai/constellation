@@ -1,13 +1,9 @@
-import { tmpdir } from 'os'
-import { join } from 'path'
 import { getLogger } from '../utils/logger'
 
 /**
  * Library-level configuration interface for ConstellationFS
  */
 export interface LibraryConfig {
-  /** Application identifier for isolating workspaces */
-  appId: string
   /** Base mount directory for all ConstellationFS workspaces. Defaults to /constellationfs */
   workspaceRoot?: string
 }
@@ -18,11 +14,10 @@ export interface LibraryConfig {
  * @example
  * ```typescript
  * // Set config at app startup
- * ConstellationFS.setConfig({ appId: 'my-app' })
+ * ConstellationFS.setConfig({ workspaceRoot: '/customWorkspaceRoot' })
  *
  * // Access config anywhere
  * const config = ConstellationFS.getConfig()
- * const appId = ConstellationFS.getAppId()
  * const workspaceRoot = ConstellationFS.getWorkspaceRoot()
  * ```
  */
@@ -38,13 +33,8 @@ export class ConstellationFS {
    * @param config Configuration to apply
    */
   static setConfig(config: Partial<LibraryConfig>): void {
-    if (!config.appId) {
-      throw new Error('appId is required in ConstellationFS configuration')
-    }
-
     ConstellationFS.config = {
-      appId: config.appId,
-      workspaceRoot: config.workspaceRoot || join(tmpdir(), 'constellation-fs'),
+      workspaceRoot: config.workspaceRoot || '/constellation-fs',
     }
     getLogger().info('ConstellationFS configuration set:', ConstellationFS.config)
   }
@@ -61,25 +51,14 @@ export class ConstellationFS {
   }
 
   /**
-   * Get the configured app ID.
-   * @throws {Error} If setConfig() has not been called
-   */
-  static getAppId(): string {
-    if (!ConstellationFS.config) {
-      throw new Error('ConstellationFS.setConfig() must be called before use')
-    }
-    return ConstellationFS.config.appId
-  }
-
-  /**
-   * Get the workspace root directory (includes app ID).
+   * Get the workspace root directory.
    * @throws {Error} If setConfig() has not been called
    */
   static getWorkspaceRoot(): string {
     if (!ConstellationFS.config) {
       throw new Error('ConstellationFS.setConfig() must be called before use')
     }
-    return join(ConstellationFS.config.workspaceRoot!, ConstellationFS.config.appId)
+    return ConstellationFS.config.workspaceRoot!
   }
 
   /**

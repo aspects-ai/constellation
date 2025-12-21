@@ -3,8 +3,8 @@
  */
 
 import { dockerRun } from './docker-run.js'
-import { startRemote, stopRemote } from './remote.js'
 import { startMcpServer } from './mcp-server.js'
+import { startRemote, stopRemote } from './remote.js'
 
 export async function main(args) {
   const command = args[0]
@@ -91,7 +91,6 @@ Commands:
 
                                 Stdio mode (default): One server per user/workspace.
                                 Best for local dev and AI assistants that spawn per-session.
-                                  --appId <id>         Application identifier (required)
                                   --workspaceRoot <path> Base directory for workspaces (required)
                                   --userId <id>        User identifier (required)
                                   --workspace <name>   Workspace name (required)

@@ -6,8 +6,8 @@ export interface ConstellationMCPClientOptions {
   url: string
   /** Authentication token */
   authToken: string
-  /** Application ID for workspace isolation (must match server's configured appId) */
-  appId: string
+  /** Workspace root directory (for validation that client and server are configured identically) */
+  workspaceRoot: string
   /** User ID for workspace isolation */
   userId: string
   /** Workspace name to scope operations to */
@@ -23,7 +23,6 @@ export interface ConstellationMCPClientOptions {
  * const mcpClient = await createConstellationMCPClient({
  *   url: 'http://backend.example.com:3000',
  *   authToken: process.env.MCP_AUTH_TOKEN,
- *   appId: 'my-app',
  *   userId: 'user123',
  *   workspace: 'my-project',
  * })
@@ -53,7 +52,6 @@ export interface ConstellationMCPClientOptions {
  * const transport = createConstellationMCPTransport({
  *   url: 'http://your-server:3001',
  *   authToken: 'your-token',
- *   appId: 'my-app',
  *   userId: 'user123',
  *   workspace: 'default',
  * })
@@ -71,7 +69,7 @@ export function createConstellationMCPTransport(
       requestInit: {
         headers: {
           'Authorization': `Bearer ${options.authToken}`,
-          'X-App-ID': options.appId,
+          'X-Workspace-Root': options.workspaceRoot,
           'X-User-ID': options.userId,
           'X-Workspace': options.workspace,
         },

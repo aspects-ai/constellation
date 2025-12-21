@@ -1,8 +1,10 @@
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import type { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { BackendFactory } from './backends/index.js'
 import { ConstellationFS } from './config/Config.js'
-import { createConstellationMCPClient } from './mcp/client.js'
-import { createLocalConstellationMCPClient } from './mcp/local-client.js'
+import { createConstellationMCPClient, createConstellationMCPTransport } from './mcp/client.js'
+import { createLocalConstellationMCPClient, createLocalConstellationMCPTransportOptions } from './mcp/local-client.js'
 import type { BackendConfig, FileSystemBackend, LocalBackendConfig, RemoteBackendConfig } from './types.js'
 import { getLogger } from './utils/logger.js'
 import type { Workspace, WorkspaceConfig } from './workspace/Workspace.js'
@@ -179,11 +181,9 @@ export class FileSystem {
    * ```
    */
   async getMCPClient(workspace: string): Promise<Client> {
-    const appId = ConstellationFS.getAppId()
 
     if (this.backendConfig.type === 'local') {
       return createLocalConstellationMCPClient({
-        appId,
         userId: this.userId,
         workspace,
       })
@@ -200,7 +200,63 @@ export class FileSystem {
     return createConstellationMCPClient({
       url: `http://${remoteConfig.host}:${mcpPort}`,
       authToken: remoteConfig.mcpAuth.token,
-      appId,
+      workspaceRoot: ConstellationFS.getWorkspaceRoot(),
+      userId: this.userId,
+      workspace,
+    })
+  }
+
+  /**
+   * Get an MCP transport for this filesystem.
+   * Use this with Vercel AI SDK's createMCPClient or similar.
+   *
+   * For local backends: Returns StdioClientTransport (spawns MCP server as child process).
+   * For remote backends: Returns StreamableHTTPClientTransport (connects via HTTP).
+   *
+   * @param workspace - Workspace name to scope MCP operations to
+   * @returns MCP Transport instance compatible with @modelcontextprotocol/sdk
+   * @throws {Error} When using remote backend without mcpAuth configured
+   *
+   * @example
+   * ```typescript
+   * import { experimental_createMCPClient as createMCPClient } from '@ai-sdk/mcp'
+   *
+   * const fs = new FileSystem({ userId: 'user123' })
+   * const transport = fs.getMCPTransport('my-project')
+   * const mcpClient = await createMCPClient({ transport })
+   * const tools = await mcpClient.tools()
+   *
+   * // Use tools with Vercel AI SDK
+   * const result = await generateText({
+   *   model: openai('gpt-4'),
+   *   tools,
+   *   prompt: 'List the files in the current directory',
+   * })
+   *
+   * await mcpClient.close()
+   * ```
+   */
+  getMCPTransport(workspace: string): StdioClientTransport | StreamableHTTPClientTransport {
+    if (this.backendConfig.type === 'local') {
+      const options = createLocalConstellationMCPTransportOptions({
+        userId: this.userId,
+        workspace,
+      })
+      return new StdioClientTransport(options)
+    }
+
+    // Remote backend
+    const remoteConfig = this.backendConfig as RemoteBackendConfig
+    if (!remoteConfig.mcpAuth?.token) {
+      throw new Error('mcpAuth.token is required to use getMCPTransport with remote backend')
+    }
+
+    const mcpPort = remoteConfig.mcpPort ?? 3001
+
+    return createConstellationMCPTransport({
+      url: `http://${remoteConfig.host}:${mcpPort}`,
+      authToken: remoteConfig.mcpAuth.token,
+      workspaceRoot: ConstellationFS.getWorkspaceRoot(),
       userId: this.userId,
       workspace,
     })
