@@ -56,10 +56,12 @@ export {
   createConstellationMCPClient,
   createConstellationMCPTransport,
   type ConstellationMCPClientOptions,
+  type CreateMCPClientOptions,
 } from './mcp/client.js'
 export {
   createLocalConstellationMCPClient,
   createLocalConstellationMCPTransportOptions,
+  type CreateLocalMCPClientOptions,
   type LocalConstellationMCPClientOptions,
 } from './mcp/local-client.js'
 

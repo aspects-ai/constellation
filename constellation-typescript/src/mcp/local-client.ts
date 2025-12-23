@@ -55,6 +55,14 @@ export function createLocalConstellationMCPTransportOptions(
   }
 }
 
+/** Default timeout for local MCP client connection (15 seconds - longer since it spawns a process) */
+const DEFAULT_LOCAL_CONNECTION_TIMEOUT_MS = 15000
+
+export interface CreateLocalMCPClientOptions extends LocalConstellationMCPClientOptions {
+  /** Connection timeout in milliseconds (default: 15000) */
+  connectionTimeoutMs?: number
+}
+
 /**
  * Create an MCP client that spawns a local ConstellationFS MCP server.
  * Uses stdio transport (server runs as child process).
@@ -80,10 +88,12 @@ export function createLocalConstellationMCPTransportOptions(
  * ```
  */
 export async function createLocalConstellationMCPClient(
-  options: LocalConstellationMCPClientOptions
+  options: CreateLocalMCPClientOptions
 ): Promise<Client> {
   const transportOptions = createLocalConstellationMCPTransportOptions(options)
   const transport = new StdioClientTransport(transportOptions)
+  const timeoutMs = options.connectionTimeoutMs ?? DEFAULT_LOCAL_CONNECTION_TIMEOUT_MS
+  const workspaceRoot = options.workspaceRoot ?? ConstellationFS.getWorkspaceRoot()
 
   const client = new Client({
     name: 'constellation-mcp-client-local',
@@ -92,9 +102,51 @@ export async function createLocalConstellationMCPClient(
     capabilities: {}
   })
 
-  await client.connect(transport)
+  // Create a timeout promise
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(
+        `Local MCP connection timed out after ${timeoutMs}ms. ` +
+        `The MCP server process may have failed to start. ` +
+        `Check that 'npx constellation-fs-mcp' is available and ` +
+        `your configuration (workspaceRoot: '${workspaceRoot}', userId: '${options.userId}', workspace: '${options.workspace}') is correct.`
+      ))
+    }, timeoutMs)
+  })
 
-  return client
+  try {
+    // Race between connection and timeout
+    await Promise.race([
+      client.connect(transport),
+      timeoutPromise
+    ])
+    return client
+  } catch (error) {
+    // Enhance error message with context
+    const message = error instanceof Error ? error.message : String(error)
+
+    // Check for common spawn/process error patterns
+    if (message.includes('ENOENT') || message.includes('spawn')) {
+      throw new Error(
+        `Local MCP connection failed: Could not spawn MCP server process. ` +
+        `Ensure 'constellation-fs-mcp' package is installed. ` +
+        `Original error: ${message}`
+      )
+    }
+
+    if (message.includes('workspaceRoot') || message.includes('ConstellationFS.setConfig')) {
+      throw new Error(
+        `Local MCP connection failed: Configuration error. ` +
+        `Ensure ConstellationFS.setConfig({ workspaceRoot: '...' }) was called before creating MCP client. ` +
+        `Original error: ${message}`
+      )
+    }
+
+    // Re-throw with connection context
+    throw new Error(
+      `Local MCP connection failed: ${message}`
+    )
+  }
 }
 
 export type LocalConstellationMCPClient = Client

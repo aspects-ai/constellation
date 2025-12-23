@@ -181,29 +181,36 @@ export class FileSystem {
    * ```
    */
   async getMCPClient(workspace: string): Promise<Client> {
+    try {
+      if (this.backendConfig.type === 'local') {
+        return await createLocalConstellationMCPClient({
+          userId: this.userId,
+          workspace,
+        })
+      }
 
-    if (this.backendConfig.type === 'local') {
-      return createLocalConstellationMCPClient({
+      // Remote backend
+      const remoteConfig = this.backendConfig as RemoteBackendConfig
+      if (!remoteConfig.mcpAuth?.token) {
+        throw new Error('mcpAuth.token is required to use getMCPClient with remote backend')
+      }
+
+      const mcpPort = remoteConfig.mcpPort ?? 3001
+
+      return await createConstellationMCPClient({
+        url: `http://${remoteConfig.host}:${mcpPort}`,
+        authToken: remoteConfig.mcpAuth.token,
+        workspaceRoot: ConstellationFS.getWorkspaceRoot(),
         userId: this.userId,
         workspace,
       })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const backendType = this.backendConfig.type === 'local' ? 'local' : 'remote'
+      throw new Error(
+        `Failed to create MCP client for ${backendType} backend (userId: '${this.userId}', workspace: '${workspace}'): ${message}`
+      )
     }
-
-    // Remote backend
-    const remoteConfig = this.backendConfig as RemoteBackendConfig
-    if (!remoteConfig.mcpAuth?.token) {
-      throw new Error('mcpAuth.token is required to use getMCPClient with remote backend')
-    }
-
-    const mcpPort = remoteConfig.mcpPort ?? 3001
-
-    return createConstellationMCPClient({
-      url: `http://${remoteConfig.host}:${mcpPort}`,
-      authToken: remoteConfig.mcpAuth.token,
-      workspaceRoot: ConstellationFS.getWorkspaceRoot(),
-      userId: this.userId,
-      workspace,
-    })
   }
 
   /**

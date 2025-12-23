@@ -78,10 +78,19 @@ export function createConstellationMCPTransport(
   )
 }
 
+/** Default timeout for MCP client connection (10 seconds) */
+const DEFAULT_CONNECTION_TIMEOUT_MS = 10000
+
+export interface CreateMCPClientOptions extends ConstellationMCPClientOptions {
+  /** Connection timeout in milliseconds (default: 10000) */
+  connectionTimeoutMs?: number
+}
+
 export async function createConstellationMCPClient(
-  options: ConstellationMCPClientOptions
+  options: CreateMCPClientOptions
 ): Promise<Client> {
   const transport = createConstellationMCPTransport(options)
+  const timeoutMs = options.connectionTimeoutMs ?? DEFAULT_CONNECTION_TIMEOUT_MS
 
   const client = new Client({
     name: 'constellation-mcp-client',
@@ -90,9 +99,59 @@ export async function createConstellationMCPClient(
     capabilities: {}
   })
 
-  await client.connect(transport)
+  // Create a timeout promise
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(
+        `MCP connection timed out after ${timeoutMs}ms. ` +
+        `Check that the server at ${options.url} is running and reachable, ` +
+        `and that your configuration (workspaceRoot, authToken) is correct.`
+      ))
+    }, timeoutMs)
+  })
 
-  return client
+  try {
+    // Race between connection and timeout
+    await Promise.race([
+      client.connect(transport),
+      timeoutPromise
+    ])
+    return client
+  } catch (error) {
+    // Enhance error message with context
+    const message = error instanceof Error ? error.message : String(error)
+
+    // Check for common HTTP error patterns
+    if (message.includes('400') || message.includes('Bad Request')) {
+      throw new Error(
+        `MCP connection failed: Server rejected request. ` +
+        `This usually means missing or invalid headers. ` +
+        `Ensure workspaceRoot ('${options.workspaceRoot}'), userId ('${options.userId}'), ` +
+        `and workspace ('${options.workspace}') are correctly configured. ` +
+        `Original error: ${message}`
+      )
+    }
+
+    if (message.includes('401') || message.includes('Unauthorized')) {
+      throw new Error(
+        `MCP connection failed: Authentication rejected. ` +
+        `Check that your authToken is correct. Original error: ${message}`
+      )
+    }
+
+    if (message.includes('ECONNREFUSED') || message.includes('ENOTFOUND')) {
+      throw new Error(
+        `MCP connection failed: Unable to reach server at ${options.url}. ` +
+        `Check that the server is running and the URL is correct. ` +
+        `Original error: ${message}`
+      )
+    }
+
+    // Re-throw with connection context
+    throw new Error(
+      `MCP connection failed to ${options.url}: ${message}`
+    )
+  }
 }
 
 export type ConstellationMCPClient = Client
