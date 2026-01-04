@@ -514,12 +514,10 @@ export class FileSystemPoolManager {
    * Use with caution - will interrupt any ongoing operations
    */
   async forceDestroy(userId: string): Promise<void> {
-    const keysToDestroy = Array.from(this.cache.keys()).filter((key) =>
-      key.startsWith(`${userId}:`)
-    )
+    const cacheKey = this.getCacheKey(userId)
 
-    for (const key of keysToDestroy) {
-      await this.destroyFileSystem(key)
+    if (this.cache.has(cacheKey)) {
+      await this.destroyFileSystem(cacheKey)
     }
   }
 
