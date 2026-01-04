@@ -1,6 +1,12 @@
 // Core API
 export { ConstellationFS } from './config/Config.js'
 export { FileSystem } from './FileSystem.js'
+export {
+  FileSystemPoolManager,
+  type AcquireOptions,
+  type PoolManagerConfig,
+  type PoolStats,
+} from './FileSystemPoolManager.js'
 
 // Backend Management
 export { BackendFactory } from './backends/BackendFactory.js'
