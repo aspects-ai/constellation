@@ -5,7 +5,7 @@ export {
   FileSystemPoolManager,
   type AcquireOptions,
   type PoolManagerConfig,
-  type PoolStats,
+  type PoolStats
 } from './FileSystemPoolManager.js'
 
 // Backend Management
@@ -21,24 +21,18 @@ export type { ExecOptions, Workspace, WorkspaceConfig } from './workspace/Worksp
 export { LocalBackend } from './backends/LocalBackend.js'
 export { RemoteBackend } from './backends/RemoteBackend.js'
 
-// SDK Adapters
-export {
-  BaseSDKAdapter,
-  ClaudeCodeAdapter, type SDKAdapter
-} from './adapters/index.js'
-
 // Operations Logging
 export {
   ArrayOperationsLogger,
   ConsoleOperationsLogger,
   MODIFYING_OPERATIONS,
-  shouldLogOperation,
+  shouldLogOperation
 } from './logging/index.js'
 export type {
   LoggingMode,
   OperationLogEntry,
   OperationsLogger,
-  OperationType,
+  OperationType
 } from './logging/index.js'
 
 // Error Classes
@@ -62,12 +56,12 @@ export {
   createConstellationMCPClient,
   createConstellationMCPTransport,
   type ConstellationMCPClientOptions,
-  type CreateMCPClientOptions,
+  type CreateMCPClientOptions
 } from './mcp/client.js'
 export {
   createLocalConstellationMCPClient,
   createLocalConstellationMCPTransportOptions,
   type CreateLocalMCPClientOptions,
-  type LocalConstellationMCPClientOptions,
+  type LocalConstellationMCPClientOptions
 } from './mcp/local-client.js'
 
