@@ -1,13 +1,15 @@
 import { existsSync } from 'fs'
-import { mkdir, rmdir } from 'fs/promises'
+import { mkdir, rm } from 'fs/promises'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DangerousOperationError, FileSystem, LocalBackend } from '../src/index.js'
+import { ConstellationFS } from '../src/config/Config.js'
 
 describe('FileSystem', () => {
   const testWorkspace = join(process.cwd(), 'test-workspace')
 
   beforeEach(async () => {
+    ConstellationFS.setConfig({ workspaceRoot: '/tmp/constellation-fs-test' })
     // Create test workspace
     if (!existsSync(testWorkspace)) {
       await mkdir(testWorkspace, { recursive: true })
@@ -17,8 +19,9 @@ describe('FileSystem', () => {
   afterEach(async () => {
     // Clean up test workspace
     if (existsSync(testWorkspace)) {
-      await rmdir(testWorkspace, { recursive: true })
+      await rm(testWorkspace, { recursive: true, force: true })
     }
+    ConstellationFS.reset()
   })
 
   describe('Basic Operations', () => {

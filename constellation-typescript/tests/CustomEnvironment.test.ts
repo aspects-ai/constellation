@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LocalBackend } from '../src/backends/LocalBackend.js'
 import { FileSystemError } from '../src/types.js'
+import { ConstellationFS } from '../src/config/Config.js'
 
 describe('Custom Environment Variables', () => {
   let backend: LocalBackend
   const testUserId = 'test-custom-env-user'
 
   beforeEach(() => {
+    ConstellationFS.setConfig({ workspaceRoot: '/tmp/constellation-fs-test' })
     backend = new LocalBackend({
       userId: testUserId,
       type: 'local',
@@ -18,6 +20,7 @@ describe('Custom Environment Variables', () => {
 
   afterEach(async () => {
     await backend.destroy()
+    ConstellationFS.reset()
   })
 
   describe('workspace configuration', () => {

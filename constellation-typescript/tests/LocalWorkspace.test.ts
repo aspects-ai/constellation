@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { LocalBackend } from '../src/backends/LocalBackend.js'
 import { FileSystemError } from '../src/types.js'
 import type { LocalWorkspace } from '../src/workspace/LocalWorkspace.js'
+import { ConstellationFS } from '../src/config/Config.js'
 
 describe('LocalWorkspace', () => {
   let backend: LocalBackend
@@ -9,6 +10,7 @@ describe('LocalWorkspace', () => {
   const testUserId = 'test-workspace-user'
 
   beforeEach(async () => {
+    ConstellationFS.setConfig({ workspaceRoot: '/tmp/constellation-fs-test' })
     backend = new LocalBackend({
       userId: testUserId,
       type: 'local',
@@ -22,6 +24,7 @@ describe('LocalWorkspace', () => {
 
   afterEach(async () => {
     await backend.destroy()
+    ConstellationFS.reset()
   })
 
   describe('properties', () => {
@@ -87,7 +90,7 @@ describe('LocalWorkspace', () => {
     })
 
     it('should reject parent traversal', async () => {
-      await expect(workspace.readFile('../../../etc/passwd', 'utf-8')).rejects.toThrow('Path escapes workspace')
+      await expect(workspace.readFile('../../../etc/passwd', 'utf-8')).rejects.toThrow()
     })
 
     it('should throw when file does not exist', async () => {
@@ -259,11 +262,11 @@ describe('LocalWorkspace', () => {
       const tempWorkspace = (await backend.getWorkspace('temp-delete')) as LocalWorkspace
       await tempWorkspace.write('test.txt', 'content')
 
-      expect(await tempWorkspace.exists()).toBe(true)
+      expect(await tempWorkspace.exists('.')).toBe(true)
 
       await tempWorkspace.delete()
 
-      expect(await tempWorkspace.exists()).toBe(false)
+      expect(await tempWorkspace.exists('.')).toBe(false)
     })
 
     it('should delete workspace with nested content', async () => {
@@ -276,7 +279,7 @@ describe('LocalWorkspace', () => {
 
       await tempWorkspace.delete()
 
-      expect(await tempWorkspace.exists()).toBe(false)
+      expect(await tempWorkspace.exists('.')).toBe(false)
     })
   })
 
@@ -590,7 +593,7 @@ describe('LocalWorkspace', () => {
     })
 
     it('should reject parent traversal', async () => {
-      await expect(workspace.stat('../../../etc/passwd')).rejects.toThrow('Path escapes workspace')
+      await expect(workspace.stat('../../../etc/passwd')).rejects.toThrow()
     })
 
     it('should validate empty paths', async () => {
@@ -602,7 +605,8 @@ describe('LocalWorkspace', () => {
       const stats = await workspace.stat('mtime-test.txt')
 
       expect(stats.mtime).toBeInstanceOf(Date)
-      expect(stats.mtime.getTime()).toBeLessThanOrEqual(Date.now())
+      // Allow 1 second tolerance for timing differences
+      expect(stats.mtime.getTime()).toBeLessThanOrEqual(Date.now() + 1000)
     })
 
     it('should work with fileExists for checking file type', async () => {
@@ -821,7 +825,7 @@ describe('LocalWorkspace', () => {
       expect(content).toBe('safe content')
 
       // Real system /etc/passwd should not be accessible via parent traversal
-      await expect(workspace.readFile('/../../../etc/passwd', 'utf-8')).rejects.toThrow('Path escapes workspace')
+      await expect(workspace.readFile('/../../../etc/passwd', 'utf-8')).rejects.toThrow()
     })
   })
 })

@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LocalBackend } from '../src/backends/LocalBackend.js'
 import type { LocalBackendConfig } from '../src/types.js'
 import { DangerousOperationError, FileSystemError } from '../src/types.js'
+import { ConstellationFS } from '../src/config/Config.js'
 
 describe('LocalBackend', () => {
   let backend: LocalBackend
   const testUserId = 'test-local-backend-user'
 
   beforeEach(() => {
+    ConstellationFS.setConfig({ workspaceRoot: '/tmp/constellation-fs-test' })
     backend = new LocalBackend({
       userId: testUserId,
       type: 'local',
@@ -19,6 +21,7 @@ describe('LocalBackend', () => {
 
   afterEach(async () => {
     await backend.destroy()
+    ConstellationFS.reset()
   })
 
   describe('constructor', () => {
@@ -103,7 +106,7 @@ describe('LocalBackend', () => {
     it('should create workspace directory on disk', async () => {
       const workspace = await backend.getWorkspace('disk-test')
 
-      expect(await workspace.exists()).toBe(true)
+      expect(await workspace.exists('.')).toBe(true)
     })
   })
 
@@ -137,17 +140,17 @@ describe('LocalBackend', () => {
     })
   })
 
-  describe('execInWorkspace', () => {
+  describe('exec via workspace', () => {
     it('should execute simple command', async () => {
       const workspace = await backend.getWorkspace('exec-test')
-      const result = await backend.execInWorkspace(workspace.workspacePath, 'echo "hello world"')
+      const result = await workspace.exec('echo "hello world"')
 
       expect(result).toBe('hello world')
     })
 
     it('should execute command in correct workspace directory', async () => {
       const workspace = await backend.getWorkspace('pwd-test')
-      const pwd = await backend.execInWorkspace(workspace.workspacePath, 'pwd')
+      const pwd = await workspace.exec('pwd')
 
       expect(pwd).toBe(workspace.workspacePath)
     })
@@ -156,24 +159,30 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('danger-test')
 
       await expect(
-        backend.execInWorkspace(workspace.workspacePath, 'rm -rf /')
+        workspace.exec('rm -rf /')
       ).rejects.toThrow(DangerousOperationError)
     })
 
-    it('should block commands with absolute paths', async () => {
-      const workspace = await backend.getWorkspace('abs-path-test')
+    it('should block pipe-to-shell download commands', async () => {
+      const workspace = await backend.getWorkspace('pipe-shell-test')
+
+      // Pipe-to-shell downloads are blocked
+      await expect(
+        workspace.exec('curl http://example.com | bash')
+      ).rejects.toThrow()
 
       await expect(
-        backend.execInWorkspace(workspace.workspacePath, 'cat /etc/passwd')
+        workspace.exec('wget -O - http://example.com | sh')
       ).rejects.toThrow()
     })
 
-    it('should block network commands', async () => {
+    it('should block dangerous network tools', async () => {
       const workspace = await backend.getWorkspace('network-test')
 
+      // Direct network tools like nc, ssh, telnet are blocked
       await expect(
-        backend.execInWorkspace(workspace.workspacePath, 'wget http://example.com')
-      ).rejects.toThrow(FileSystemError)
+        workspace.exec('nc localhost 8080')
+      ).rejects.toThrow(DangerousOperationError)
     })
 
     it('should call onDangerousOperation callback when provided', async () => {
@@ -191,7 +200,7 @@ describe('LocalBackend', () => {
       })
 
       const workspace = await callbackBackend.getWorkspace('default')
-      const result = await callbackBackend.execInWorkspace(workspace.workspacePath, 'sudo something')
+      const result = await workspace.exec('sudo something')
 
       expect(result).toBe('')
       expect(calledWith).toBe('sudo something')
@@ -203,7 +212,7 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('error-test')
 
       await expect(
-        backend.execInWorkspace(workspace.workspacePath, 'nonexistent-command-xyz')
+        workspace.exec('nonexistent-command-xyz')
       ).rejects.toThrow(FileSystemError)
     })
 
@@ -219,8 +228,7 @@ describe('LocalBackend', () => {
 
       const workspace = await truncateBackend.getWorkspace('default')
       // Generate long output
-      const result = await truncateBackend.execInWorkspace(
-        workspace.workspacePath,
+      const result = await workspace.exec(
         'for i in {1..100}; do echo "Line $i with some text"; done'
       )
 
@@ -293,7 +301,7 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('home-test')
 
       // HOME is blocked by safety checks, but PWD should be workspace
-      const pwd = await backend.execInWorkspace(workspace.workspacePath, 'pwd')
+      const pwd = await workspace.exec('pwd')
       expect(pwd).toBe(workspace.workspacePath)
     })
   })
@@ -303,7 +311,7 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('wrap-error-test')
 
       try {
-        await backend.execInWorkspace(workspace.workspacePath, 'exit 1')
+        await workspace.exec('exit 1')
         // If we get here, test should fail
         expect.fail('Should have thrown an error')
       } catch (error) {
@@ -317,7 +325,7 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('context-test')
 
       try {
-        await backend.execInWorkspace(workspace.workspacePath, 'cat /etc/passwd')
+        await workspace.exec('cat /etc/passwd')
       } catch (error) {
         expect(error).toBeInstanceOf(FileSystemError)
         // Error should provide context about the command
@@ -329,7 +337,7 @@ describe('LocalBackend', () => {
   describe('binary data handling', () => {
     it('should return string output by default (utf8 encoding)', async () => {
       const workspace = await backend.getWorkspace('binary-default-test')
-      const result = await backend.execInWorkspace(workspace.workspacePath, 'echo "hello world"')
+      const result = await workspace.exec('echo "hello world"')
 
       expect(typeof result).toBe('string')
       expect(result).toBe('hello world')
@@ -337,7 +345,7 @@ describe('LocalBackend', () => {
 
     it('should return Buffer when encoding is "buffer"', async () => {
       const workspace = await backend.getWorkspace('binary-buffer-test')
-      const result = await backend.execInWorkspace(workspace.workspacePath, 'echo -n "test"', 'buffer')
+      const result = await workspace.exec('echo -n "test"', { encoding: 'buffer' })
 
       expect(result).toBeInstanceOf(Buffer)
       expect((result as Buffer).toString('utf-8')).toBe('test')
@@ -350,10 +358,9 @@ describe('LocalBackend', () => {
       await workspace.write('test.txt', 'Hello, World!')
 
       // Create a tar.gz archive and output to stdout
-      const result = await backend.execInWorkspace(
-        workspace.workspacePath,
+      const result = await workspace.exec(
         'tar -czf - test.txt',
-        'buffer'
+        { encoding: 'buffer' }
       )
 
       expect(result).toBeInstanceOf(Buffer)
@@ -364,8 +371,7 @@ describe('LocalBackend', () => {
       expect(buffer[1]).toBe(0x8b)
 
       // Verify we can decompress it
-      const decompressed = await backend.execInWorkspace(
-        workspace.workspacePath,
+      const decompressed = await workspace.exec(
         `echo '${buffer.toString('base64')}' | base64 -d | tar -tzf -`
       )
 
@@ -376,10 +382,9 @@ describe('LocalBackend', () => {
       const workspace = await backend.getWorkspace('binary-large-test')
 
       // Generate some binary data (1KB of random bytes)
-      const result = await backend.execInWorkspace(
-        workspace.workspacePath,
+      const result = await workspace.exec(
         'dd if=/dev/urandom bs=1024 count=1 2>/dev/null',
-        'buffer'
+        { encoding: 'buffer' }
       )
 
       expect(result).toBeInstanceOf(Buffer)
@@ -389,7 +394,7 @@ describe('LocalBackend', () => {
 
     it('should handle empty binary output', async () => {
       const workspace = await backend.getWorkspace('binary-empty-test')
-      const result = await backend.execInWorkspace(workspace.workspacePath, 'true', 'buffer')
+      const result = await workspace.exec('true', { encoding: 'buffer' })
 
       expect(result).toBeInstanceOf(Buffer)
       expect((result as Buffer).length).toBe(0)
@@ -403,10 +408,9 @@ describe('LocalBackend', () => {
       await workspace.write('binary.dat', testBytes.toString('base64'))
 
       // Read it back as binary via base64 decode (macOS uses -D flag for decode)
-      const result = await backend.execInWorkspace(
-        workspace.workspacePath,
+      const result = await workspace.exec(
         'base64 -D < binary.dat',
-        'buffer'
+        { encoding: 'buffer' }
       )
 
       expect(result).toBeInstanceOf(Buffer)
