@@ -15,16 +15,6 @@ services:
       - ./workspace:/workspace  # Persistent workspace
       # - ./keys:/keys:ro        # SSH keys (uncomment if needed)
     environment:
-      # Storage configuration
-      # STORAGE_TYPE: 'local' (default) or 'archil'
-      - STORAGE_TYPE=local
-
-      # Archil configuration (required when STORAGE_TYPE=archil)
-      # - ARCHIL_API_KEY=your-archil-api-key
-      # - ARCHIL_BUCKET=user@bucket-name
-      # - ARCHIL_REGION=gcp-us-central1
-      # - ARCHIL_MOUNT_PATH=/workspace
-
       # Multi-user configuration (comma-separated)
       - SSH_USERS=dev:devpassword,admin:adminpassword
 
