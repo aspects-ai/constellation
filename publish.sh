@@ -26,6 +26,16 @@ if [[ "$BUMP_TYPE" != "patch" && "$BUMP_TYPE" != "minor" && "$BUMP_TYPE" != "maj
   exit 1
 fi
 
+# Save original version for rollback
+ORIGINAL_VERSION="$VERSION"
+
+# Function to revert version on failure
+revert_version() {
+  echo "Reverting version from $NEW_VERSION back to $ORIGINAL_VERSION..."
+  npm version "$ORIGINAL_VERSION" --no-git-tag-version --allow-same-version
+  echo "Version reverted."
+}
+
 # Bump version using npm
 npm version "$BUMP_TYPE" --no-git-tag-version
 
@@ -34,11 +44,19 @@ echo "Bumped version: $NEW_VERSION"
 
 # Build project
 echo "Building package..."
-npm run build
+if ! npm run build; then
+  echo "Build failed!"
+  revert_version
+  exit 1
+fi
 
 # Publish
 echo "Publishing package to npm..."
-npm publish
+if ! npm publish; then
+  echo "Publish failed!"
+  revert_version
+  exit 1
+fi
 
 echo "Successfully published constellation-typescript@$NEW_VERSION"
 
