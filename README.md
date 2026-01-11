@@ -126,7 +126,7 @@ const output = await workspace.exec('npm run build')
 
 // File operations
 await workspace.write('index.ts', 'console.log("Hello")')
-const content = await workspace.read('index.ts')
+const content = await workspace.readFile('index.ts')
 const files = await workspace.readdir('src')
 const exists = await workspace.fileExists('package.json')
 
