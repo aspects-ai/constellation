@@ -158,23 +158,23 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
       description: 'Read complete contents of a file as text',
       inputSchema: {
         path: z.string().describe('Path to the file'),
-        head: z.number().optional().describe('Return only the first N lines'),
-        tail: z.number().optional().describe('Return only the last N lines'),
+        head: z.number().nullable().describe('Return only the first N lines (null to ignore)'),
+        tail: z.number().nullable().describe('Return only the last N lines (null to ignore)'),
       },
     },
     async ({ path: filePath, head, tail }, { sessionId }) => {
       // Cannot specify both head and tail
-      if (head !== undefined && tail !== undefined) {
+      if (head != null && tail != null) {
         throw new Error('Cannot specify both head and tail parameters simultaneously')
       }
 
       const workspace = getWorkspace(sessionId)
       let content = await workspace.readFile(filePath, 'utf-8') as string
 
-      if (head !== undefined) {
+      if (head != null) {
         const lines = content.split('\n')
         content = lines.slice(0, head).join('\n')
-      } else if (tail !== undefined) {
+      } else if (tail != null) {
         const lines = content.split('\n')
         content = lines.slice(-tail).join('\n')
       }
@@ -288,11 +288,12 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
           oldText: z.string().describe('Text to search for - must match exactly'),
           newText: z.string().describe('Text to replace with'),
         })).describe('Array of edits to apply'),
-        dryRun: z.boolean().optional().default(false)
-          .describe('Preview changes using git-style diff format'),
+        dryRun: z.boolean().nullable()
+          .describe('Preview changes using git-style diff format (null defaults to false)'),
       },
     },
-    async ({ path: filePath, edits, dryRun }, { sessionId }) => {
+    async ({ path: filePath, edits, dryRun: dryRunParam }, { sessionId }) => {
+      const dryRun = dryRunParam ?? false
       const workspace = getWorkspace(sessionId)
       const original = await workspace.readFile(filePath, 'utf-8') as string
 
@@ -385,11 +386,12 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
       description: 'List directory contents with prefixes, file sizes, and summary statistics',
       inputSchema: {
         path: z.string().describe('Path to the directory'),
-        sortBy: z.enum(['name', 'size']).optional().default('name')
-          .describe('Sort entries by name or size (descending)'),
+        sortBy: z.enum(['name', 'size']).nullable()
+          .describe('Sort entries by name or size (descending), null defaults to name'),
       },
     },
-    async ({ path: dirPath, sortBy }, { sessionId }) => {
+    async ({ path: dirPath, sortBy: sortByParam }, { sessionId }) => {
+      const sortBy = sortByParam ?? 'name'
       const workspace = getWorkspace(sessionId)
       const entries = await workspace.readdir(dirPath) as string[]
 
@@ -440,11 +442,12 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
       description: 'Get recursive JSON tree structure of directory contents. Each entry includes name, type (file/directory), and children for directories.',
       inputSchema: {
         path: z.string().describe('Path to the directory'),
-        excludePatterns: z.array(z.string()).optional().default([])
-          .describe('Glob patterns to exclude (e.g., "node_modules", "*.log")'),
+        excludePatterns: z.array(z.string()).nullable()
+          .describe('Glob patterns to exclude (e.g., "node_modules", "*.log"), null defaults to empty'),
       },
     },
-    async ({ path: dirPath, excludePatterns }, { sessionId }) => {
+    async ({ path: dirPath, excludePatterns: excludePatternsParam }, { sessionId }) => {
+      const excludePatterns = excludePatternsParam ?? []
       const workspace = getWorkspace(sessionId)
 
       interface TreeNode {
@@ -554,11 +557,12 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
       inputSchema: {
         path: z.string().describe('Starting directory path'),
         pattern: z.string().describe('Glob pattern to match (e.g., "*.ts", "**/*.js", "src/**/*.tsx")'),
-        excludePatterns: z.array(z.string()).optional().default([])
-          .describe('Patterns to exclude from results'),
+        excludePatterns: z.array(z.string()).nullable()
+          .describe('Patterns to exclude from results, null defaults to empty'),
       },
     },
-    async ({ path: searchPath, pattern, excludePatterns }, { sessionId }) => {
+    async ({ path: searchPath, pattern, excludePatterns: excludePatternsParam }, { sessionId }) => {
+      const excludePatterns = excludePatternsParam ?? []
       const workspace = getWorkspace(sessionId)
       const results: string[] = []
 
@@ -633,7 +637,7 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
     'list_allowed_directories',
     {
       description: 'List all directories the server is allowed to access',
-      inputSchema: {},
+      inputSchema: z.object({}),
     },
     async (_args, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
@@ -656,13 +660,13 @@ export function registerTools(server: McpServer, getWorkspace: WorkspaceGetter):
       description: 'Execute a shell command in the workspace directory',
       inputSchema: {
         command: z.string().describe('Shell command to execute'),
-        env: z.record(z.string(), z.string()).optional()
-          .describe('Environment variables to set for this command'),
+        env: z.record(z.string(), z.string()).nullable()
+          .describe('Environment variables to set for this command, null for none'),
       },
     },
     async ({ command, env }, { sessionId }) => {
       const workspace = getWorkspace(sessionId)
-      const result = await workspace.exec(command, env ? { env } : undefined)
+      const result = await workspace.exec(command, env != null ? { env } : undefined)
       return {
         content: [{ type: 'text', text: result as string }]
       }
